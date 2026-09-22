@@ -171,6 +171,11 @@ def verify_automation(envelope, expected_points, param_min, param_max, epsilon=0
     """Read back automation and compare. Returns {verdict, median_error, max_error, samples}."""
     if not expected_points:
         return {"verdict": "match", "median_error": 0, "max_error": 0, "samples": 0}
+    # A failed read-back is treated as a worst-case (full-range) error so it can
+    # never launder into a "match". Using abs(expected) here would report zero
+    # error for a centered value on a signed-range parameter (e.g. Pan in
+    # [-1, 1] with value 0.0), yielding a false "match" when every read failed.
+    fail_error = abs(param_max - param_min)
     errors = []
     for point in expected_points:
         t = float(point.get("time", 0.0))
@@ -179,7 +184,7 @@ def verify_automation(envelope, expected_points, param_min, param_max, epsilon=0
             actual = envelope.value_at_time(t)
             errors.append(abs(actual - expected))
         except Exception:
-            errors.append(abs(expected))
+            errors.append(fail_error)
     sorted_errors = sorted(errors)
     median_err = sorted_errors[len(sorted_errors) // 2]
     max_err = max(errors)

@@ -96,6 +96,7 @@ def create_clip_automation(song, track_index: int, clip_index: int, parameter_na
     deadline = _time.time() + AUTOMATION_WRITE_BUDGET_SECONDS
     written = 0
     last_written_time = None
+    written_points = []
     for point in automation_points:
         if _time.time() > deadline:
             break
@@ -107,6 +108,11 @@ def create_clip_automation(song, track_index: int, clip_index: int, parameter_na
         envelope.insert_step(time_val, 0.001, clamped)
         written += 1
         last_written_time = time_val
+        # Record the clamped time/value we actually wrote, so verify reads back at
+        # the same coordinates (not the raw breakpoint time, which can exceed the
+        # clip boundary) and only checks steps that actually landed (not any tail
+        # skipped past the write deadline).
+        written_points.append({"time": time_val, "value": clamped})
 
     result = {
         "parameter": parameter_name,
@@ -121,7 +127,7 @@ def create_clip_automation(song, track_index: int, clip_index: int, parameter_na
         "last_written_time": last_written_time,
     }
     if verify:
-        result["verified"] = verify_automation(envelope, automation_points, param.min, param.max)
+        result["verified"] = verify_automation(envelope, written_points, param.min, param.max)
     return result
 
 
@@ -350,6 +356,7 @@ def create_track_automation(song, track_index: int, parameter_name: str, automat
     deadline = _time.time() + AUTOMATION_WRITE_BUDGET_SECONDS
     written = 0
     last_written_time = None
+    written_points = []
     for point in automation_points:
         if _time.time() > deadline:
             break
@@ -358,6 +365,9 @@ def create_track_automation(song, track_index: int, parameter_name: str, automat
         envelope.insert_step(time_val, 0.001, value)
         written += 1
         last_written_time = time_val
+        # Record actually-written coordinates for read-back verification (see the
+        # clip-automation path for the rationale).
+        written_points.append({"time": time_val, "value": value})
 
     result = {
         "parameter": parameter_name,
@@ -371,7 +381,7 @@ def create_track_automation(song, track_index: int, parameter_name: str, automat
         "last_written_time": last_written_time,
     }
     if verify:
-        result["verified"] = verify_automation(envelope, automation_points, parameter.min, parameter.max)
+        result["verified"] = verify_automation(envelope, written_points, parameter.min, parameter.max)
     return result
 
 

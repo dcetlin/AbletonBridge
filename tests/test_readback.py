@@ -62,15 +62,27 @@ class TestVerifyAutomation:
         assert result["verdict"] == "match"
         assert result["max_error"] == 0
 
-    def test_read_failure_falls_back_to_absolute_expected(self):
+    def test_read_failure_counts_as_full_range_error(self):
         def _boom(_t):
             raise RuntimeError("envelope read failed")
 
         points = [{"time": 0.0, "value": 0.6}]
         result = verify_automation(_FakeEnvelope(_boom), points, 0.0, 1.0)
-        # Error becomes abs(clamped expected) = 0.6 -> well past epsilon -> mismatch.
+        # A failed read is worst-cased to the full param range (1.0) -> mismatch.
         assert result["verdict"] == "mismatch"
-        assert result["max_error"] == pytest.approx(0.6)
+        assert result["max_error"] == pytest.approx(1.0)
+
+    def test_read_failure_on_signed_range_centered_value_still_mismatch(self):
+        # Regression: Pan range [-1, 1], value 0.0 (center). abs(expected) would be
+        # 0.0 here, so a failed read would falsely report "match". Full-range
+        # fallback makes it mismatch as it must.
+        def _boom(_t):
+            raise RuntimeError("envelope read failed")
+
+        points = [{"time": 0.0, "value": 0.0}, {"time": 1.0, "value": 0.0}]
+        result = verify_automation(_FakeEnvelope(_boom), points, -1.0, 1.0)
+        assert result["verdict"] == "mismatch"
+        assert result["max_error"] == pytest.approx(2.0)
 
 
 class TestDeferredReadBack:
@@ -131,6 +143,56 @@ class TestDeferredReadBack:
         assert response["status"] == "success"
         assert response["result"]["points_added"] == 3
         assert response["result"]["_verified"] == {"value": 0.5}
+
+    def test_response_withheld_until_deferred_cycle_fires(self, monkeypatch):
+        # Prove the deferred path is genuinely deferred: the write (tick 0) runs
+        # but produces NO response; the response only lands once the read-back
+        # (tick 1) fires on a later cycle. Uses a real background thread so the
+        # blocking response_queue.get() is exercised, not stubbed away.
+        import threading
+        import time as _t
+
+        rs, bridge = self._make_bridge()
+
+        later = []
+
+        def schedule(tick, fn):
+            if tick == 0:
+                fn()  # write cycle runs immediately
+            else:
+                later.append(fn)  # read-back is held for a later cycle
+
+        bridge.schedule_message = schedule
+        monkeypatch.setattr(
+            rs, "dispatch",
+            lambda cmd, song, params, ctrl: (
+                {"points_added": 3} if cmd == "create_clip_automation" else {"value": 0.5}
+            ),
+        )
+
+        params = {
+            "track_index": 0,
+            "_deferred_read": {"command": "read", "params": {}},
+        }
+        box = {}
+
+        def run():
+            box["resp"] = bridge._dispatch_on_main_thread_impl(
+                "create_clip_automation", params, "msg")
+
+        th = threading.Thread(target=run)
+        th.start()
+        _t.sleep(0.05)  # let the write cycle run and the caller block on get()
+
+        # Write ran, but the response is withheld pending the deferred read-back.
+        assert "resp" not in box
+        assert len(later) == 1
+
+        later.pop()()  # fire the deferred read-back cycle
+        th.join(timeout=2.0)
+
+        assert box["resp"]["status"] == "success"
+        assert box["resp"]["result"]["_verified"] == {"value": 0.5}
 
     def test_no_deferred_read_leaves_result_untouched(self, monkeypatch):
         rs, bridge = self._make_bridge()
