@@ -1173,6 +1173,10 @@ def register_tools(mcp):
             raise ValueError("time must be a non-negative number")
         if not isinstance(length, (int, float)) or length <= 0:
             raise ValueError("length must be a positive number")
+        ableton = get_ableton_connection()
+        track_info = ableton.send_command("get_track_info", {"track_index": track_index})
+        if not track_info.get("is_midi_track", False):
+            raise ValueError(f"Track {track_index} is not a MIDI track (cannot host MIDI clips)")
         m4l = get_m4l_connection()
         result = m4l.send_command("create_arrangement_midi_clip_m4l", {
             "track_index": track_index,
@@ -1201,6 +1205,10 @@ def register_tools(mcp):
             raise ValueError("time must be a non-negative number")
         if not isinstance(length, (int, float)) or length <= 0:
             raise ValueError("length must be a positive number")
+        ableton = get_ableton_connection()
+        track_info = ableton.send_command("get_track_info", {"track_index": track_index})
+        if not track_info.get("is_audio_track", False):
+            raise ValueError(f"Track {track_index} is not an audio track (cannot host audio clips)")
         m4l = get_m4l_connection()
         result = m4l.send_command("create_arrangement_audio_clip_m4l", {
             "track_index": track_index,
