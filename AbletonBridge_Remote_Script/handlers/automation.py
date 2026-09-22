@@ -84,7 +84,8 @@ def create_clip_automation(song, track_index: int, clip_index: int, parameter_na
         time_val = max(0.0, min(clip_length - 0.001, time_val))
         value = float(point.get("value", 0.0))
         clamped = max(param.min, min(param.max, value))
-        envelope.insert_step(time_val, 0.0, clamped)
+        # Duration must be > 0 or Ableton's LOM silently discards the step.
+        envelope.insert_step(time_val, 0.001, clamped)
 
     return {
         "parameter": parameter_name,
@@ -282,8 +283,19 @@ def create_track_automation(song, track_index: int, parameter_name: str, automat
     if envelope is None and hasattr(target_clip, "create_automation_envelope"):
         envelope = target_clip.create_automation_envelope(parameter)
     if envelope is None:
+        is_mixer = parameter_name.lower() in ("volume", "pan", "panning") or parameter_name.lower().startswith("send")
+        hint = (
+            " Mixer parameters cannot be automated via arrangement clip envelopes. "
+            "Workaround: use create_step_automation on a session clip, then "
+            "duplicate_clip_to_arrangement."
+        ) if is_mixer else (
+            " create_automation_envelope() does not work on arrangement clips for "
+            "parameters that haven't been automated before. Workaround: use "
+            "create_step_automation on a session clip, then duplicate_clip_to_arrangement."
+        )
         raise RuntimeError(
-            "Could not get automation envelope for '{0}' on arrangement clip".format(parameter_name)
+            "Could not get automation envelope for '{0}' on arrangement clip.{1}".format(
+                parameter_name, hint)
         )
 
     if not append and hasattr(envelope, 'clear'):
@@ -295,7 +307,7 @@ def create_track_automation(song, track_index: int, parameter_name: str, automat
     for point in automation_points:
         time_val = max(clip_start, min(clip_end - 0.001, float(point.get("time", 0.0))))
         value = max(parameter.min, min(parameter.max, float(point.get("value", 0.0))))
-        envelope.insert_step(time_val, 0.0, value)
+        envelope.insert_step(time_val, 0.001, value)
 
     return {
         "parameter": parameter_name,
