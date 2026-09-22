@@ -1,0 +1,52 @@
+---
+title: "Command Dispatch Flow (TCP path)"
+---
+sequenceDiagram
+    participant CC as Claude Code
+    participant MCP as MCP Server<br/>(Python 3.14)
+    participant TCP as TCP 9877
+    participant RS as Remote Script<br/>(Python 3.11)
+    participant REG as _registry
+    participant H as Handler
+    participant LOM as Live Object Model
+
+    CC->>MCP: tool call (stdio)
+    activate MCP
+    Note over MCP: @mcp.tool() validates args<br/>@_tool_handler acquires semaphore
+
+    MCP->>MCP: Build cmd_params: CreateClipAutomationParams<br/>(TypedDict — static analysis)
+    MCP->>TCP: send_command("create_clip_automation", params)
+    activate TCP
+    TCP->>RS: {"type": "create_clip_automation", "params": {...}}\n
+    activate RS
+
+    RS->>RS: _process_command()<br/>command_type in get_modifying_commands()?
+
+    RS->>RS: schedule_message(0, task)<br/>→ queued for Ableton main thread
+
+    Note over RS: Main thread picks up task
+
+    RS->>REG: dispatch("create_clip_automation", song, params, ctrl)
+    activate REG
+    REG->>REG: Lookup _REGISTRY["create_clip_automation"]<br/>Introspect param specs from @command
+    REG->>REG: Build kwargs from params_dict<br/>using function signature defaults
+
+    REG->>H: create_clip_automation(song, track_index=0, ...)
+    activate H
+    H->>LOM: clip.automation_envelope(param)
+    LOM-->>H: envelope
+    H->>LOM: envelope.insert_step(time, 0.001, value)
+    LOM-->>H: ok
+    H-->>REG: {"parameter": "Volume", "points_added": 42}
+    deactivate H
+
+    REG-->>RS: result dict
+    deactivate REG
+
+    RS-->>TCP: {"status": "success", "result": {...}}\n
+    deactivate RS
+    TCP-->>MCP: JSON response
+    deactivate TCP
+
+    MCP-->>CC: tool result string
+    deactivate MCP

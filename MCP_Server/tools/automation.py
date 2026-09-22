@@ -6,6 +6,15 @@ from mcp.server.fastmcp import Context
 from MCP_Server.tools._base import _tool_handler
 from MCP_Server.connections.ableton import get_ableton_connection
 from MCP_Server.validation import _validate_index, _validate_range, _validate_automation_points, _reduce_automation_points
+from shared.commands import (
+    CreateClipAutomationParams, GetClipAutomationParams,
+    ClearClipAutomationParams, ListClipAutomatedParamsParams,
+    CreateTrackAutomationParams, ClearTrackAutomationParams,
+    DeleteTimeParams, DuplicateTimeParams, InsertSilenceParams,
+    ClearClipEnvelopeParams, ClearAllClipEnvelopesParams,
+    CreateStepAutomationParams, GetClipAutomationValueParams,
+    GetClipAutomationHiresParams,
+)
 
 
 def register_tools(mcp):
@@ -38,7 +47,7 @@ def register_tools(mcp):
         if reduce:
             automation_points = _reduce_automation_points(automation_points, max_points=20)
         ableton = get_ableton_connection()
-        cmd_params = {
+        cmd_params: CreateClipAutomationParams = {
             "track_index": track_index,
             "clip_index": clip_index,
             "parameter_name": parameter_name,

@@ -343,7 +343,7 @@ class AbletonBridge(ControlSurface):
         if isinstance(e, KeyError):
             return "Missing required parameter: {0}".format(e)
         if isinstance(e, TypeError):
-            return "Invalid parameter type"
+            return "Invalid parameter type: {0}".format(e)
         if isinstance(e, queue.Empty):
             return "Operation timed out"
         return "Internal error - check Ableton log for details"

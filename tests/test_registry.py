@@ -159,3 +159,32 @@ class TestRegistryParamSpecs:
                 f"Command '{name}': registry params {registry_params} != "
                 f"signature params {sig_params}"
             )
+
+
+class TestCodegenConsistency:
+
+    def test_generated_types_not_stale(self):
+        """Verify shared/commands.py matches the current registry state."""
+        from scripts.generate_command_types import _registry_fingerprint
+        from shared.commands import REGISTRY_FINGERPRINT
+        _ = _load_registry()
+        from handlers._registry import get_registry
+        current = _registry_fingerprint(get_registry())
+        assert current == REGISTRY_FINGERPRINT, (
+            f"shared/commands.py is stale (fingerprint {REGISTRY_FINGERPRINT} != "
+            f"current {current}). Run: python scripts/generate_command_types.py"
+        )
+
+    def test_typeddict_fields_match_registry(self):
+        """Every TypedDict's fields match the registry's param names."""
+        from shared.commands import COMMAND_TYPES
+        registry = _load_registry()
+        for cmd_name, td_class in COMMAND_TYPES.items():
+            entry = registry.get(cmd_name)
+            assert entry is not None, f"TypedDict for '{cmd_name}' has no registry entry"
+            td_fields = set(td_class.__annotations__)
+            reg_fields = set(p[0] for p in entry.params)
+            assert td_fields == reg_fields, (
+                f"Command '{cmd_name}': TypedDict fields {td_fields} != "
+                f"registry params {reg_fields}"
+            )

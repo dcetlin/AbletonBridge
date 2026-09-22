@@ -1,0 +1,68 @@
+---
+title: "AbletonBridge Deployment Topology"
+---
+graph TD
+    subgraph "Claude Code Session"
+        CC["Claude Code<br/>(MCP Client)"]
+    end
+
+    subgraph "MCP Server Process — Python 3.14 (system)"
+        FM["FastMCP Server<br/>stdio transport"]
+        TH["_tool_handler<br/>semaphore · timeout · error wrap"]
+        TOOLS["16 tool modules<br/>359 @mcp.tool() functions"]
+        VAL["validation.py<br/>index · range · RDP reduction"]
+        DATA["data/<br/>device_properties · scales · patterns"]
+        SHARED["shared/commands.py<br/>255 TypedDicts (codegen)"]
+    end
+
+    subgraph "Transport Layer"
+        TCP["AbletonConnection<br/>TCP 9877<br/>JSON newline-delimited"]
+        UDP_RT["UDP 9882<br/>fire-and-forget params"]
+        SDK["Extensions SDK<br/>HTTP localhost<br/>Apple Silicon VST3/AU"]
+        M4L_CONN["M4LConnection<br/>UDP 9878→send · 9879→recv<br/>OSC + base64 JSON"]
+    end
+
+    subgraph "Ableton Live Process — Python 3.11 (embedded)"
+        RS["Remote Script<br/>__init__.py<br/>TCP + UDP server"]
+        REG["_registry.py<br/>@command · dispatch()<br/>255 commands"]
+        HAND["11 handler modules<br/>255 @command functions"]
+        LOM["Live Object Model<br/>Ableton C++ API"]
+    end
+
+    subgraph "Max for Live Device"
+        M4L["Devicev2.amxd<br/>OSC parser · JS engine"]
+        LOM2["LOM deep access<br/>hidden params · audio · chains"]
+    end
+
+    subgraph "Extensions SDK (Live 12.3+)"
+        EXT["Ableton Extensions<br/>HTTP API<br/>device params"]
+    end
+
+    CC -->|"stdio"| FM
+    FM --> TH
+    TH --> TOOLS
+    TOOLS --> VAL
+    TOOLS -.->|"type annotations"| SHARED
+    TOOLS -->|"Tier 2: send_command()"| TCP
+    TOOLS -->|"fire-and-forget"| UDP_RT
+    TOOLS -->|"Tier 1: SDK get/set_param"| SDK
+    TOOLS -->|"send_osc via M4LConnection"| M4L_CONN
+
+    TCP -->|"JSON over TCP"| RS
+    UDP_RT -->|"JSON over UDP"| RS
+    RS -->|"dispatch()"| REG
+    REG --> HAND
+    HAND --> LOM
+
+    SDK --> EXT
+    EXT --> LOM
+
+    M4L_CONN -->|"OSC packets"| M4L
+    M4L --> LOM2
+
+    DATA -.->|"loaded at import"| TOOLS
+
+    style TCP fill:#4a9,stroke:#333,color:#fff
+    style REG fill:#4a9,stroke:#333,color:#fff
+    style SHARED fill:#69c,stroke:#333,color:#fff
+    style SDK fill:#c96,stroke:#333,color:#fff
