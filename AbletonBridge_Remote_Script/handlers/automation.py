@@ -85,8 +85,10 @@ def create_clip_automation(song, track_index: int, clip_index: int, parameter_na
 
     resolution, planned_steps = budget_automation_steps(automation_points, resolution)
 
-    if interpolation != "hold":
-        automation_points = interpolate_automation(automation_points, resolution, interpolation)
+    # Always route through interpolate_automation: it self-guards (returns points
+    # unchanged for pure-hold with no per-point overrides), so per-point
+    # "interpolation" overrides are honored even when the curve-global mode is "hold".
+    automation_points = interpolate_automation(automation_points, resolution, interpolation)
 
     clip_length = clip.length
     deadline = _time.time() + AUTOMATION_WRITE_BUDGET_SECONDS
@@ -248,6 +250,9 @@ def create_track_automation(song, track_index: int, parameter_name: str, automat
             "parameter": parameter_name,
             "track_index": track_index,
             "points_added": 0,
+            "points_planned": 0,
+            "partial": False,
+            "resolution_used": resolution,
         }
     t_min = min(times)
     t_max = max(times)
@@ -325,8 +330,10 @@ def create_track_automation(song, track_index: int, parameter_name: str, automat
 
     resolution, planned_steps = budget_automation_steps(automation_points, resolution)
 
-    if interpolation != "hold":
-        automation_points = interpolate_automation(automation_points, resolution, interpolation)
+    # Always route through interpolate_automation: it self-guards (returns points
+    # unchanged for pure-hold with no per-point overrides), so per-point
+    # "interpolation" overrides are honored even when the curve-global mode is "hold".
+    automation_points = interpolate_automation(automation_points, resolution, interpolation)
 
     deadline = _time.time() + AUTOMATION_WRITE_BUDGET_SECONDS
     written = 0

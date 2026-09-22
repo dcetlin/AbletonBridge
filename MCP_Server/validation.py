@@ -202,12 +202,21 @@ _FREQ_MAX = 20000.0
 
 
 def hz_to_normalized(hz: float) -> float:
-    """Convert frequency in Hz to Ableton's normalized 0-1 range (log scale)."""
+    """Convert frequency in Hz to Ableton's normalized 0-1 range (log scale).
+
+    Approximation: assumes a fixed 20Hz-20kHz log mapping. Real devices vary
+    (e.g. Auto Filter extends above 20kHz, EQ Eight starts near 10Hz), so for
+    device-accurate values the caller should map against the parameter's own
+    min/max rather than relying on this helper.
+    """
     hz = max(_FREQ_MIN, min(_FREQ_MAX, float(hz)))
     return math.log(hz / _FREQ_MIN) / math.log(_FREQ_MAX / _FREQ_MIN)
 
 
 def normalized_to_hz(normalized: float) -> float:
-    """Convert Ableton's normalized 0-1 range to frequency in Hz (log scale)."""
+    """Convert Ableton's normalized 0-1 range to frequency in Hz (log scale).
+
+    Approximation over a fixed 20Hz-20kHz range; see :func:`hz_to_normalized`.
+    """
     normalized = max(0.0, min(1.0, float(normalized)))
     return _FREQ_MIN * (_FREQ_MAX / _FREQ_MIN) ** normalized

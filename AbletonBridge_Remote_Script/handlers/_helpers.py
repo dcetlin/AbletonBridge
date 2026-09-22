@@ -144,7 +144,13 @@ def interpolate_automation(points, resolution=0.0625, mode="hold"):
             if seg_mode == "linear":
                 v = v0 + frac * (v1 - v0)
             elif seg_mode == "exponential":
-                v = v0 + (v1 - v0) * (math.exp(frac * seg_exp) - 1) / (math.exp(seg_exp) - 1)
+                denom = math.exp(seg_exp) - 1
+                if abs(denom) < 1e-12:
+                    # As exponent -> 0 the curve degenerates to linear; the
+                    # closed form divides by zero at exactly 0, so use the limit.
+                    v = v0 + frac * (v1 - v0)
+                else:
+                    v = v0 + (v1 - v0) * (math.exp(frac * seg_exp) - 1) / denom
             elif seg_mode == "ease_in":
                 v = v0 + (v1 - v0) * (frac ** seg_exp)
             elif seg_mode == "ease_out":
