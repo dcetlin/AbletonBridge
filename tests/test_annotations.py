@@ -1,4 +1,10 @@
-"""Tests for command annotation taxonomy."""
+"""Tests for command annotation taxonomy.
+
+Spec notes:
+- delete_notes is listed in the spec but does not exist in the codebase.
+- add_notes_to_clip is listed under midi.py in the spec but lives in clips.py.
+  Both are annotated/tested correctly based on what actually exists.
+"""
 import sys
 import os
 import pytest
@@ -39,26 +45,42 @@ class TestAnnotationFields:
         """Non-annotated commands should have destructive=False, idempotent=True."""
         registry = _load_registry()
         entry = registry.get("get_session_info")
-        if entry:
-            assert entry.destructive is False
-            assert entry.idempotent is True
+        assert entry is not None, "get_session_info should be registered"
+        assert entry.destructive is False
+        assert entry.idempotent is True
+
+    def test_destructive_implies_modifying(self):
+        """Every destructive command must also be modifying."""
+        registry = _load_registry()
+        for name, entry in registry.items():
+            if entry.destructive:
+                assert entry.modifying, f"{name} is destructive but not modifying"
 
 
 class TestDestructiveCommands:
     EXPECTED_DESTRUCTIVE = [
         "delete_track", "delete_return_track", "delete_clip",
-        "delete_scene", "delete_device", "delete_notes",
+        "delete_scene", "delete_device",
         "delete_time", "delete_arrangement_clip",
         "clear_clip_automation", "clear_clip_envelope",
         "clear_all_clip_envelopes", "clear_track_automation",
     ]
 
+    # delete_notes is in the spec but does not exist in the codebase
+    SPEC_ONLY = ["delete_notes"]
+
     def test_destructive_flagged(self):
         registry = _load_registry()
         for cmd_name in self.EXPECTED_DESTRUCTIVE:
             entry = registry.get(cmd_name)
-            if entry:
-                assert entry.destructive is True, f"{cmd_name} should be destructive"
+            assert entry is not None, f"{cmd_name} should be registered"
+            assert entry.destructive is True, f"{cmd_name} should be destructive"
+
+    def test_spec_only_commands_absent(self):
+        """Commands listed in the spec but absent from the codebase."""
+        registry = _load_registry()
+        for cmd_name in self.SPEC_ONLY:
+            assert registry.get(cmd_name) is None, f"{cmd_name} unexpectedly exists"
 
 
 class TestNonIdempotentCommands:
@@ -76,8 +98,8 @@ class TestNonIdempotentCommands:
         registry = _load_registry()
         for cmd_name in self.EXPECTED_NON_IDEMPOTENT:
             entry = registry.get(cmd_name)
-            if entry:
-                assert entry.idempotent is False, f"{cmd_name} should be non-idempotent"
+            assert entry is not None, f"{cmd_name} should be registered"
+            assert entry.idempotent is False, f"{cmd_name} should be non-idempotent"
 
 
 class TestGetCommandAnnotations:
