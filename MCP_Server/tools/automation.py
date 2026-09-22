@@ -87,7 +87,7 @@ def build_lfo_points(shape, beats, cycles=1.0, min_val=0.0, max_val=1.0,
         raise ValueError(
             f"Cannot render {cycles} cycles without aliasing "
             f"(needs {min_steps_for_cycles + 1} points, max {MAX_AUTOMATION_POINTS}). "
-            f"Reduce cycles to <= {max_cycles} or increase resolution."
+            f"Reduce cycles to <= {max_cycles}."
         )
 
     num_steps = max(min_steps_for_cycles, int(beats / resolution))
