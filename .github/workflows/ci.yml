@@ -46,10 +46,11 @@ jobs:
           pip install -e ".[dev]"
           pip install pyright==1.1.400
 
-      # baseline 195 assumes ".[dev]" installed above (mcp resolvable);
-      # a count jump here can mean a dep failed to install, not a type regression
+      # baseline 5 — remaining errors are unresolvable missing imports
+      # (starlette, uvicorn, mido) that aren't in [dev] extras.
+      # A count jump here can mean a dep failed to install, not a type regression.
       - name: Run pyright (ratchet — must not exceed baseline)
         run: |
           COUNT=$(pyright --outputjson | python -c "import sys,json; print(json.load(sys.stdin)['summary']['errorCount'])")
-          echo "pyright errors: $COUNT (baseline: 195)"
-          test "$COUNT" -le 195
+          echo "pyright errors: $COUNT (baseline: 5)"
+          test "$COUNT" -le 5

@@ -1326,11 +1326,11 @@ def register_tools(mcp):
     def set_groove_properties(
         ctx: Context,
         groove_index: int,
-        base: float = None,
-        timing: float = None,
-        velocity: float = None,
-        random: float = None,
-        quantize_rate: int = None,
+        base: float | None = None,
+        timing: float | None = None,
+        velocity: float | None = None,
+        random: float | None = None,
+        quantize_rate: int | None = None,
     ) -> str:
         """Set properties on a groove in the groove pool.
 

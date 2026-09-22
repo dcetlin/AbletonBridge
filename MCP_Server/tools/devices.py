@@ -4,7 +4,7 @@ import time
 import logging
 from typing import Dict, Any, List, Optional
 from mcp.server.fastmcp import Context
-from MCP_Server.tools._base import _tool_handler, _m4l_result
+from MCP_Server.tools._base import _get_tool_annotations, _tool_handler, _m4l_result
 from MCP_Server.connections.ableton import get_ableton_connection
 from MCP_Server.connections.m4l import get_m4l_connection
 from MCP_Server.connections.extensions_sdk import get_sdk_client
@@ -438,7 +438,7 @@ def register_tools(mcp):
     # Device lifecycle tools
     # ------------------------------------------------------------------
 
-    @mcp.tool()
+    @mcp.tool(annotations=_get_tool_annotations("delete_device"))
     @_tool_handler("deleting device")
     def delete_device(ctx: Context, track_index: int, device_index: int) -> str:
         """
@@ -531,7 +531,7 @@ def register_tools(mcp):
     @_tool_handler("inserting device by name")
     def insert_device_by_name(ctx: Context, track_index: int,
                                device_name: str,
-                               target_index: int = None) -> str:
+                               target_index: int | None = None) -> str:
         """Insert a native Live device by name into a track's device chain.
         Faster than load_instrument_or_effect but native devices only (not plugins
         or M4L). Available since Live 12.3.
@@ -541,7 +541,7 @@ def register_tools(mcp):
         - device_name: Name as shown in Live's UI (e.g. 'Compressor', 'EQ Eight', 'Reverb', 'Auto Filter')
         - target_index: Position in the device chain (optional, defaults to end)
         """
-        params = {"track_index": track_index, "device_name": device_name}
+        params: dict[str, Any] = {"track_index": track_index, "device_name": device_name}
         if target_index is not None:
             params["target_index"] = target_index
         ableton = get_ableton_connection()
@@ -577,8 +577,8 @@ def register_tools(mcp):
     @mcp.tool()
     @_tool_handler("setting compressor sidechain")
     def set_compressor_sidechain(ctx: Context, track_index: int, device_index: int,
-                                  input_type: str = None, input_channel: str = None,
-                                  source_track_name: str = None, track_type: str = "track") -> str:
+                                  input_type: str | None = None, input_channel: str | None = None,
+                                  source_track_name: str | None = None, track_type: str = "track") -> str:
         """Set side-chain routing on a Compressor device.
 
         Two modes:
@@ -609,7 +609,7 @@ def register_tools(mcp):
             })
             return json.dumps(result)
 
-        params = {"track_index": track_index, "device_index": device_index}
+        params: dict[str, Any] = {"track_index": track_index, "device_index": device_index}
         if input_type is not None:
             params["input_type"] = input_type
         if input_channel is not None:
@@ -650,8 +650,8 @@ def register_tools(mcp):
     @mcp.tool()
     @_tool_handler("setting EQ8 properties")
     def set_eq8_properties(ctx: Context, track_index: int, device_index: int,
-                            edit_mode: int = None, global_mode: int = None,
-                            oversample: bool = None, selected_band: int = None) -> str:
+                            edit_mode: int | None = None, global_mode: int | None = None,
+                            oversample: bool | None = None, selected_band: int | None = None) -> str:
         """Set EQ Eight-specific properties.
 
         Parameters:
@@ -668,7 +668,7 @@ def register_tools(mcp):
         """
         _validate_index(track_index, "track_index")
         _validate_index(device_index, "device_index")
-        params = {"track_index": track_index, "device_index": device_index}
+        params: dict[str, Any] = {"track_index": track_index, "device_index": device_index}
         if edit_mode is not None:
             _validate_range(edit_mode, "edit_mode", 0, 1)
             params["edit_mode"] = edit_mode
@@ -716,9 +716,9 @@ def register_tools(mcp):
     @mcp.tool()
     @_tool_handler("setting Hybrid Reverb IR")
     def set_hybrid_reverb_ir(ctx: Context, track_index: int, device_index: int,
-                              ir_category_index: int = None, ir_file_index: int = None,
-                              ir_attack_time: float = None, ir_decay_time: float = None,
-                              ir_size_factor: float = None, ir_time_shaping_on: bool = None) -> str:
+                              ir_category_index: int | None = None, ir_file_index: int | None = None,
+                              ir_attack_time: float | None = None, ir_decay_time: float | None = None,
+                              ir_size_factor: float | None = None, ir_time_shaping_on: bool | None = None) -> str:
         """Set impulse response (IR) configuration on a Hybrid Reverb device.
 
         Parameters:
@@ -737,7 +737,7 @@ def register_tools(mcp):
         """
         _validate_index(track_index, "track_index")
         _validate_index(device_index, "device_index")
-        params = {"track_index": track_index, "device_index": device_index}
+        params: dict[str, Any] = {"track_index": track_index, "device_index": device_index}
         if ir_category_index is not None:
             _validate_index(ir_category_index, "ir_category_index")
             params["ir_category_index"] = ir_category_index
@@ -785,21 +785,21 @@ def register_tools(mcp):
     @mcp.tool()
     @_tool_handler("setting Simpler properties")
     def set_simpler_properties(ctx: Context, track_index: int, device_index: int,
-                                playback_mode: int = None, voices: int = None,
-                                retrigger: bool = None, slicing_playback_mode: int = None,
-                                start_marker: int = None, end_marker: int = None,
-                                gain: float = None, warp_mode: int = None,
-                                warping: bool = None, slicing_style: int = None,
-                                slicing_sensitivity: float = None,
-                                slicing_beat_division: int = None,
-                                beats_granulation_resolution: int = None,
-                                beats_transient_envelope: float = None,
-                                beats_transient_loop_mode: int = None,
-                                complex_pro_formants: float = None,
-                                complex_pro_envelope: float = None,
-                                texture_grain_size: float = None,
-                                texture_flux: float = None,
-                                tones_grain_size: float = None) -> str:
+                                playback_mode: int | None = None, voices: int | None = None,
+                                retrigger: bool | None = None, slicing_playback_mode: int | None = None,
+                                start_marker: int | None = None, end_marker: int | None = None,
+                                gain: float | None = None, warp_mode: int | None = None,
+                                warping: bool | None = None, slicing_style: int | None = None,
+                                slicing_sensitivity: float | None = None,
+                                slicing_beat_division: int | None = None,
+                                beats_granulation_resolution: int | None = None,
+                                beats_transient_envelope: float | None = None,
+                                beats_transient_loop_mode: int | None = None,
+                                complex_pro_formants: float | None = None,
+                                complex_pro_envelope: float | None = None,
+                                texture_grain_size: float | None = None,
+                                texture_flux: float | None = None,
+                                tones_grain_size: float | None = None) -> str:
         """Set Simpler device and sample properties. All parameters are optional.
 
         Parameters:
@@ -824,7 +824,7 @@ def register_tools(mcp):
         """
         _validate_index(track_index, "track_index")
         _validate_index(device_index, "device_index")
-        params = {"track_index": track_index, "device_index": device_index}
+        params: dict[str, Any] = {"track_index": track_index, "device_index": device_index}
         local_vars = {
             "playback_mode": playback_mode, "voices": voices, "retrigger": retrigger,
             "slicing_playback_mode": slicing_playback_mode,
@@ -853,7 +853,7 @@ def register_tools(mcp):
     @mcp.tool()
     @_tool_handler("performing Simpler action")
     def simpler_sample_action(ctx: Context, track_index: int, device_index: int,
-                               action: str, beats: float = None) -> str:
+                               action: str, beats: float | None = None) -> str:
         """Perform an action on a Simpler device's loaded sample.
 
         Parameters:
@@ -868,7 +868,7 @@ def register_tools(mcp):
         _validate_index(device_index, "device_index")
         if action not in ("reverse", "crop", "warp_as", "warp_double", "warp_half"):
             return "action must be 'reverse', 'crop', 'warp_as', 'warp_double', or 'warp_half'"
-        params = {"track_index": track_index, "device_index": device_index, "action": action}
+        params: dict[str, Any] = {"track_index": track_index, "device_index": device_index, "action": action}
         if beats is not None:
             params["beats"] = beats
         ableton = get_ableton_connection()
@@ -879,8 +879,8 @@ def register_tools(mcp):
     @mcp.tool()
     @_tool_handler("managing sample slices")
     def manage_sample_slices(ctx: Context, track_index: int, device_index: int,
-                              action: str, slice_time: int = None,
-                              new_time: int = None) -> str:
+                              action: str, slice_time: int | None = None,
+                              new_time: int | None = None) -> str:
         """Manage slice points on a Simpler device's sample.
 
         Parameters:
@@ -895,7 +895,7 @@ def register_tools(mcp):
         _validate_index(device_index, "device_index")
         if action not in ("insert", "move", "remove", "clear", "reset"):
             return "action must be 'insert', 'move', 'remove', 'clear', or 'reset'"
-        params = {"track_index": track_index, "device_index": device_index, "action": action}
+        params: dict[str, Any] = {"track_index": track_index, "device_index": device_index, "action": action}
         if slice_time is not None:
             params["slice_time"] = slice_time
         if new_time is not None:
@@ -933,13 +933,13 @@ def register_tools(mcp):
     @mcp.tool()
     @_tool_handler("setting Transmute properties")
     def set_transmute_properties(ctx: Context, track_index: int, device_index: int,
-                                  frequency_dial_mode_index: int = None,
-                                  pitch_mode_index: int = None,
-                                  mod_mode_index: int = None,
-                                  mono_poly_index: int = None,
-                                  midi_gate_index: int = None,
-                                  polyphony: int = None,
-                                  pitch_bend_range: int = None) -> str:
+                                  frequency_dial_mode_index: int | None = None,
+                                  pitch_mode_index: int | None = None,
+                                  mod_mode_index: int | None = None,
+                                  mono_poly_index: int | None = None,
+                                  midi_gate_index: int | None = None,
+                                  polyphony: int | None = None,
+                                  pitch_bend_range: int | None = None) -> str:
         """Set Transmute-specific properties. All parameters are optional — only specified values are changed.
 
         Parameters:
@@ -957,7 +957,7 @@ def register_tools(mcp):
         """
         _validate_index(track_index, "track_index")
         _validate_index(device_index, "device_index")
-        params = {"track_index": track_index, "device_index": device_index}
+        params: dict[str, Any] = {"track_index": track_index, "device_index": device_index}
         if frequency_dial_mode_index is not None:
             params["frequency_dial_mode_index"] = frequency_dial_mode_index
         if pitch_mode_index is not None:
@@ -986,7 +986,7 @@ def register_tools(mcp):
     @mcp.tool()
     @_tool_handler("setting drum pad")
     def set_drum_pad(ctx: Context, track_index: int, device_index: int,
-                      note: int, mute: bool = None, solo: bool = None) -> str:
+                      note: int, mute: bool | None = None, solo: bool | None = None) -> str:
         """Set mute or solo state on a drum pad by MIDI note number.
 
         Parameters:
@@ -1001,7 +1001,7 @@ def register_tools(mcp):
         _validate_index(track_index, "track_index")
         _validate_index(device_index, "device_index")
         _validate_range(note, "note", 0, 127)
-        params = {"track_index": track_index, "device_index": device_index, "note": note}
+        params: dict[str, Any] = {"track_index": track_index, "device_index": device_index, "note": note}
         if mute is not None:
             params["mute"] = mute
         if solo is not None:
@@ -1088,7 +1088,7 @@ def register_tools(mcp):
     @mcp.tool()
     @_tool_handler("performing rack variation action")
     def rack_variation_action(ctx: Context, track_index: int, device_index: int,
-                               action: str, variation_index: int = None) -> str:
+                               action: str, variation_index: int | None = None) -> str:
         """Perform a variation action on a Rack device (macro snapshots).
 
         Parameters:
@@ -1107,7 +1107,7 @@ def register_tools(mcp):
             raise ValueError("action must be 'store', 'recall', 'delete', or 'randomize'")
         if action in ("recall", "delete") and variation_index is None:
             raise ValueError(f"variation_index is required for '{action}'")
-        params = {
+        params: dict[str, Any] = {
             "track_index": track_index,
             "device_index": device_index,
             "action": action,
@@ -1263,7 +1263,7 @@ def register_tools(mcp):
     @_tool_handler("inserting device into chain")
     def chain_insert_device(ctx: Context, track_index: int, device_index: int,
                              chain_index: int, device_name: str,
-                             target_index: int = None,
+                             target_index: int | None = None,
                              track_type: str = "track") -> str:
         """Insert a device into a chain of a Rack device (Live 12.3+).
 
@@ -1327,9 +1327,9 @@ def register_tools(mcp):
     @mcp.tool()
     @_tool_handler("setting chain properties")
     def set_chain_properties(ctx: Context, track_index: int, device_index: int,
-                              chain_index: int, mute: bool = None, solo: bool = None,
-                              name: str = None, color_index: int = None,
-                              volume: float = None, panning: float = None,
+                              chain_index: int, mute: bool | None = None, solo: bool | None = None,
+                              name: str | None = None, color_index: int | None = None,
+                              volume: float | None = None, panning: float | None = None,
                               track_type: str = "track") -> str:
         """Set properties of a chain within a Rack device.
 
@@ -1350,7 +1350,7 @@ def register_tools(mcp):
         _validate_index(chain_index, "chain_index")
         if track_type not in ("track", "return", "master"):
             raise ValueError("track_type must be 'track', 'return', or 'master'")
-        params = {
+        params: dict[str, Any] = {
             "track_index": track_index,
             "device_index": device_index,
             "chain_index": chain_index,
@@ -1508,7 +1508,7 @@ def register_tools(mcp):
     @mcp.tool()
     @_tool_handler("controlling looper")
     def control_looper(ctx: Context, track_index: int, device_index: int,
-                        action: str, clip_slot_index: int = None) -> str:
+                        action: str, clip_slot_index: int | None = None) -> str:
         """Control a Looper device with specialized actions.
 
         Parameters:
@@ -1519,7 +1519,7 @@ def register_tools(mcp):
                   'export' (exports to a clip slot, requires clip_slot_index)
         - clip_slot_index: Required for 'export' action — the target clip slot
         """
-        params = {"track_index": track_index, "device_index": device_index, "action": action}
+        params: dict[str, Any] = {"track_index": track_index, "device_index": device_index, "action": action}
         if clip_slot_index is not None:
             params["clip_slot_index"] = clip_slot_index
         ableton = get_ableton_connection()

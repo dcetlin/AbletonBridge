@@ -1,5 +1,6 @@
 """Mixer tool handlers for AbletonBridge."""
 import json
+from typing import Any
 from mcp.server.fastmcp import Context
 from MCP_Server.tools._base import _tool_handler
 from MCP_Server.connections.ableton import get_ableton_connection
@@ -144,7 +145,7 @@ def register_tools(mcp):
     @mcp.tool()
     @_tool_handler("setting split stereo pan")
     def set_split_stereo_pan(ctx: Context, track_index: int,
-                              left: float = None, right: float = None) -> str:
+                              left: float | None = None, right: float | None = None) -> str:
         """Set the left and/or right pan values when in Split Stereo panning mode.
 
         Parameters:
@@ -155,7 +156,7 @@ def register_tools(mcp):
         _validate_index(track_index, "track_index")
         if left is None and right is None:
             raise ValueError("At least one of 'left' or 'right' must be provided")
-        params = {"track_index": track_index}
+        params: dict[str, object] = {"track_index": track_index}
         if left is not None:
             _validate_range(left, "left", -1.0, 1.0)
             params["left"] = left
@@ -215,12 +216,12 @@ def register_tools(mcp):
     @mcp.tool()
     @_tool_handler("setting groove settings")
     def set_groove_settings(ctx: Context,
-                             groove_amount: float = None,
-                             groove_index: int = None,
-                             timing_amount: float = None,
-                             quantization_amount: float = None,
-                             random_amount: float = None,
-                             velocity_amount: float = None) -> str:
+                             groove_amount: float | None = None,
+                             groove_index: int | None = None,
+                             timing_amount: float | None = None,
+                             quantization_amount: float | None = None,
+                             random_amount: float | None = None,
+                             velocity_amount: float | None = None) -> str:
         """Set global groove amount or individual groove parameters.
 
         Parameters:
@@ -274,10 +275,10 @@ def register_tools(mcp):
         ctx: Context,
         track_index: int,
         track_type: str = "track",
-        volume: float = None,
-        pan: float = None,
-        mute: bool = None,
-        solo: bool = None,
+        volume: float | None = None,
+        pan: float | None = None,
+        mute: bool | None = None,
+        solo: bool | None = None,
     ) -> str:
         """Set multiple mixer parameters on any track type in a single call.
 

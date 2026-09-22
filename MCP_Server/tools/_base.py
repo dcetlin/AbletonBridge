@@ -3,8 +3,42 @@ import asyncio
 import functools
 import json
 import logging
+from typing import Any
+
+from mcp.types import ToolAnnotations
+
+from MCP_Server.connections.ableton import AbletonCommandError
+from shared.commands import COMMAND_ANNOTATIONS, MODIFYING_COMMANDS
 
 logger = logging.getLogger("AbletonBridge")
+
+
+def _get_tool_annotations(*command_names: str) -> ToolAnnotations:
+    """Build MCP ToolAnnotations from the command registry's annotation data.
+
+    For compound tools that call multiple commands, pass all command names —
+    the most conservative annotation wins (destructive if any is destructive,
+    non-idempotent if any is non-idempotent).
+    """
+    destructive = False
+    idempotent = True
+    read_only = True
+
+    for name in command_names:
+        if name in MODIFYING_COMMANDS:
+            read_only = False
+        ann = COMMAND_ANNOTATIONS.get(name, {})
+        if ann.get("destructive", False):
+            destructive = True
+        if not ann.get("idempotent", True):
+            idempotent = False
+
+    return ToolAnnotations(
+        readOnlyHint=read_only,
+        destructiveHint=destructive,
+        idempotentHint=idempotent,
+    )
+
 
 # Limits concurrent tool executions that use the Ableton TCP connection.
 # Set to 1 because the TCP protocol is strictly request-response on a single socket.
@@ -29,7 +63,8 @@ def _tool_handler(error_prefix: str):
     All plain-string returns are wrapped in tool_success() for consistent JSON
     envelope. Returns that are already JSON (start with '{' or '[') pass through.
 
-    Catches ValueError -> tool_error("Invalid input: ..."),
+    Catches AbletonCommandError -> structured error with code/may_have_landed,
+    ValueError -> tool_error("Invalid input: ..."),
     ConnectionError -> tool_error("M4L bridge not available: ..."),
     Exception -> tool_error("Error {prefix}: ...")
     """
@@ -51,6 +86,16 @@ def _tool_handler(error_prefix: str):
             except asyncio.TimeoutError:
                 logger.error("Tool timed out after %ds: %s", _TOOL_TIMEOUT_SECONDS, error_prefix)
                 return tool_error(f"Tool timed out after {_TOOL_TIMEOUT_SECONDS}s: {error_prefix}")
+            except AbletonCommandError as e:
+                logger.error("Ableton error [%s] %s: %s (may_have_landed=%s)",
+                             e.code, error_prefix, e, e.may_have_landed)
+                return json.dumps({
+                    "status": "error",
+                    "message": str(e),
+                    "code": e.code,
+                    "may_have_landed": e.may_have_landed,
+                    "command": e.ableton_command,
+                })
             except ValueError as e:
                 return tool_error(f"Invalid input: {e}")
             except ConnectionError as e:
@@ -62,7 +107,7 @@ def _tool_handler(error_prefix: str):
     return decorator
 
 
-def _m4l_result(result: dict) -> dict:
+def _m4l_result(result: dict[str, Any]) -> dict[str, Any]:
     """Extract result data from M4L response, or raise on error."""
     if result.get("status") == "success":
         return result.get("result", {})
@@ -70,9 +115,9 @@ def _m4l_result(result: dict) -> dict:
     raise Exception(f"M4L bridge error: {msg}")
 
 
-def tool_success(message: str, data: dict = None) -> str:
+def tool_success(message: str, data: dict[str, Any] | None = None) -> str:
     """Create a standardized success response."""
-    result = {"status": "ok", "message": message}
+    result: dict[str, Any] = {"status": "ok", "message": message}
     if data:
         result["data"] = data
     return json.dumps(result)
@@ -83,7 +128,7 @@ def tool_error(message: str) -> str:
     return json.dumps({"status": "error", "message": message})
 
 
-def _report_progress(ctx, current: float, total: float, message: str = None):
+def _report_progress(ctx, current: float, total: float, message: str | None = None):
     """Report progress from a sync tool thread.
 
     ctx.report_progress() is async, but tools run in asyncio.to_thread().

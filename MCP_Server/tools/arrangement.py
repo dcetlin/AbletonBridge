@@ -2,9 +2,9 @@
 import json
 import logging
 import math
-from typing import Optional
+from typing import Any, Optional
 from mcp.server.fastmcp import Context
-from MCP_Server.tools._base import _tool_handler, _report_progress
+from MCP_Server.tools._base import _get_tool_annotations, _tool_handler, _report_progress
 from MCP_Server.connections.ableton import get_ableton_connection
 from MCP_Server.validation import _validate_index, _validate_range
 from shared.commands import (
@@ -34,7 +34,7 @@ def register_tools(mcp):
         result = ableton.send_command("get_arrangement_clips", {"track_index": track_index})
         return json.dumps(result)
 
-    @mcp.tool()
+    @mcp.tool(annotations=_get_tool_annotations("delete_time"))
     @_tool_handler("deleting time")
     def delete_time(ctx: Context, start_time: float, end_time: float) -> str:
         """Delete a section of time from the arrangement (removes time and shifts everything after).
@@ -160,7 +160,7 @@ def register_tools(mcp):
         })
         return json.dumps(result)
 
-    @mcp.tool()
+    @mcp.tool(annotations=_get_tool_annotations("delete_arrangement_clip"))
     @_tool_handler("deleting arrangement clip")
     def delete_arrangement_clip(ctx: Context, track_index: int,
                                   clip_index_in_arrangement: int) -> str:
@@ -211,7 +211,7 @@ def register_tools(mcp):
         """
         _validate_index(track_index, "track_index")
         _validate_index(clip_index_in_arrangement, "clip_index_in_arrangement")
-        params = {
+        params: dict[str, Any] = {
             "track_index": track_index,
             "clip_index_in_arrangement": clip_index_in_arrangement,
         }

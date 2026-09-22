@@ -114,3 +114,25 @@ class TestGetCommandAnnotations:
             assert "modifying" in ann
             assert "destructive" in ann
             assert "idempotent" in ann
+
+
+class TestCodegenAnnotations:
+    def test_every_annotation_maps_to_real_command(self):
+        from shared.commands import COMMAND_ANNOTATIONS, COMMAND_TYPES
+        for name in COMMAND_ANNOTATIONS:
+            assert name in COMMAND_TYPES, f"COMMAND_ANNOTATIONS['{name}'] has no matching COMMAND_TYPES entry"
+
+    def test_destructive_implies_modifying(self):
+        from shared.commands import COMMAND_ANNOTATIONS, MODIFYING_COMMANDS
+        for name, ann in COMMAND_ANNOTATIONS.items():
+            if ann.get("destructive"):
+                assert name in MODIFYING_COMMANDS, f"'{name}' is destructive but not in MODIFYING_COMMANDS"
+
+    def test_annotation_count(self):
+        from shared.commands import COMMAND_ANNOTATIONS
+        assert len(COMMAND_ANNOTATIONS) == 21
+
+    def test_known_destructive(self):
+        from shared.commands import COMMAND_ANNOTATIONS
+        for name in ["delete_track", "delete_clip", "clear_clip_automation"]:
+            assert COMMAND_ANNOTATIONS[name].get("destructive") is True

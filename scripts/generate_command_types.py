@@ -63,7 +63,7 @@ def _registry_fingerprint(registry) -> str:
             ann = _python_type_to_str(param.annotation)
             default = repr(param.default) if param.default is not inspect.Parameter.empty else "REQUIRED"
             params.append(f"{pname}:{ann}={default}")
-        parts.append(f"{name}({'|'.join(params)}):{entry.modifying}")
+        parts.append(f"{name}({'|'.join(params)}):{entry.modifying}:{entry.destructive}:{entry.idempotent}")
     return hashlib.sha256("\n".join(parts).encode()).hexdigest()[:16]
 
 
@@ -173,6 +173,20 @@ def generate() -> str:
         if not entry.modifying:
             lines.append(f'    "{cmd_name}",')
     lines.append("})")
+    lines.append("")
+
+    # Generate annotation overrides (only commands with non-default values)
+    lines.append("COMMAND_ANNOTATIONS: dict[str, dict[str, bool]] = {")
+    for cmd_name, entry in sorted(registry.items()):
+        overrides: dict[str, bool] = {}
+        if entry.destructive:
+            overrides["destructive"] = True
+        if not entry.idempotent:
+            overrides["idempotent"] = False
+        if overrides:
+            pairs = ", ".join(f'"{k}": {v}' for k, v in sorted(overrides.items()))
+            lines.append(f'    "{cmd_name}": {{{pairs}}},')
+    lines.append("}")
     lines.append("")
 
     return "\n".join(lines)

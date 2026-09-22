@@ -193,7 +193,7 @@ def register_tools(mcp):
         ctx: Context,
         effect_name: str,
         return_name: str = "",
-        source_tracks: list = None,
+        source_tracks: list | None = None,
         send_level: float = 0.5,
     ) -> str:
         """Create a return track with an effect and optionally set send levels.

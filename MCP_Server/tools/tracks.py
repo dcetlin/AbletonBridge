@@ -1,7 +1,8 @@
 """Track management tool handlers for AbletonBridge."""
 import json
+from typing import Any
 from mcp.server.fastmcp import Context
-from MCP_Server.tools._base import _tool_handler, _m4l_result
+from MCP_Server.tools._base import _get_tool_annotations, _tool_handler, _m4l_result
 from MCP_Server.connections.ableton import get_ableton_connection
 from MCP_Server.connections.m4l import get_m4l_connection
 from MCP_Server.validation import _validate_index, _validate_index_allow_negative, _validate_range
@@ -53,7 +54,7 @@ def register_tools(mcp):
         result = ableton.send_command("get_return_tracks_info")
         return json.dumps(result)
 
-    @mcp.tool()
+    @mcp.tool(annotations=_get_tool_annotations("create_midi_track"))
     @_tool_handler("creating MIDI track")
     def create_midi_track(ctx: Context, index: int = -1) -> str:
         """
@@ -67,7 +68,7 @@ def register_tools(mcp):
         result = ableton.send_command("create_midi_track", {"index": index})
         return f"Created new MIDI track: {result.get('name', 'unknown')}"
 
-    @mcp.tool()
+    @mcp.tool(annotations=_get_tool_annotations("create_audio_track"))
     @_tool_handler("creating audio track")
     def create_audio_track(ctx: Context, index: int = -1) -> str:
         """
@@ -81,7 +82,7 @@ def register_tools(mcp):
         result = ableton.send_command("create_audio_track", {"index": index})
         return f"Created new audio track: {result.get('name', 'unknown')}"
 
-    @mcp.tool()
+    @mcp.tool(annotations=_get_tool_annotations("delete_track"))
     @_tool_handler("deleting track")
     def delete_track(ctx: Context, track_index: int) -> str:
         """
@@ -95,7 +96,7 @@ def register_tools(mcp):
         result = ableton.send_command("delete_track", {"track_index": track_index})
         return f"Deleted track '{result.get('track_name', 'unknown')}' at index {track_index}"
 
-    @mcp.tool()
+    @mcp.tool(annotations=_get_tool_annotations("duplicate_track"))
     @_tool_handler("duplicating track")
     def duplicate_track(ctx: Context, track_index: int) -> str:
         """
@@ -181,7 +182,7 @@ def register_tools(mcp):
         result = ableton.send_command("group_tracks", {"track_indices": track_indices})
         return f"Grouped {len(track_indices)} tracks"
 
-    @mcp.tool()
+    @mcp.tool(annotations=_get_tool_annotations("create_return_track"))
     @_tool_handler("creating return track")
     def create_return_track(ctx: Context) -> str:
         """Create a new return track in the session."""
@@ -189,7 +190,7 @@ def register_tools(mcp):
         result = ableton.send_command("create_return_track")
         return f"Created return track: {result.get('name', 'unknown')}"
 
-    @mcp.tool()
+    @mcp.tool(annotations=_get_tool_annotations("delete_return_track"))
     @_tool_handler("deleting return track")
     def delete_return_track(ctx: Context, return_index: int) -> str:
         """Delete a return track.
@@ -319,8 +320,8 @@ def register_tools(mcp):
     @mcp.tool()
     @_tool_handler("setting track routing")
     def set_track_routing(ctx: Context, track_index: int,
-                          input_type: str = None, input_channel: str = None,
-                          output_type: str = None, output_channel: str = None) -> str:
+                          input_type: str | None = None, input_channel: str | None = None,
+                          output_type: str | None = None, output_channel: str | None = None) -> str:
         """Set input/output routing for a track by display name.
 
         Parameters:
@@ -335,7 +336,7 @@ def register_tools(mcp):
         specific outputs.
         """
         _validate_index(track_index, "track_index")
-        params = {"track_index": track_index}
+        params: dict[str, Any] = {"track_index": track_index}
         if input_type is not None:
             params["input_type"] = input_type
         if input_channel is not None:
@@ -374,7 +375,7 @@ def register_tools(mcp):
 
     @mcp.tool()
     @_tool_handler("getting track meters")
-    def get_track_meters(ctx: Context, track_index: int = None) -> str:
+    def get_track_meters(ctx: Context, track_index: int | None = None) -> str:
         """Get live output meter levels and currently playing/fired clip slot info.
 
         Parameters:

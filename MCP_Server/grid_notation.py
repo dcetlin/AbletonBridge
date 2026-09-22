@@ -279,7 +279,7 @@ def parse_melodic_grid(grid: str, base_octave: int = 4, steps_per_beat: int = 4)
 def notes_to_drum_grid(
     notes: list[dict],
     steps_per_beat: int = 4,
-    num_bars: int = None
+    num_bars: int | None = None
 ) -> str:
     """
     Convert MIDI notes to ASCII drum grid.
@@ -358,7 +358,7 @@ def notes_to_drum_grid(
 def notes_to_melodic_grid(
     notes: list[dict],
     steps_per_beat: int = 4,
-    num_bars: int = None
+    num_bars: int | None = None
 ) -> str:
     """
     Convert MIDI notes to ASCII melodic grid.
@@ -490,7 +490,7 @@ def is_drum_track(notes: list[dict]) -> bool:
     return False
 
 
-def notes_to_grid(notes: list[dict], is_drums: bool = None, steps_per_beat: int = 4) -> str:
+def notes_to_grid(notes: list[dict], is_drums: bool | None = None, steps_per_beat: int = 4) -> str:
     """
     Convert notes to appropriate grid format.
 
@@ -511,7 +511,7 @@ def notes_to_grid(notes: list[dict], is_drums: bool = None, steps_per_beat: int 
         return notes_to_melodic_grid(notes, steps_per_beat)
 
 
-def parse_grid(grid: str, is_drums: bool = None, steps_per_beat: int = 4) -> list[dict]:
+def parse_grid(grid: str, is_drums: bool | None = None, steps_per_beat: int = 4) -> list[dict]:
     """
     Parse grid notation to notes.
 

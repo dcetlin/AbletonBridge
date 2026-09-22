@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any, TypedDict
 
-REGISTRY_FINGERPRINT = "789f9de68a7da992"
+REGISTRY_FINGERPRINT = "bc7305ca2939cd9e"
 
 
 # ============================================================
@@ -2058,3 +2058,27 @@ READONLY_COMMANDS: frozenset[str] = frozenset({
     "lom_get",
     "search_browser",
 })
+
+COMMAND_ANNOTATIONS: dict[str, dict[str, bool]] = {
+    "add_notes_extended": {"idempotent": False},
+    "add_notes_to_clip": {"idempotent": False},
+    "clear_all_clip_envelopes": {"destructive": True},
+    "clear_clip_automation": {"destructive": True},
+    "clear_clip_envelope": {"destructive": True},
+    "clear_track_automation": {"destructive": True},
+    "create_audio_track": {"idempotent": False},
+    "create_clip": {"idempotent": False},
+    "create_midi_track": {"idempotent": False},
+    "create_return_track": {"idempotent": False},
+    "create_scene": {"idempotent": False},
+    "delete_arrangement_clip": {"destructive": True, "idempotent": False},
+    "delete_clip": {"destructive": True, "idempotent": False},
+    "delete_device": {"destructive": True, "idempotent": False},
+    "delete_return_track": {"destructive": True, "idempotent": False},
+    "delete_scene": {"destructive": True, "idempotent": False},
+    "delete_time": {"destructive": True, "idempotent": False},
+    "delete_track": {"destructive": True, "idempotent": False},
+    "duplicate_clip": {"idempotent": False},
+    "duplicate_scene": {"idempotent": False},
+    "duplicate_track": {"idempotent": False},
+}

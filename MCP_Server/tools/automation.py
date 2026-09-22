@@ -2,9 +2,9 @@
 import json
 import math
 import random as _random_mod
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from mcp.server.fastmcp import Context
-from MCP_Server.tools._base import _tool_handler
+from MCP_Server.tools._base import _get_tool_annotations, _tool_handler
 from MCP_Server.connections.ableton import get_ableton_connection
 from MCP_Server.validation import _validate_index, _validate_range, _validate_automation_points, _reduce_automation_points, MAX_AUTOMATION_POINTS
 
@@ -199,7 +199,7 @@ def register_tools(mcp):
         _validate_index(track_index, "track_index")
         _validate_index(clip_index, "clip_index")
         ableton = get_ableton_connection()
-        cmd_params = {
+        cmd_params: dict[str, Any] = {
             "track_index": track_index,
             "clip_index": clip_index,
             "parameter_name": parameter_name,
@@ -212,7 +212,7 @@ def register_tools(mcp):
             return f"No automation for '{parameter_name}': {reason}"
         return json.dumps(result)
 
-    @mcp.tool()
+    @mcp.tool(annotations=_get_tool_annotations("clear_clip_automation"))
     @_tool_handler("clearing clip automation")
     def clear_clip_automation(ctx: Context, track_index: int, clip_index: int,
                               parameter_name: str) -> str:
@@ -441,7 +441,7 @@ def register_tools(mcp):
 
         return f"Created {curve_type} automation curve ({points} points) for '{parameter_name}' on track {track_index} clip {clip_index}"
 
-    @mcp.tool()
+    @mcp.tool(annotations=_get_tool_annotations("clear_clip_envelope"))
     @_tool_handler("clearing clip envelope")
     def clear_clip_envelope(ctx: Context, track_index: int, clip_index: int,
                              parameter_name: str) -> str:
@@ -461,7 +461,7 @@ def register_tools(mcp):
         })
         return json.dumps(result)
 
-    @mcp.tool()
+    @mcp.tool(annotations=_get_tool_annotations("clear_all_clip_envelopes"))
     @_tool_handler("clearing all clip envelopes")
     def clear_all_clip_envelopes(ctx: Context, track_index: int, clip_index: int) -> str:
         """Clear ALL automation envelopes from a clip.
@@ -495,7 +495,7 @@ def register_tools(mcp):
         _validate_index(track_index, "track_index")
         _validate_index(clip_index, "clip_index")
         ableton = get_ableton_connection()
-        cmd_params = {
+        cmd_params: dict[str, Any] = {
             "track_index": track_index, "clip_index": clip_index,
             "parameter_name": parameter_name, "time": time,
         }
@@ -521,7 +521,7 @@ def register_tools(mcp):
         _validate_index(track_index, "track_index")
         _validate_index(clip_index, "clip_index")
         ableton = get_ableton_connection()
-        cmd_params = {
+        cmd_params: dict[str, Any] = {
             "track_index": track_index, "clip_index": clip_index,
             "parameter_name": parameter_name, "sample_count": sample_count,
         }
@@ -547,7 +547,7 @@ def register_tools(mcp):
         _validate_index(track_index, "track_index")
         _validate_index(clip_index, "clip_index")
         ableton = get_ableton_connection()
-        cmd_params = {
+        cmd_params: dict[str, Any] = {
             "track_index": track_index, "clip_index": clip_index,
             "parameter_name": parameter_name, "steps": steps,
         }
@@ -604,7 +604,7 @@ def register_tools(mcp):
         _validate_automation_points(points)
 
         ableton = get_ableton_connection()
-        cmd_params = {
+        cmd_params: dict[str, Any] = {
             "track_index": track_index,
             "clip_index": clip_index,
             "parameter_name": parameter_name,
@@ -672,7 +672,7 @@ def register_tools(mcp):
         _validate_automation_points(points)
 
         ableton = get_ableton_connection()
-        cmd_params = {
+        cmd_params: dict[str, Any] = {
             "track_index": track_index,
             "clip_index": clip_index,
             "parameter_name": parameter_name,

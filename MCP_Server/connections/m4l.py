@@ -7,13 +7,75 @@ import time
 import threading
 import uuid
 import base64
+import binascii
 import struct
 from dataclasses import dataclass, field
 from typing import Dict, Any, List
 
+from typing import Callable, NamedTuple
+
 import MCP_Server.state as state
 
 logger = logging.getLogger("AbletonBridge")
+
+
+class _OscSpec(NamedTuple):
+    address: str
+    args: list  # list of (osc_type, param_key) or (osc_type, param_key, default)
+    json_encode: str | None = None
+
+
+_OSC_DISPATCH: dict[str, _OscSpec] = {
+    "ping":                    _OscSpec("/ping", []),
+    "discover_params":         _OscSpec("/discover_params", [("i", "track_index"), ("i", "device_index")]),
+    "get_hidden_params":       _OscSpec("/get_hidden_params", [("i", "track_index"), ("i", "device_index")]),
+    "set_hidden_param":        _OscSpec("/set_hidden_param", [("i", "track_index"), ("i", "device_index"), ("i", "parameter_index"), ("f", "value")]),
+    "get_device_property":     _OscSpec("/get_device_property", [("i", "track_index"), ("i", "device_index"), ("s", "property_name")]),
+    "set_device_property":     _OscSpec("/set_device_property", [("i", "track_index"), ("i", "device_index"), ("s", "property_name"), ("f", "value")]),
+    "batch_set_hidden_params": _OscSpec("/batch_set_hidden_params", [("i", "track_index"), ("i", "device_index"), ("s", "parameters")], json_encode="parameters"),
+    "get_cue_points":          _OscSpec("/get_cue_points", []),
+    "jump_to_cue_point":       _OscSpec("/jump_to_cue_point", [("i", "cue_point_index")]),
+    "get_groove_pool":         _OscSpec("/get_groove_pool", []),
+    "set_groove_properties":   _OscSpec("/set_groove_properties", [("i", "groove_index"), ("s", "properties")], json_encode="properties"),
+    "observe_property":        _OscSpec("/observe_property", [("s", "lom_path"), ("s", "property_name")]),
+    "stop_observing":          _OscSpec("/stop_observing", [("s", "lom_path"), ("s", "property_name")]),
+    "get_observed_changes":    _OscSpec("/get_observed_changes", []),
+    "set_param_clean":         _OscSpec("/set_param_clean", [("i", "track_index"), ("i", "device_index"), ("i", "parameter_index"), ("f", "value")]),
+    "analyze_spectrum":        _OscSpec("/analyze_spectrum", []),
+    "analyze_cross_track":     _OscSpec("/analyze_cross_track", [("i", "track_index", 0), ("i", "wait_ms", 500)]),
+    "get_app_version":         _OscSpec("/get_app_version", []),
+    "get_automation_states":   _OscSpec("/get_automation_states", [("i", "track_index"), ("i", "device_index")]),
+    "discover_chains":         _OscSpec("/discover_chains", [("i", "track_index"), ("i", "device_index"), ("s", "extra_path", "")]),
+    "get_chain_device_params": _OscSpec("/get_chain_device_params", [("i", "track_index"), ("i", "device_index"), ("i", "chain_index"), ("i", "chain_device_index")]),
+    "set_chain_device_param":  _OscSpec("/set_chain_device_param", [("i", "track_index"), ("i", "device_index"), ("i", "chain_index"), ("i", "chain_device_index"), ("i", "parameter_index"), ("f", "value")]),
+    "get_clip_notes_by_id":    _OscSpec("/get_clip_notes_by_id", [("i", "track_index"), ("i", "clip_index")]),
+    "modify_clip_notes":       _OscSpec("/modify_clip_notes", [("i", "track_index"), ("i", "clip_index"), ("s", "modifications")], json_encode="modifications"),
+    "remove_clip_notes_by_id": _OscSpec("/remove_clip_notes_by_id", [("i", "track_index"), ("i", "clip_index"), ("s", "note_ids")], json_encode="note_ids"),
+    "get_chain_mixing":        _OscSpec("/get_chain_mixing", [("i", "track_index"), ("i", "device_index"), ("i", "chain_index")]),
+    "set_chain_mixing":        _OscSpec("/set_chain_mixing", [("i", "track_index"), ("i", "device_index"), ("i", "chain_index"), ("s", "properties")], json_encode="properties"),
+    "device_ab_compare":       _OscSpec("/device_ab_compare", [("i", "track_index"), ("i", "device_index"), ("s", "action")]),
+    "clip_scrub":              _OscSpec("/clip_scrub", [("i", "track_index"), ("i", "clip_index"), ("s", "action"), ("f", "beat_time", 0.0)]),
+    "get_split_stereo":        _OscSpec("/get_split_stereo", [("i", "track_index")]),
+    "set_split_stereo":        _OscSpec("/set_split_stereo", [("i", "track_index"), ("f", "left"), ("f", "right")]),
+    "rack_insert_chain":       _OscSpec("/rack_insert_chain", [("i", "track_index"), ("i", "device_index"), ("i", "chain_index", 0)]),
+    "chain_insert_device_m4l": _OscSpec("/chain_insert_device_m4l", [("i", "track_index"), ("i", "device_index"), ("i", "chain_index"), ("s", "device_uri"), ("i", "target_index", 0)]),
+    "set_drum_chain_note":     _OscSpec("/set_drum_chain_note", [("i", "track_index"), ("i", "device_index"), ("i", "chain_index"), ("i", "note")]),
+    "get_take_lanes":          _OscSpec("/get_take_lanes", [("i", "track_index")]),
+    "rack_store_variation":    _OscSpec("/rack_store_variation", [("i", "track_index"), ("i", "device_index")]),
+    "rack_recall_variation":   _OscSpec("/rack_recall_variation", [("i", "track_index"), ("i", "device_index"), ("i", "variation_index")]),
+    "create_arrangement_midi_clip_m4l":  _OscSpec("/create_arrangement_midi_clip_m4l", [("i", "track_index"), ("f", "time"), ("f", "length")]),
+    "create_arrangement_audio_clip_m4l": _OscSpec("/create_arrangement_audio_clip_m4l", [("i", "track_index"), ("f", "time"), ("f", "length")]),
+}
+
+
+def _build_analyze_audio(conn: "M4LConnection", params: Dict[str, Any], request_id: str) -> bytes:
+    track_index = params.get("track_index", -1) if params else -1
+    return conn._build_osc_message("/analyze_audio", [("i", track_index), ("s", request_id)])
+
+
+_SPECIAL_BUILDERS: dict[str, Callable[["M4LConnection", Dict[str, Any], str], bytes]] = {
+    "analyze_audio": _build_analyze_audio,
+}
 
 
 @dataclass
@@ -28,8 +90,8 @@ class M4LConnection:
     send_host: str = "127.0.0.1"
     send_port: int = 9878
     recv_port: int = 9879
-    send_sock: socket.socket = None
-    recv_sock: socket.socket = None
+    send_sock: socket.socket | None = None
+    recv_sock: socket.socket | None = None
     _connected: bool = False
     _send_lock: threading.Lock = field(default_factory=threading.Lock)
 
@@ -39,8 +101,9 @@ class M4LConnection:
             self.send_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             self.recv_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             # Use exclusive binding -- prevents a second instance from sharing this port
-            if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
-                self.recv_sock.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+            so_exclusive = getattr(socket, "SO_EXCLUSIVEADDRUSE", None)
+            if so_exclusive is not None:
+                self.recv_sock.setsockopt(socket.SOL_SOCKET, so_exclusive, 1)
             self.recv_sock.bind(("127.0.0.1", self.recv_port))
             self.recv_sock.settimeout(5.0)
             self._connected = True
@@ -64,7 +127,7 @@ class M4LConnection:
         self._connected = False
 
     @staticmethod
-    def _build_osc_message(address: str, osc_args: list = None) -> bytes:
+    def _build_osc_message(address: str, osc_args: list | None = None) -> bytes:
         """Build an OSC message with typed arguments.
 
         Each arg is a tuple of (type, value):
@@ -92,292 +155,37 @@ class M4LConnection:
 
     def _build_osc_packet(self, command_type: str, params: Dict[str, Any], request_id: str) -> bytes:
         """Build the OSC packet for a given command type."""
-        if command_type == "ping":
-            return self._build_osc_message("/ping", [("s", request_id)])
-        elif command_type == "discover_params":
-            return self._build_osc_message("/discover_params", [
-                ("i", params["track_index"]),
-                ("i", params["device_index"]),
-                ("s", request_id),
-            ])
-        elif command_type == "get_hidden_params":
-            return self._build_osc_message("/get_hidden_params", [
-                ("i", params["track_index"]),
-                ("i", params["device_index"]),
-                ("s", request_id),
-            ])
-        elif command_type == "set_hidden_param":
-            return self._build_osc_message("/set_hidden_param", [
-                ("i", params["track_index"]),
-                ("i", params["device_index"]),
-                ("i", params["parameter_index"]),
-                ("f", params["value"]),
-                ("s", request_id),
-            ])
-        elif command_type == "get_device_property":
-            return self._build_osc_message("/get_device_property", [
-                ("i", params["track_index"]),
-                ("i", params["device_index"]),
-                ("s", params["property_name"]),
-                ("s", request_id),
-            ])
-        elif command_type == "set_device_property":
-            return self._build_osc_message("/set_device_property", [
-                ("i", params["track_index"]),
-                ("i", params["device_index"]),
-                ("s", params["property_name"]),
-                ("f", params["value"]),
-                ("s", request_id),
-            ])
-        elif command_type == "batch_set_hidden_params":
-            # Use compact JSON (no spaces) + URL-safe base64 without padding.
-            # Max's OSC/symbol handling mangles +, /, and = characters.
-            params_json = json.dumps(params["parameters"], separators=(",", ":"))
-            params_b64 = base64.urlsafe_b64encode(params_json.encode("utf-8")).decode("ascii").rstrip("=")
-            return self._build_osc_message("/batch_set_hidden_params", [
-                ("i", params["track_index"]),
-                ("i", params["device_index"]),
-                ("s", params_b64),
-                ("s", request_id),
-            ])
-        # --- Phase 7: Cue Points ---
-        elif command_type == "get_cue_points":
-            return self._build_osc_message("/get_cue_points", [
-                ("s", request_id),
-            ])
-        elif command_type == "jump_to_cue_point":
-            return self._build_osc_message("/jump_to_cue_point", [
-                ("i", params["cue_point_index"]),
-                ("s", request_id),
-            ])
-        # --- Phase 8: Groove Pool ---
-        elif command_type == "get_groove_pool":
-            return self._build_osc_message("/get_groove_pool", [
-                ("s", request_id),
-            ])
-        elif command_type == "set_groove_properties":
-            props_json = json.dumps(params["properties"], separators=(",", ":"))
-            props_b64 = base64.urlsafe_b64encode(props_json.encode("utf-8")).decode("ascii").rstrip("=")
-            return self._build_osc_message("/set_groove_properties", [
-                ("i", params["groove_index"]),
-                ("s", props_b64),
-                ("s", request_id),
-            ])
-        # --- Phase 6: Event Monitoring ---
-        elif command_type == "observe_property":
-            return self._build_osc_message("/observe_property", [
-                ("s", params["lom_path"]),
-                ("s", params["property_name"]),
-                ("s", request_id),
-            ])
-        elif command_type == "stop_observing":
-            return self._build_osc_message("/stop_observing", [
-                ("s", params["lom_path"]),
-                ("s", params["property_name"]),
-                ("s", request_id),
-            ])
-        elif command_type == "get_observed_changes":
-            return self._build_osc_message("/get_observed_changes", [
-                ("s", request_id),
-            ])
-        # --- Phase 9: Clean Params ---
-        elif command_type == "set_param_clean":
-            return self._build_osc_message("/set_param_clean", [
-                ("i", params["track_index"]),
-                ("i", params["device_index"]),
-                ("i", params["parameter_index"]),
-                ("f", params["value"]),
-                ("s", request_id),
-            ])
-        # --- Phase 5: Audio Analysis ---
-        elif command_type == "analyze_audio":
-            track_index = params.get("track_index", -1) if params else -1
-            return self._build_osc_message("/analyze_audio", [
-                ("i", track_index),
-                ("s", request_id),
-            ])
-        elif command_type == "analyze_spectrum":
-            return self._build_osc_message("/analyze_spectrum", [
-                ("s", request_id),
-            ])
-        # --- Cross-Track MSP Analysis ---
-        elif command_type == "analyze_cross_track":
-            return self._build_osc_message("/analyze_cross_track", [
-                ("i", params.get("track_index", 0)),
-                ("i", params.get("wait_ms", 500)),
-                ("s", request_id),
-            ])
-        # --- Phase 10: App Version Detection ---
-        elif command_type == "get_app_version":
-            return self._build_osc_message("/get_app_version", [("s", request_id)])
-        # --- Phase 11: Automation State Introspection ---
-        elif command_type == "get_automation_states":
-            return self._build_osc_message("/get_automation_states", [
-                ("i", params["track_index"]),
-                ("i", params["device_index"]),
-                ("s", request_id),
-            ])
-        # --- Phase F1: Wire orphaned chain OSC builders ---
-        elif command_type == "discover_chains":
-            extra = params.get("extra_path", "")
-            osc_args = [("i", params["track_index"]), ("i", params["device_index"])]
-            if extra:
-                osc_args.append(("s", extra))
-            osc_args.append(("s", request_id))
-            return self._build_osc_message("/discover_chains", osc_args)
-        elif command_type == "get_chain_device_params":
-            return self._build_osc_message("/get_chain_device_params", [
-                ("i", params["track_index"]),
-                ("i", params["device_index"]),
-                ("i", params["chain_index"]),
-                ("i", params["chain_device_index"]),
-                ("s", request_id),
-            ])
-        elif command_type == "set_chain_device_param":
-            return self._build_osc_message("/set_chain_device_param", [
-                ("i", params["track_index"]),
-                ("i", params["device_index"]),
-                ("i", params["chain_index"]),
-                ("i", params["chain_device_index"]),
-                ("i", params["parameter_index"]),
-                ("f", params["value"]),
-                ("s", request_id),
-            ])
-        # --- Phase 12: Note Surgery by ID ---
-        elif command_type == "get_clip_notes_by_id":
-            return self._build_osc_message("/get_clip_notes_by_id", [
-                ("i", params["track_index"]),
-                ("i", params["clip_index"]),
-                ("s", request_id),
-            ])
-        elif command_type == "modify_clip_notes":
-            mods_json = json.dumps(params["modifications"], separators=(",", ":"))
-            mods_b64 = base64.urlsafe_b64encode(mods_json.encode("utf-8")).decode("ascii").rstrip("=")
-            return self._build_osc_message("/modify_clip_notes", [
-                ("i", params["track_index"]),
-                ("i", params["clip_index"]),
-                ("s", mods_b64),
-                ("s", request_id),
-            ])
-        elif command_type == "remove_clip_notes_by_id":
-            ids_json = json.dumps(params["note_ids"], separators=(",", ":"))
-            ids_b64 = base64.urlsafe_b64encode(ids_json.encode("utf-8")).decode("ascii").rstrip("=")
-            return self._build_osc_message("/remove_clip_notes_by_id", [
-                ("i", params["track_index"]),
-                ("i", params["clip_index"]),
-                ("s", ids_b64),
-                ("s", request_id),
-            ])
-        # --- Phase 13: Chain-Level Mixing ---
-        elif command_type == "get_chain_mixing":
-            return self._build_osc_message("/get_chain_mixing", [
-                ("i", params["track_index"]),
-                ("i", params["device_index"]),
-                ("i", params["chain_index"]),
-                ("s", request_id),
-            ])
-        elif command_type == "set_chain_mixing":
-            props_json = json.dumps(params["properties"], separators=(",", ":"))
-            props_b64 = base64.urlsafe_b64encode(props_json.encode("utf-8")).decode("ascii").rstrip("=")
-            return self._build_osc_message("/set_chain_mixing", [
-                ("i", params["track_index"]),
-                ("i", params["device_index"]),
-                ("i", params["chain_index"]),
-                ("s", props_b64),
-                ("s", request_id),
-            ])
-        # --- Phase 14: Device AB Comparison ---
-        elif command_type == "device_ab_compare":
-            return self._build_osc_message("/device_ab_compare", [
-                ("i", params["track_index"]),
-                ("i", params["device_index"]),
-                ("s", params["action"]),
-                ("s", request_id),
-            ])
-        # --- Phase 15: Clip Scrubbing ---
-        elif command_type == "clip_scrub":
-            return self._build_osc_message("/clip_scrub", [
-                ("i", params["track_index"]),
-                ("i", params["clip_index"]),
-                ("s", params["action"]),
-                ("f", params.get("beat_time", 0.0)),
-                ("s", request_id),
-            ])
-        # --- Phase 16: Split Stereo Panning ---
-        elif command_type == "get_split_stereo":
-            return self._build_osc_message("/get_split_stereo", [
-                ("i", params["track_index"]),
-                ("s", request_id),
-            ])
-        elif command_type == "set_split_stereo":
-            return self._build_osc_message("/set_split_stereo", [
-                ("i", params["track_index"]),
-                ("f", params["left"]),
-                ("f", params["right"]),
-                ("s", request_id),
-            ])
-        # --- Phase 17: Extended LOM Operations ---
-        elif command_type == "rack_insert_chain":
-            return self._build_osc_message("/rack_insert_chain", [
-                ("i", params["track_index"]),
-                ("i", params["device_index"]),
-                ("i", params.get("chain_index", 0)),
-                ("s", request_id),
-            ])
-        elif command_type == "chain_insert_device_m4l":
-            return self._build_osc_message("/chain_insert_device_m4l", [
-                ("i", params["track_index"]),
-                ("i", params["device_index"]),
-                ("i", params["chain_index"]),
-                ("s", params["device_uri"]),
-                ("i", params.get("target_index", 0)),
-                ("s", request_id),
-            ])
-        elif command_type == "set_drum_chain_note":
-            return self._build_osc_message("/set_drum_chain_note", [
-                ("i", params["track_index"]),
-                ("i", params["device_index"]),
-                ("i", params["chain_index"]),
-                ("i", params["note"]),
-                ("s", request_id),
-            ])
-        elif command_type == "get_take_lanes":
-            return self._build_osc_message("/get_take_lanes", [
-                ("i", params["track_index"]),
-                ("s", request_id),
-            ])
-        elif command_type == "rack_store_variation":
-            return self._build_osc_message("/rack_store_variation", [
-                ("i", params["track_index"]),
-                ("i", params["device_index"]),
-                ("s", request_id),
-            ])
-        elif command_type == "rack_recall_variation":
-            return self._build_osc_message("/rack_recall_variation", [
-                ("i", params["track_index"]),
-                ("i", params["device_index"]),
-                ("i", params["variation_index"]),
-                ("s", request_id),
-            ])
-        elif command_type == "create_arrangement_midi_clip_m4l":
-            return self._build_osc_message("/create_arrangement_midi_clip_m4l", [
-                ("i", params["track_index"]),
-                ("f", params["time"]),
-                ("f", params["length"]),
-                ("s", request_id),
-            ])
-        elif command_type == "create_arrangement_audio_clip_m4l":
-            return self._build_osc_message("/create_arrangement_audio_clip_m4l", [
-                ("i", params["track_index"]),
-                ("f", params["time"]),
-                ("f", params["length"]),
-                ("s", request_id),
-            ])
-        else:
+        if command_type in _SPECIAL_BUILDERS:
+            return _SPECIAL_BUILDERS[command_type](self, params, request_id)
+        spec = _OSC_DISPATCH.get(command_type)
+        if spec is None:
             raise ValueError(f"Unknown M4L command: {command_type}")
+        return self._build_from_spec(spec, params, request_id)
+
+    def _build_from_spec(self, spec: "_OscSpec", params: Dict[str, Any], request_id: str) -> bytes:
+        """Build an OSC packet from a declarative spec."""
+        if spec.json_encode:
+            payload = json.dumps(params[spec.json_encode], separators=(",", ":"))
+            encoded = base64.urlsafe_b64encode(payload.encode("utf-8")).decode("ascii").rstrip("=")
+            params = dict(params, **{spec.json_encode: encoded})
+
+        osc_args: list[tuple[str, Any]] = []
+        for arg_spec in spec.args:
+            if len(arg_spec) == 3:
+                osc_type, key, default = arg_spec
+                value = params.get(key, default)
+                if value == "" and osc_type == "s":
+                    continue
+                osc_args.append((osc_type, value))
+            else:
+                osc_type, key = arg_spec
+                osc_args.append((osc_type, params[key]))
+        osc_args.append(("s", request_id))
+        return self._build_osc_message(spec.address, osc_args)
 
     def _drain_recv_socket(self):
         """Drain any stale data from the receive socket."""
+        assert self.recv_sock is not None
         self.recv_sock.setblocking(False)
         try:
             for _ in range(100):
@@ -386,7 +194,7 @@ class M4LConnection:
             pass
         self.recv_sock.setblocking(True)
 
-    def send_command(self, command_type: str, params: Dict[str, Any] = None, timeout: float = None) -> Dict[str, Any]:
+    def send_command(self, command_type: str, params: Dict[str, Any] | None = None, timeout: float | None = None) -> Dict[str, Any]:
         """Send a command to the M4L bridge using native OSC messages.
 
         Includes automatic reconnect: if the send or receive fails, the
@@ -426,6 +234,7 @@ class M4LConnection:
 
                 # Drain any stale data in the recv socket before sending
                 self._drain_recv_socket()
+                assert self.recv_sock is not None and self.send_sock is not None
                 self.recv_sock.settimeout(timeout)
 
                 try:
@@ -476,8 +285,9 @@ class M4LConnection:
                         time.sleep(0.2)
                         continue
                     raise Exception("Timeout waiting for M4L bridge response. Is the M4L device loaded?")
+        raise RuntimeError("unreachable")
 
-    def send_command_with_retry(self, command_type: str, params: Dict[str, Any] = None, timeout: float = None, max_attempts: int = 3) -> Dict[str, Any]:
+    def send_command_with_retry(self, command_type: str, params: Dict[str, Any] | None = None, timeout: float | None = None, max_attempts: int = 3) -> Dict[str, Any]:
         """Send command with retry logic for 'busy' responses from M4L bridge."""
         if max_attempts <= 0:
             raise ValueError("max_attempts must be a positive integer")
@@ -492,7 +302,7 @@ class M4LConnection:
                 continue
             return result
         logger.error("M4L bridge remained busy after %d attempts for '%s'", max_attempts, command_type)
-        return last_result
+        return last_result or {}
 
     @staticmethod
     def _parse_m4l_response(data: bytes) -> Dict[str, Any]:
@@ -518,14 +328,14 @@ class M4LConnection:
             padded = osc_address + "=" * (-len(osc_address) % 4)
             decoded = base64.urlsafe_b64decode(padded).decode("utf-8")
             return json.loads(decoded)
-        except (ValueError, base64.binascii.Error, json.JSONDecodeError, UnicodeDecodeError):
+        except (ValueError, binascii.Error, json.JSONDecodeError, UnicodeDecodeError):
             pass
 
         # Fallback: try standard base64
         try:
             decoded = base64.b64decode(osc_address).decode("utf-8")
             return json.loads(decoded)
-        except (ValueError, base64.binascii.Error, json.JSONDecodeError, UnicodeDecodeError):
+        except (ValueError, binascii.Error, json.JSONDecodeError, UnicodeDecodeError):
             pass
 
         # Fallback: try raw JSON (in case response wasn't base64-encoded)
@@ -543,12 +353,12 @@ class M4LConnection:
             padded = text + "=" * (-len(text) % 4)
             decoded = base64.urlsafe_b64decode(padded).decode("utf-8")
             return json.loads(decoded)
-        except (ValueError, base64.binascii.Error, json.JSONDecodeError, UnicodeDecodeError):
+        except (ValueError, binascii.Error, json.JSONDecodeError, UnicodeDecodeError):
             pass
         try:
             decoded = base64.b64decode(text).decode("utf-8")
             return json.loads(decoded)
-        except (ValueError, base64.binascii.Error, json.JSONDecodeError, UnicodeDecodeError):
+        except (ValueError, binascii.Error, json.JSONDecodeError, UnicodeDecodeError):
             pass
 
         raise json.JSONDecodeError("Could not parse M4L response", text, 0)
@@ -570,6 +380,7 @@ class M4LConnection:
         # Collect remaining chunks
         # Give extra time: 100ms per chunk + 5s base
         chunk_timeout = max(5.0, total * 0.1 + 5.0)
+        assert self.recv_sock is not None
         self.recv_sock.settimeout(chunk_timeout)
 
         while len(chunks) < total:

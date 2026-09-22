@@ -66,8 +66,9 @@ def _acquire_singleton_lock() -> socket.socket:
     """
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
-        if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        so_exclusive = getattr(socket, "SO_EXCLUSIVEADDRUSE", None)
+        if so_exclusive is not None:
+            sock.setsockopt(socket.SOL_SOCKET, so_exclusive, 1)
         sock.bind(("127.0.0.1", state.SINGLETON_LOCK_PORT))
         sock.listen(1)
         logger.info("Singleton lock acquired on port %d", state.SINGLETON_LOCK_PORT)
@@ -81,7 +82,7 @@ def _acquire_singleton_lock() -> socket.socket:
         ) from e
 
 
-def _release_singleton_lock(sock: socket.socket):
+def _release_singleton_lock(sock: socket.socket | None):
     """Release the singleton lock by closing the lock socket."""
     if sock:
         try:
@@ -113,6 +114,7 @@ def _m4l_auto_connect():
         try:
             # Drain stale data
             conn._drain_recv_socket()
+            assert conn.recv_sock is not None and conn.send_sock is not None
             conn.recv_sock.settimeout(2.0)
 
             # Send ping

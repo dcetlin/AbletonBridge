@@ -3,7 +3,7 @@ import json
 import math
 from typing import List, Dict, Any
 from mcp.server.fastmcp import Context
-from MCP_Server.tools._base import _tool_handler
+from MCP_Server.tools._base import _get_tool_annotations, _tool_handler
 from MCP_Server.connections.ableton import get_ableton_connection
 from MCP_Server.validation import _validate_index, _validate_range, _validate_notes
 from MCP_Server.data import SCALES, DRUM_PATTERNS
@@ -21,7 +21,7 @@ def register_tools(mcp):
                                     steps: int, pulses: int, pitch: int = 36,
                                     velocity: int = 100, rotation: int = 0,
                                     note_length: float = 0.25,
-                                    clip_length: float = None) -> str:
+                                    clip_length: float | None = None) -> str:
         """Generate a Euclidean rhythm pattern and write it to a MIDI clip.
 
         Euclidean rhythms distribute N pulses as evenly as possible across K steps.
@@ -114,7 +114,7 @@ def register_tools(mcp):
         return f"Generated Euclidean rhythm ({steps},{pulses}) with {len(notes)} hits on track {track_index} clip {clip_index}"
 
 
-    @mcp.tool()
+    @mcp.tool(annotations=_get_tool_annotations("add_notes_to_clip"))
     @_tool_handler("humanizing notes")
     def humanize_notes(ctx: Context, track_index: int, clip_index: int,
                          timing_amount: float = 0.02, velocity_amount: float = 10.0,
@@ -184,7 +184,7 @@ def register_tools(mcp):
         return f"Humanized {len(humanized)} notes (timing\u00b1{timing_amount}, velocity\u00b1{velocity_amount})"
 
 
-    @mcp.tool()
+    @mcp.tool(annotations=_get_tool_annotations("add_notes_to_clip"))
     @_tool_handler("generating scale-constrained notes")
     def scale_constrained_generate(ctx: Context, track_index: int, clip_index: int,
                                       scale_name: str = "major", root: int = 60,
@@ -257,7 +257,7 @@ def register_tools(mcp):
         return f"Generated {note_count} scale-constrained notes ({scale_name} from {root}) on track {track_index} clip {clip_index}"
 
 
-    @mcp.tool()
+    @mcp.tool(annotations=_get_tool_annotations("add_notes_to_clip"))
     @_tool_handler("transforming notes")
     def transform_notes(ctx: Context, track_index: int, clip_index: int,
                           operation: str, amount: int = 0) -> str:
@@ -341,7 +341,7 @@ def register_tools(mcp):
         return f"Transformed {len(notes)} notes with '{operation}' on track {track_index} clip {clip_index}"
 
 
-    @mcp.tool()
+    @mcp.tool(annotations=_get_tool_annotations("add_notes_to_clip"))
     @_tool_handler("copying notes between clips")
     def copy_notes_between_clips(ctx: Context, src_track: int, src_clip: int,
                                     dest_track: int, dest_clip: int,
@@ -395,7 +395,7 @@ def register_tools(mcp):
                                    follow_action_0: int = 4,
                                    follow_action_1: int = 0,
                                    follow_action_probability: float = 1.0,
-                                   follow_action_time: float = None,
+                                   follow_action_time: float | None = None,
                                    follow_action_enabled: bool = True,
                                    follow_action_linked: bool = True) -> str:
         """Set follow actions on multiple clips at once.
@@ -419,7 +419,7 @@ def register_tools(mcp):
         ableton = get_ableton_connection()
         results = []
         for ci in indices:
-            params = {
+            params: dict[str, Any] = {
                 "track_index": track_index,
                 "clip_index": ci,
                 "follow_action_0": follow_action_0,
@@ -439,7 +439,7 @@ def register_tools(mcp):
         return f"Batch follow actions on track {track_index}: {'; '.join(results)}"
 
 
-    @mcp.tool()
+    @mcp.tool(annotations=_get_tool_annotations("add_notes_to_clip"))
     @_tool_handler("randomizing clip notes")
     def randomize_clip_notes(ctx: Context, track_index: int, clip_index: int,
                                pitch_min: int = 36, pitch_max: int = 84,
@@ -490,7 +490,7 @@ def register_tools(mcp):
         return f"Generated {len(notes)} random notes on track {track_index} clip {clip_index}"
 
 
-    @mcp.tool()
+    @mcp.tool(annotations=_get_tool_annotations("add_notes_to_clip"))
     @_tool_handler("creating polyrhythm")
     def create_polyrhythm(ctx: Context, track_index: int, clip_index: int,
                             rhythms: str, pitches: str = "36,38,42",
@@ -537,7 +537,7 @@ def register_tools(mcp):
         return f"Created polyrhythm ({rhythms}) with {len(notes)} notes on track {track_index} clip {clip_index}"
 
 
-    @mcp.tool()
+    @mcp.tool(annotations=_get_tool_annotations("add_notes_to_clip"))
     @_tool_handler("creating stutter effect")
     def stutter_effect(ctx: Context, track_index: int, clip_index: int,
                          stutter_rate: float = 0.125, stutter_count: int = 8,
@@ -580,7 +580,7 @@ def register_tools(mcp):
         return f"Created stutter effect ({stutter_count} hits at {stutter_rate} beat intervals) on track {track_index} clip {clip_index}"
 
 
-    @mcp.tool()
+    @mcp.tool(annotations=_get_tool_annotations("add_notes_to_clip"))
     @_tool_handler("duplicating with variation")
     def duplicate_with_variation(ctx: Context, src_track: int, src_clip: int,
                                    dest_track: int, dest_clip: int,
@@ -730,7 +730,7 @@ def register_tools(mcp):
         return f"Generated {len(chord_symbols)}-chord progression ({progression}) with {len(notes)} notes on track {track_index} clip {clip_index}"
 
 
-    @mcp.tool()
+    @mcp.tool(annotations=_get_tool_annotations("add_notes_to_clip"))
     @_tool_handler("generating arpeggio")
     def generate_arpeggio(ctx: Context, track_index: int, clip_index: int,
                              root: int = 60, chord_type: str = "major",
@@ -822,7 +822,7 @@ def register_tools(mcp):
         return f"Generated {pattern} arpeggio ({chord_type}, {octaves} octaves) with {len(notes)} notes on track {track_index} clip {clip_index}"
 
 
-    @mcp.tool()
+    @mcp.tool(annotations=_get_tool_annotations("add_notes_to_clip"))
     @_tool_handler("generating drum pattern")
     def generate_drum_pattern(ctx: Context, track_index: int, clip_index: int,
                                  style: str = "basic_rock",
@@ -979,7 +979,7 @@ def register_tools(mcp):
         return f"Generated Euclidean rhythm E({hits},{steps}) [{pattern_str}] with {len(notes)} notes on track {track_index} clip {clip_index}"
 
 
-    @mcp.tool()
+    @mcp.tool(annotations=_get_tool_annotations("add_notes_to_clip"))
     @_tool_handler("generating bass line")
     def generate_bass_line(ctx: Context, track_index: int, clip_index: int,
                               root: int = 36, scale_name: str = "minor",

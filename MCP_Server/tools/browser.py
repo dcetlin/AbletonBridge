@@ -1,5 +1,6 @@
 """Browser/search tool handlers for AbletonBridge."""
 import json
+from typing import Any
 from mcp.server.fastmcp import Context
 from MCP_Server.tools._base import _tool_handler, _m4l_result
 from MCP_Server.connections.ableton import get_ableton_connection
@@ -293,7 +294,7 @@ def register_tools(mcp):
 
     @mcp.tool()
     @_tool_handler("previewing browser item")
-    def preview_browser_item(ctx: Context, uri: str = None, action: str = "preview") -> str:
+    def preview_browser_item(ctx: Context, uri: str | None = None, action: str = "preview") -> str:
         """Preview (audition) a browser item before loading it, or stop the current preview.
 
         Parameters:
@@ -303,7 +304,7 @@ def register_tools(mcp):
         """
         if action not in ("preview", "stop"):
             return "action must be 'preview' or 'stop'"
-        params = {"action": action}
+        params: dict[str, Any] = {"action": action}
         if uri is not None:
             params["uri"] = uri
         ableton = get_ableton_connection()

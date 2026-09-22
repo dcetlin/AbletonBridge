@@ -83,6 +83,7 @@ def get_m4l_status() -> tuple:
         return sockets_ready, state.m4l_ping_cache["result"]
 
     try:
+        assert state.m4l_connection is not None
         result = state.m4l_connection.ping()
     except Exception as e:
         logger.debug("Dashboard M4L ping failed: %s", e)
@@ -174,6 +175,7 @@ def start_dashboard_server():
     def _run():
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
+        assert state.dashboard_server is not None
         loop.run_until_complete(state.dashboard_server.serve())
 
     thread = threading.Thread(target=_run, daemon=True, name="dashboard-http")

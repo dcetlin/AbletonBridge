@@ -1,8 +1,8 @@
 """Clip tool handlers for AbletonBridge."""
 import json
-from typing import List, Dict, Union, Optional
+from typing import Any, List, Dict, Union, Optional
 from mcp.server.fastmcp import Context
-from MCP_Server.tools._base import _tool_handler
+from MCP_Server.tools._base import _get_tool_annotations, _tool_handler
 from MCP_Server.connections.ableton import get_ableton_connection
 from MCP_Server.validation import _validate_index, _validate_index_allow_negative, _validate_range, _validate_notes
 from shared.commands import (
@@ -28,7 +28,7 @@ from shared.commands import (
 
 
 def register_tools(mcp):
-    @mcp.tool()
+    @mcp.tool(annotations=_get_tool_annotations("create_clip"))
     @_tool_handler("creating clip")
     def create_clip(ctx: Context, track_index: int, clip_index: int, length: float = 4.0) -> str:
         """
@@ -51,7 +51,7 @@ def register_tools(mcp):
         })
         return f"Created new clip at track {track_index}, slot {clip_index} with length {length} beats"
 
-    @mcp.tool()
+    @mcp.tool(annotations=_get_tool_annotations("delete_clip"))
     @_tool_handler("deleting clip")
     def delete_clip(ctx: Context, track_index: int, clip_index: int) -> str:
         """
@@ -138,7 +138,7 @@ def register_tools(mcp):
         })
         return f"Added {len(notes)} notes to clip at track {track_index}, slot {clip_index}"
 
-    @mcp.tool()
+    @mcp.tool(annotations=_get_tool_annotations("add_notes_extended"))
     @_tool_handler("adding extended notes")
     def add_notes_extended(ctx: Context, track_index: int, clip_index: int,
                            notes: List[Dict]) -> str:
@@ -270,7 +270,7 @@ def register_tools(mcp):
         })
         return f"Removed {result.get('notes_removed', 0)} notes from range (time={from_time}-{from_time+time_span}, pitch={from_pitch}-{from_pitch+pitch_span})"
 
-    @mcp.tool()
+    @mcp.tool(annotations=_get_tool_annotations("duplicate_clip"))
     @_tool_handler("duplicating clip")
     def duplicate_clip(ctx: Context, track_index: int, clip_index: int, target_clip_index: int) -> str:
         """
@@ -444,7 +444,7 @@ def register_tools(mcp):
     @mcp.tool()
     @_tool_handler("setting clip start/end markers")
     def set_clip_start_end(ctx: Context, track_index: int, clip_index: int,
-                           start_marker: float = None, end_marker: float = None) -> str:
+                           start_marker: float | None = None, end_marker: float | None = None) -> str:
         """
         Set clip start_marker and end_marker positions (controls playback region without changing notes).
 
@@ -459,7 +459,7 @@ def register_tools(mcp):
         """
         _validate_index(track_index, "track_index")
         _validate_index(clip_index, "clip_index")
-        params = {"track_index": track_index, "clip_index": clip_index}
+        params: dict[str, Any] = {"track_index": track_index, "clip_index": clip_index}
         if start_marker is not None:
             params["start_marker"] = start_marker
         if end_marker is not None:
@@ -615,7 +615,7 @@ def register_tools(mcp):
     @mcp.tool()
     @_tool_handler("setting clip pitch")
     def set_clip_pitch(ctx: Context, track_index: int, clip_index: int,
-                       pitch_coarse: int = None, pitch_fine: float = None) -> str:
+                       pitch_coarse: int | None = None, pitch_fine: float | None = None) -> str:
         """Set pitch transposition for an audio clip.
 
         Parameters:
@@ -629,7 +629,7 @@ def register_tools(mcp):
         """
         _validate_index(track_index, "track_index")
         _validate_index(clip_index, "clip_index")
-        params = {"track_index": track_index, "clip_index": clip_index}
+        params: dict[str, Any] = {"track_index": track_index, "clip_index": clip_index}
         if pitch_coarse is not None:
             params["pitch_coarse"] = pitch_coarse
         if pitch_fine is not None:
@@ -790,7 +790,7 @@ def register_tools(mcp):
     @mcp.tool()
     @_tool_handler("setting clip grid")
     def set_clip_grid(ctx: Context, track_index: int, clip_index: int,
-                       grid_quantization: int = None, grid_is_triplet: bool = None) -> str:
+                       grid_quantization: int | None = None, grid_is_triplet: bool | None = None) -> str:
         """Set the MIDI editor grid resolution for a clip.
 
         Parameters:
@@ -801,7 +801,7 @@ def register_tools(mcp):
         """
         _validate_index(track_index, "track_index")
         _validate_index(clip_index, "clip_index")
-        params = {"track_index": track_index, "clip_index": clip_index}
+        params: dict[str, Any] = {"track_index": track_index, "clip_index": clip_index}
         if grid_quantization is not None:
             params["grid_quantization"] = grid_quantization
         if grid_is_triplet is not None:
@@ -859,12 +859,12 @@ def register_tools(mcp):
     @mcp.tool()
     @_tool_handler("setting clip follow actions")
     def set_clip_follow_actions(ctx: Context, track_index: int, clip_index: int,
-                                 follow_action_0: int = None, follow_action_1: int = None,
-                                 follow_action_probability: float = None,
-                                 follow_action_time: float = None,
-                                 follow_action_enabled: bool = None,
-                                 follow_action_linked: bool = None,
-                                 follow_action_return_to_zero: bool = None) -> str:
+                                 follow_action_0: int | None = None, follow_action_1: int | None = None,
+                                 follow_action_probability: float | None = None,
+                                 follow_action_time: float | None = None,
+                                 follow_action_enabled: bool | None = None,
+                                 follow_action_linked: bool | None = None,
+                                 follow_action_return_to_zero: bool | None = None) -> str:
         """Set follow action settings for a clip.
 
         Parameters:
@@ -880,7 +880,7 @@ def register_tools(mcp):
         """
         _validate_index(track_index, "track_index")
         _validate_index(clip_index, "clip_index")
-        params = {"track_index": track_index, "clip_index": clip_index}
+        params: dict[str, Any] = {"track_index": track_index, "clip_index": clip_index}
         if follow_action_0 is not None:
             params["follow_action_0"] = follow_action_0
         if follow_action_1 is not None:
@@ -922,10 +922,10 @@ def register_tools(mcp):
     @mcp.tool()
     @_tool_handler("setting clip properties")
     def set_clip_properties(ctx: Context, track_index: int, clip_index: int,
-                             muted: bool = None, velocity_amount: float = None,
-                             groove: str = None, signature_numerator: int = None,
-                             signature_denominator: int = None, ram_mode: bool = None,
-                             warping: bool = None, gain: float = None) -> str:
+                             muted: bool | None = None, velocity_amount: float | None = None,
+                             groove: str | None = None, signature_numerator: int | None = None,
+                             signature_denominator: int | None = None, ram_mode: bool | None = None,
+                             warping: bool | None = None, gain: float | None = None) -> str:
         """Set multiple clip properties at once.
 
         Parameters:
@@ -942,7 +942,7 @@ def register_tools(mcp):
         """
         _validate_index(track_index, "track_index")
         _validate_index(clip_index, "clip_index")
-        params = {"track_index": track_index, "clip_index": clip_index}
+        params: dict[str, Any] = {"track_index": track_index, "clip_index": clip_index}
         if muted is not None:
             params["muted"] = muted
         if velocity_amount is not None:
@@ -1107,7 +1107,7 @@ def register_tools(mcp):
     @mcp.tool()
     @_tool_handler("adding warp marker")
     def add_warp_marker(ctx: Context, track_index: int, clip_index: int,
-                         beat_time: float, sample_time: float = None) -> str:
+                         beat_time: float, sample_time: float | None = None) -> str:
         """Add a warp marker to an audio clip for time-stretching control.
 
         Parameters:
@@ -1116,7 +1116,7 @@ def register_tools(mcp):
         - beat_time: Beat position for the warp marker
         - sample_time: Sample position (optional, auto-calculated by Live if omitted)
         """
-        params = {"track_index": track_index, "clip_index": clip_index, "beat_time": beat_time}
+        params: dict[str, Any] = {"track_index": track_index, "clip_index": clip_index, "beat_time": beat_time}
         if sample_time is not None:
             params["sample_time"] = sample_time
         ableton = get_ableton_connection()
@@ -1309,7 +1309,7 @@ def register_tools(mcp):
         """
         _validate_index(track_index, "track_index")
         _validate_index(clip_index, "clip_index")
-        params = {"track_index": track_index, "clip_index": clip_index}
+        params: dict[str, Any] = {"track_index": track_index, "clip_index": clip_index}
         if has_stop_button is not None:
             params["has_stop_button"] = has_stop_button
         if color_index is not None:

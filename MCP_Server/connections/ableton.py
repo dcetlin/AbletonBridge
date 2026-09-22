@@ -24,12 +24,23 @@ NON_IDEMPOTENT_COMMANDS = frozenset([
 ])
 
 
+class AbletonCommandError(Exception):
+    """Structured error from the Ableton Remote Script."""
+
+    def __init__(self, message: str, code: str = "unknown",
+                 may_have_landed: bool = False, command: str = ""):
+        super().__init__(message)
+        self.code = code
+        self.may_have_landed = may_have_landed
+        self.ableton_command = command
+
+
 @dataclass
 class AbletonConnection:
     host: str
     port: int
-    sock: socket.socket = None
-    _udp_sock: socket.socket = None
+    sock: socket.socket | None = None
+    _udp_sock: socket.socket | None = None
     _udp_port: int = 9882
 
     def connect(self) -> bool:
@@ -81,7 +92,7 @@ class AbletonConnection:
             self._udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         return self._udp_sock
 
-    def send_udp_command(self, command_type: str, params: Dict[str, Any] = None):
+    def send_udp_command(self, command_type: str, params: Dict[str, Any] | None = None):
         """Send a fire-and-forget UDP command to the Remote Script.
 
         No response is expected or waited for.
@@ -139,7 +150,7 @@ class AbletonConnection:
         self._recv_buffer = ""
         return self.connect()
 
-    def send_command(self, command_type: str, params: Dict[str, Any] = None, timeout: Optional[float] = None) -> Dict[str, Any]:
+    def send_command(self, command_type: str, params: Dict[str, Any] | None = None, timeout: Optional[float] = None) -> Dict[str, Any]:
         """Send a command to Ableton and return the response.
 
         Includes automatic retry: if the first attempt fails due to a
@@ -174,6 +185,7 @@ class AbletonConnection:
             with self._send_lock:
                 if not self.sock and not self.connect():
                     raise ConnectionError("Not connected to Ableton")
+                assert self.sock is not None
 
                 command = {
                     "type": command_type,
@@ -216,11 +228,11 @@ class AbletonConnection:
                         # them (and ideally promote this to a typed AbletonCommandError
                         # so the interface is intentional by construction). Until then
                         # they are consumed only by logging above.
-                        error = Exception(message)
-                        error.code = code
-                        error.may_have_landed = may_have_landed
-                        error.ableton_command = command_name
-                        raise error
+                        raise AbletonCommandError(
+                            message, code=code,
+                            may_have_landed=may_have_landed,
+                            command=command_name,
+                        )
 
                     # Post-delay: let Ableton settle before the next command
                     if post_delay:
@@ -242,6 +254,7 @@ class AbletonConnection:
                         logger.info("Reconnected, retrying command...")
                     else:
                         raise Exception(f"Command '{command_type}' failed after {max_attempts} attempts: {e}")
+        raise RuntimeError("unreachable")
 
 
 def get_ableton_connection():

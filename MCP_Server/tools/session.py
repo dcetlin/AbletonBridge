@@ -1,5 +1,6 @@
 """Session & transport tool handlers for AbletonBridge."""
 import json
+from typing import Any
 from mcp.server.fastmcp import Context
 from MCP_Server.tools._base import _tool_handler, _m4l_result
 from MCP_Server.connections.ableton import get_ableton_connection
@@ -43,7 +44,7 @@ def register_tools(mcp):
         m4l_sockets_ready, m4l_connected = get_m4l_status()
         ableton_connected = bool(state.ableton_connection and state.ableton_connection.sock)
         try:
-            if ableton_connected:
+            if ableton_connected and state.ableton_connection is not None and state.ableton_connection.sock is not None:
                 state.ableton_connection.sock.getpeername()
         except Exception:
             ableton_connected = False
@@ -178,7 +179,7 @@ def register_tools(mcp):
 
     @mcp.tool()
     @_tool_handler("setting song loop")
-    def set_song_loop(ctx: Context, enabled: bool = None, start: float = None, length: float = None, end: float = None) -> str:
+    def set_song_loop(ctx: Context, enabled: bool | None = None, start: float | None = None, length: float | None = None, end: float | None = None) -> str:
         """
         Control the arrangement loop bracket.
 
@@ -196,7 +197,7 @@ def register_tools(mcp):
             if end <= start:
                 raise ValueError("'end' must be greater than 'start'")
             length = end - start
-        params = {}
+        params: dict[str, Any] = {}
         if enabled is not None:
             params["enabled"] = enabled
         if start is not None:
@@ -353,14 +354,14 @@ def register_tools(mcp):
 
     @mcp.tool()
     @_tool_handler("triggering session record")
-    def trigger_session_record(ctx: Context, record_length: float = None) -> str:
+    def trigger_session_record(ctx: Context, record_length: float | None = None) -> str:
         """Trigger a new session recording. Optionally specify a fixed bar length
         after which recording stops automatically.
 
         Parameters:
         - record_length: Optional number of bars to record. If omitted, recording continues until manually stopped.
         """
-        params = {}
+        params: dict[str, Any] = {}
         if record_length is not None:
             params["record_length"] = record_length
         ableton = get_ableton_connection()
@@ -371,7 +372,7 @@ def register_tools(mcp):
 
     @mcp.tool()
     @_tool_handler("navigating playback")
-    def navigate_playback(ctx: Context, action: str, beats: float = None) -> str:
+    def navigate_playback(ctx: Context, action: str, beats: float | None = None) -> str:
         """Navigate the playback position: jump, scrub, or play selection.
 
         Parameters:
@@ -380,7 +381,7 @@ def register_tools(mcp):
         """
         if action not in ("jump_by", "scrub_by", "play_selection"):
             return "action must be 'jump_by', 'scrub_by', or 'play_selection'"
-        params = {"action": action}
+        params: dict[str, Any] = {"action": action}
         if beats is not None:
             params["beats"] = beats
         ableton = get_ableton_connection()
@@ -411,15 +412,15 @@ def register_tools(mcp):
     @mcp.tool()
     @_tool_handler("setting song settings")
     def set_song_settings(ctx: Context,
-                           signature_numerator: int = None,
-                           signature_denominator: int = None,
-                           swing_amount: float = None,
-                           clip_trigger_quantization: int = None,
-                           midi_recording_quantization: int = None,
-                           back_to_arranger: bool = None,
-                           follow_song: bool = None,
-                           draw_mode: bool = None,
-                           session_automation_record: bool = None) -> str:
+                           signature_numerator: int | None = None,
+                           signature_denominator: int | None = None,
+                           swing_amount: float | None = None,
+                           clip_trigger_quantization: int | None = None,
+                           midi_recording_quantization: int | None = None,
+                           back_to_arranger: bool | None = None,
+                           follow_song: bool | None = None,
+                           draw_mode: bool | None = None,
+                           session_automation_record: bool | None = None) -> str:
         """Set global song settings. All parameters are optional — only specified values are changed.
 
         Parameters:
@@ -433,7 +434,7 @@ def register_tools(mcp):
         - draw_mode: If true, enables envelope/note draw mode
         - session_automation_record: If true, enables the Automation Arm button for session recording
         """
-        params = {}
+        params: dict[str, Any] = {}
         if signature_numerator is not None:
             params["signature_numerator"] = signature_numerator
         if signature_denominator is not None:
@@ -475,9 +476,9 @@ def register_tools(mcp):
     @mcp.tool()
     @_tool_handler("setting song scale")
     def set_song_scale(ctx: Context,
-                        root_note: int = None,
-                        scale_name: str = None,
-                        scale_mode: bool = None) -> str:
+                        root_note: int | None = None,
+                        scale_name: str | None = None,
+                        scale_mode: bool | None = None) -> str:
         """Set the song's scale settings for harmonic awareness.
 
         Parameters:
@@ -485,7 +486,7 @@ def register_tools(mcp):
         - scale_name: Scale name as shown in Live (e.g. 'Major', 'Minor', 'Dorian', 'Mixolydian', 'Phrygian', 'Lydian', 'Locrian', 'Whole Tone', 'Diminished', 'Whole-Half', 'Minor Blues', 'Minor Pentatonic', 'Major Pentatonic', 'Harmonic Minor', 'Melodic Minor', 'Chromatic')
         - scale_mode: True to enable Scale Mode (highlights scale notes in MIDI editor)
         """
-        params = {}
+        params: dict[str, Any] = {}
         if root_note is not None:
             _validate_range(root_note, "root_note", 0, 11)
             params["root_note"] = root_note
@@ -510,9 +511,9 @@ def register_tools(mcp):
     @mcp.tool()
     @_tool_handler("setting punch recording")
     def set_punch_recording(ctx: Context,
-                             punch_in: bool = None,
-                             punch_out: bool = None,
-                             count_in_duration: int = None) -> str:
+                             punch_in: bool | None = None,
+                             punch_out: bool | None = None,
+                             count_in_duration: int | None = None) -> str:
         """Control punch in/out recording and count-in settings.
 
         Parameters:
@@ -520,7 +521,7 @@ def register_tools(mcp):
         - punch_out: Enable/disable punch-out (stop recording at the loop end)
         - count_in_duration: Metronome count-in before recording (0=None, 1=1 Bar, 2=2 Bars, 3=4 Bars). Note: may be read-only in some Live versions.
         """
-        params = {}
+        params: dict[str, Any] = {}
         if punch_in is not None:
             params["punch_in"] = punch_in
         if punch_out is not None:
@@ -556,15 +557,15 @@ def register_tools(mcp):
     @mcp.tool()
     @_tool_handler("setting Link")
     def set_link_enabled(ctx: Context,
-                          enabled: bool = None,
-                          start_stop_sync: bool = None) -> str:
+                          enabled: bool | None = None,
+                          start_stop_sync: bool | None = None) -> str:
         """Enable/disable Ableton Link tempo sync and start/stop synchronization.
 
         Parameters:
         - enabled: True to enable Link, False to disable
         - start_stop_sync: True to enable start/stop sync between Link peers
         """
-        params = {}
+        params: dict[str, Any] = {}
         if enabled is not None:
             params["enabled"] = enabled
         if start_stop_sync is not None:
