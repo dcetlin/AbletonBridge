@@ -8,11 +8,7 @@ import threading
 import time
 import traceback
 
-# Change queue import for Python 2
-try:
-    import Queue as queue  # Python 2
-except ImportError:
-    import queue  # Python 3
+import queue
 
 from . import handlers
 
