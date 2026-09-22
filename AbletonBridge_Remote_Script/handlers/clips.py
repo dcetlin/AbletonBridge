@@ -4,7 +4,7 @@ from __future__ import absolute_import, print_function, unicode_literals
 
 import collections.abc
 
-from ._helpers import get_track, get_clip_slot, get_clip
+from ._helpers import get_track, get_clip_slot, get_clip, safe_getattr
 from ._registry import command
 
 
@@ -684,8 +684,8 @@ def stop_track_clips(song, track_index: int, ctrl=None) -> dict:
 def create_arrangement_midi_clip(song, track_index: int, time: float, length: float, ctrl=None) -> dict:
     """Create a MIDI clip in the arrangement view (Live 12.1+)."""
     track = get_track(song, track_index)
-    if not track.has_midi_input:
-        raise ValueError("Track {0} is not a MIDI track".format(track_index))
+    if not getattr(track, 'has_midi_input', False):
+        raise ValueError("Track {0} is not a MIDI track (cannot host MIDI clips)".format(track_index))
     if not hasattr(track, 'create_midi_clip'):
         raise RuntimeError("create_midi_clip requires Live 12.1+")
     clip = track.create_midi_clip(float(time), float(length))
@@ -702,8 +702,8 @@ def create_arrangement_midi_clip(song, track_index: int, time: float, length: fl
 def create_arrangement_audio_clip(song, track_index: int, time: float, length: float, ctrl=None) -> dict:
     """Create an audio clip in the arrangement view (Live 12.2+)."""
     track = get_track(song, track_index)
-    if not track.has_audio_input:
-        raise ValueError("Track {0} is not an audio track".format(track_index))
+    if not getattr(track, 'has_audio_input', False):
+        raise ValueError("Track {0} is not an audio track (cannot host audio clips)".format(track_index))
     if not hasattr(track, 'create_audio_clip'):
         raise RuntimeError("create_audio_clip requires Live 12.2+")
     clip = track.create_audio_clip(float(time), float(length))
@@ -952,34 +952,13 @@ def get_clip_slot_properties(song, track_index: int, clip_index: int, ctrl=None)
         "clip_index": clip_index,
         "has_clip": clip_slot.has_clip,
     }
-    try:
-        result["has_stop_button"] = clip_slot.has_stop_button
-    except Exception:
-        result["has_stop_button"] = None
-    try:
-        result["is_group_slot"] = clip_slot.is_group_slot
-    except Exception:
-        result["is_group_slot"] = None
-    try:
-        result["color_index"] = clip_slot.color_index
-    except Exception:
-        result["color_index"] = None
-    try:
-        result["color"] = clip_slot.color
-    except Exception:
-        result["color"] = None
-    try:
-        result["is_triggered"] = clip_slot.is_triggered
-    except Exception:
-        result["is_triggered"] = None
-    try:
-        result["is_playing"] = clip_slot.is_playing
-    except Exception:
-        result["is_playing"] = None
-    try:
-        result["is_recording"] = clip_slot.is_recording
-    except Exception:
-        result["is_recording"] = None
+    result["has_stop_button"] = safe_getattr(clip_slot, "has_stop_button", None)
+    result["is_group_slot"] = safe_getattr(clip_slot, "is_group_slot", None)
+    result["color_index"] = safe_getattr(clip_slot, "color_index", None)
+    result["color"] = safe_getattr(clip_slot, "color", None)
+    result["is_triggered"] = safe_getattr(clip_slot, "is_triggered", None)
+    result["is_playing"] = safe_getattr(clip_slot, "is_playing", None)
+    result["is_recording"] = safe_getattr(clip_slot, "is_recording", None)
     return result
 
 
