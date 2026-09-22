@@ -86,19 +86,38 @@ def safe_getattr(obj, attr, default=None):
 import math
 
 
+MAX_AUTOMATION_STEPS = 4000
+AUTOMATION_WRITE_BUDGET_SECONDS = 12.0
+
+
+def budget_automation_steps(points, resolution, max_steps=MAX_AUTOMATION_STEPS):
+    """Auto-coarsen resolution if interpolated step count would exceed budget."""
+    if len(points) < 2:
+        return resolution, len(points)
+    total_time = max(float(p.get("time", 0)) for p in points) - min(float(p.get("time", 0)) for p in points)
+    if total_time <= 0 or resolution <= 0:
+        return resolution, len(points)
+    step_count = int(total_time / resolution)
+    if step_count <= max_steps:
+        return resolution, step_count
+    coarsened = total_time / max_steps
+    return coarsened, max_steps
+
+
 def interpolate_automation(points, resolution=0.0625, mode="hold"):
     """Interpolate between automation breakpoints at the given resolution.
 
     Args:
-        points: List of {"time": float, "value": float} dicts, sorted by time.
+        points: List of dicts. Required keys: "time", "value".
+            Optional per-point keys: "interpolation" (overrides mode), "exponent" (default 3.0).
         resolution: Beats between interpolated points (default 0.0625 = 64th note).
-        mode: "hold" (staircase, no interpolation), "linear", "exponential".
-
-    Returns:
-        List of {"time": float, "value": float} dicts — the dense output points.
+        mode: Default interpolation: "hold", "linear", "exponential", "ease_in", "ease_out".
     """
     if mode == "hold" or len(points) < 2:
-        return points
+        # Check if any individual point overrides hold
+        has_override = any(p.get("interpolation") and p.get("interpolation") != "hold" for p in points)
+        if not has_override:
+            return points
 
     sorted_pts = sorted(points, key=lambda p: float(p.get("time", 0.0)))
     result = []
@@ -109,8 +128,18 @@ def interpolate_automation(points, resolution=0.0625, mode="hold"):
         t1 = float(sorted_pts[i + 1]["time"])
         v1 = float(sorted_pts[i + 1]["value"])
 
+        seg_mode = sorted_pts[i].get("interpolation", mode)
+        seg_exp = float(sorted_pts[i].get("exponent", 3.0))
+
+        # Exponent-driven curves are only defined for a positive exponent. A zero
+        # or negative exponent is degenerate: "exponential" divides by zero, and
+        # the easings hit 0**0 / 0**-1 anomalies (ease_in crashes at frac=0). Fall
+        # back to linear across all three so a bad exponent can never crash.
+        if seg_mode in ("exponential", "ease_in", "ease_out") and seg_exp <= 1e-9:
+            seg_mode = "linear"
+
         dt = t1 - t0
-        if dt <= 0:
+        if dt <= 0 or seg_mode == "hold":
             result.append({"time": t0, "value": v0})
             continue
 
@@ -119,16 +148,20 @@ def interpolate_automation(points, resolution=0.0625, mode="hold"):
             frac = s / steps
             t = t0 + frac * dt
 
-            if mode == "linear":
+            if seg_mode == "linear":
                 v = v0 + frac * (v1 - v0)
-            elif mode == "exponential":
-                v = v0 + (v1 - v0) * (math.exp(frac * 3) - 1) / (math.exp(3) - 1)
+            elif seg_mode == "exponential":
+                # seg_exp > 1e-9 here (degenerate exponents degraded to linear above).
+                v = v0 + (v1 - v0) * (math.exp(frac * seg_exp) - 1) / (math.exp(seg_exp) - 1)
+            elif seg_mode == "ease_in":
+                v = v0 + (v1 - v0) * (frac ** seg_exp)
+            elif seg_mode == "ease_out":
+                v = v0 + (v1 - v0) * (1 - (1 - frac) ** seg_exp)
             else:
-                v = v0
+                v = v0 + frac * (v1 - v0)
 
             result.append({"time": round(t, 6), "value": round(v, 6)})
 
-    # Add the final point
     last = sorted_pts[-1]
     result.append({"time": round(float(last["time"]), 6), "value": round(float(last["value"]), 6)})
     return result

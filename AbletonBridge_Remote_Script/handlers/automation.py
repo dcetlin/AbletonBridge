@@ -3,7 +3,11 @@
 from __future__ import absolute_import, print_function, unicode_literals
 
 import re
-from ._helpers import get_track, get_clip, interpolate_automation
+import time as _time
+from ._helpers import (
+    get_track, get_clip, interpolate_automation,
+    budget_automation_steps, AUTOMATION_WRITE_BUDGET_SECONDS,
+)
 from ._registry import command
 
 _RE_SEND_NAME = re.compile(r'^send\s*([a-z])$')
@@ -79,23 +83,40 @@ def create_clip_automation(song, track_index: int, clip_index: int, parameter_na
         except Exception:
             pass
 
-    if interpolation != "hold":
-        automation_points = interpolate_automation(automation_points, resolution, interpolation)
+    resolution, planned_steps = budget_automation_steps(automation_points, resolution)
+
+    # Always route through interpolate_automation: it self-guards (returns points
+    # unchanged for pure-hold with no per-point overrides), so per-point
+    # "interpolation" overrides are honored even when the curve-global mode is "hold".
+    automation_points = interpolate_automation(automation_points, resolution, interpolation)
 
     clip_length = clip.length
+    deadline = _time.time() + AUTOMATION_WRITE_BUDGET_SECONDS
+    written = 0
+    last_written_time = None
     for point in automation_points:
+        if _time.time() > deadline:
+            break
         time_val = float(point.get("time", 0.0))
         time_val = max(0.0, min(clip_length - 0.001, time_val))
         value = float(point.get("value", 0.0))
         clamped = max(param.min, min(param.max, value))
         # Duration must be > 0 or Ableton's LOM silently discards the step.
         envelope.insert_step(time_val, 0.001, clamped)
+        written += 1
+        last_written_time = time_val
 
     return {
         "parameter": parameter_name,
         "track_index": track_index,
         "clip_index": clip_index,
-        "points_added": len(automation_points),
+        "points_added": written,
+        "points_planned": len(automation_points),
+        "partial": written < len(automation_points),
+        "resolution_used": resolution,
+        # On a partial write, the covered range is [start, last_written_time];
+        # points are time-sorted, so a caller can resume past this boundary.
+        "last_written_time": last_written_time,
     }
 
 
@@ -234,6 +255,10 @@ def create_track_automation(song, track_index: int, parameter_name: str, automat
             "parameter": parameter_name,
             "track_index": track_index,
             "points_added": 0,
+            "points_planned": 0,
+            "partial": False,
+            "resolution_used": resolution,
+            "last_written_time": None,
         }
     t_min = min(times)
     t_max = max(times)
@@ -309,18 +334,35 @@ def create_track_automation(song, track_index: int, parameter_name: str, automat
         except Exception:
             pass
 
-    if interpolation != "hold":
-        automation_points = interpolate_automation(automation_points, resolution, interpolation)
+    resolution, planned_steps = budget_automation_steps(automation_points, resolution)
 
+    # Always route through interpolate_automation: it self-guards (returns points
+    # unchanged for pure-hold with no per-point overrides), so per-point
+    # "interpolation" overrides are honored even when the curve-global mode is "hold".
+    automation_points = interpolate_automation(automation_points, resolution, interpolation)
+
+    deadline = _time.time() + AUTOMATION_WRITE_BUDGET_SECONDS
+    written = 0
+    last_written_time = None
     for point in automation_points:
+        if _time.time() > deadline:
+            break
         time_val = max(clip_start, min(clip_end - 0.001, float(point.get("time", 0.0))))
         value = max(parameter.min, min(parameter.max, float(point.get("value", 0.0))))
         envelope.insert_step(time_val, 0.001, value)
+        written += 1
+        last_written_time = time_val
 
     return {
         "parameter": parameter_name,
         "track_index": track_index,
-        "points_added": len(automation_points),
+        "points_added": written,
+        "points_planned": len(automation_points),
+        "partial": written < len(automation_points),
+        "resolution_used": resolution,
+        # On a partial write, the covered range is [clip_start, last_written_time];
+        # points are time-sorted, so a caller can resume past this boundary.
+        "last_written_time": last_written_time,
     }
 
 
