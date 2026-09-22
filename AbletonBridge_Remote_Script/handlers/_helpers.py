@@ -73,3 +73,11 @@ def get_scene(song, scene_index):
     if scene_index < 0 or scene_index >= len(song.scenes):
         raise IndexError("Scene index out of range")
     return song.scenes[scene_index]
+
+
+def safe_getattr(obj, attr, default=None):
+    """Get an attribute, returning default if access raises any exception."""
+    try:
+        return getattr(obj, attr)
+    except Exception:
+        return default

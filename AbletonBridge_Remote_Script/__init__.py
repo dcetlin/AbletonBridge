@@ -176,55 +176,28 @@ class AbletonBridge(ControlSurface):
                     self.log_message("UDP server error: " + str(e))
                 time.sleep(0.1)
 
-    def _process_udp_command(self, command):
-        """Process a UDP command. Fire-and-forget - no response sent.
+    # UDP wire names → registry command names
+    _UDP_COMMANDS = {
+        "set_device_parameter": "set_device_parameter",
+        "batch_set_device_parameters": "set_device_parameters_batch",
+    }
 
-        IMPORTANT: This runs on the UDP thread.  Do NOT access self._song
-        here — the Live API is not thread-safe.  Instead, capture only the
-        plain-data cmd/params on this thread and defer all Live API access
-        (including self._song) to the scheduled task that runs on the main
-        thread.  If schedule_message fails, drop the update with a log
-        message rather than calling the task inline from the wrong thread.
-        """
+    def _process_udp_command(self, command):
+        """Process a UDP command via the registry. Fire-and-forget — no response."""
         cmd = command.get("type", "")
         params = command.get("params", {})
-
-        if cmd == "set_device_parameter":
-            def task():
-                try:
-                    devices.set_device_parameter(
-                        self._song,
-                        params.get("track_index", 0),
-                        params.get("device_index", 0),
-                        params.get("parameter_name", ""),
-                        params.get("value", 0.0),
-                        params.get("track_type", "track"),
-                        ctrl=self,
-                    )
-                except Exception as e:
-                    self.log_message("UDP set_device_parameter error: " + str(e))
+        registry_name = self._UDP_COMMANDS.get(cmd)
+        if registry_name is None:
+            return
+        def task():
             try:
-                self.schedule_message(0, task)
-            except AssertionError:
-                self.log_message("UDP set_device_parameter: schedule_message unavailable, dropping update")
-
-        elif cmd == "batch_set_device_parameters":
-            def task():
-                try:
-                    devices.set_device_parameters_batch(
-                        self._song,
-                        params.get("track_index", 0),
-                        params.get("device_index", 0),
-                        params.get("parameters", []),
-                        params.get("track_type", "track"),
-                        ctrl=self,
-                    )
-                except Exception as e:
-                    self.log_message("UDP batch_set error: " + str(e))
-            try:
-                self.schedule_message(0, task)
-            except AssertionError:
-                self.log_message("UDP batch_set: schedule_message unavailable, dropping update")
+                dispatch(registry_name, self._song, params, self)
+            except Exception as e:
+                self.log_message("UDP {0} error: {1}".format(cmd, e))
+        try:
+            self.schedule_message(0, task)
+        except AssertionError:
+            self.log_message("UDP {0}: schedule_message unavailable".format(cmd))
 
     def _server_thread(self):
         """Server thread implementation - handles client connections"""
