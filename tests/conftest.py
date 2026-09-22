@@ -1,6 +1,27 @@
+import sys
+import types
+
 import pytest
 from unittest.mock import MagicMock, patch
 import MCP_Server.state as state
+
+
+# The Remote Script package's __init__ imports `_Framework.ControlSurface`, which
+# only exists inside Ableton Live. Stub it so tests can import the package (and
+# its handler modules) off-host. A real class is required because __init__
+# subclasses ControlSurface.
+if "_Framework" not in sys.modules:
+    _framework = types.ModuleType("_Framework")
+    _control_surface = types.ModuleType("_Framework.ControlSurface")
+
+    class ControlSurface(object):
+        def __init__(self, *args, **kwargs):
+            pass
+
+    _control_surface.ControlSurface = ControlSurface
+    _framework.ControlSurface = _control_surface
+    sys.modules["_Framework"] = _framework
+    sys.modules["_Framework.ControlSurface"] = _control_surface
 
 
 @pytest.fixture

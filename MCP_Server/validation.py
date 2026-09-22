@@ -194,3 +194,20 @@ def _reduce_automation_points(points, max_points=10_000, time_epsilon=0.001,
         logger.info("Automation point reduction: %d -> %d points", original_count, len(result))
 
     return result
+
+
+# Hz ↔ normalized frequency conversion (Ableton filter parameters)
+_FREQ_MIN = 20.0
+_FREQ_MAX = 20000.0
+
+
+def hz_to_normalized(hz: float) -> float:
+    """Convert frequency in Hz to Ableton's normalized 0-1 range (log scale)."""
+    hz = max(_FREQ_MIN, min(_FREQ_MAX, float(hz)))
+    return math.log(hz / _FREQ_MIN) / math.log(_FREQ_MAX / _FREQ_MIN)
+
+
+def normalized_to_hz(normalized: float) -> float:
+    """Convert Ableton's normalized 0-1 range to frequency in Hz (log scale)."""
+    normalized = max(0.0, min(1.0, float(normalized)))
+    return _FREQ_MIN * (_FREQ_MAX / _FREQ_MIN) ** normalized
