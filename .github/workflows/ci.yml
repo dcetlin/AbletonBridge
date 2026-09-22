@@ -46,6 +46,8 @@ jobs:
           pip install -e ".[dev]"
           pip install pyright==1.1.400
 
-      - name: Run pyright
-        continue-on-error: true
-        run: pyright
+      - name: Run pyright (ratchet — must not exceed baseline)
+        run: |
+          COUNT=$(pyright --outputjson | python -c "import sys,json; print(json.load(sys.stdin)['summary']['errorCount'])")
+          echo "pyright errors: $COUNT (baseline: 195)"
+          test "$COUNT" -le 195
