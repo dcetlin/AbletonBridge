@@ -201,8 +201,17 @@ class AbletonConnection:
                     logger.debug("Response status: %s", response.get('status', 'unknown'))
 
                     if response.get("status") == "error":
-                        logger.error("Ableton error: %s", response.get('message'))
-                        raise Exception(response.get("message", "Unknown error from Ableton"))
+                        code = response.get("code", "unknown")
+                        message = response.get("message", "Unknown error from Ableton")
+                        may_have_landed = response.get("may_have_landed", False)
+                        command_name = response.get("command", command_type)
+                        logger.error("Ableton error [%s]: %s (command=%s, may_have_landed=%s)",
+                                     code, message, command_name, may_have_landed)
+                        error = Exception(message)
+                        error.code = code
+                        error.may_have_landed = may_have_landed
+                        error.ableton_command = command_name
+                        raise error
 
                     # Post-delay: let Ableton settle before the next command
                     if post_delay:
