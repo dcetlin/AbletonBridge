@@ -195,7 +195,7 @@ pip install -e ".[dev]"
 python -m pytest tests/ -x -q
 ```
 
-286 tests across 18 test files covering validation, connections, M4L, browser cache, creative tools, workflows, registry consistency, error codes, LOM, automation pipeline, and annotations.
+342 tests across 18 test files covering validation, connections, M4L, browser cache, creative tools, workflows, registry consistency, error codes, LOM, automation pipeline, annotations, read-back verification, and curve builders.
 
 ### Regenerating TypedDicts
 
