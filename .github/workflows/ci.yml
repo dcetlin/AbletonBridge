@@ -46,6 +46,8 @@ jobs:
           pip install -e ".[dev]"
           pip install pyright==1.1.400
 
+      # baseline 195 assumes ".[dev]" installed above (mcp resolvable);
+      # a count jump here can mean a dep failed to install, not a type regression
       - name: Run pyright (ratchet — must not exceed baseline)
         run: |
           COUNT=$(pyright --outputjson | python -c "import sys,json; print(json.load(sys.stdin)['summary']['errorCount'])")
