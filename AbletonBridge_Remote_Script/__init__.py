@@ -13,6 +13,7 @@ import queue
 from .handlers import (
     session, tracks, clips, mixer, devices,
     browser, scenes, arrangement, audio, midi, automation,
+    lom,
 )
 from .handlers._registry import dispatch, get_modifying_commands, get_readonly_commands
 
