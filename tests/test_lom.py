@@ -128,6 +128,13 @@ class TestLomDescribe:
         r = lom_get(_make_song(), "tracks[0].mixer_device.volume.value")
         assert r["value"] == 0.85
 
+    def test_no_false_truncation(self):
+        # An object whose visible attrs fit the budget must NOT be flagged
+        # truncated, even though dir() also returns many dunder attributes.
+        from handlers import lom as lom_mod
+        r = lom_mod._describe(_make_song(), depth=1)
+        assert "_truncated" not in r
+
     def test_budget_truncates_wide_object(self):
         # An object wider than the node budget must terminate and flag it,
         # never fan out unbounded.

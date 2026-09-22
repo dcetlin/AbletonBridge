@@ -66,11 +66,14 @@ def _describe(obj, depth=1, _current_depth=0, _budget=None):
     properties = {}
     methods = []
     for attr in sorted(dir(obj)):
+        # Skip dunders/privates first so they never trip the budget check —
+        # otherwise a trailing run of "_"-prefixed attrs could set _truncated
+        # even though no visible content was dropped.
+        if attr.startswith("_"):
+            continue
         if _budget[0] <= 0:
             info["_truncated"] = True
             break
-        if attr.startswith("_"):
-            continue
         _budget[0] -= 1
         try:
             val = getattr(obj, attr)
