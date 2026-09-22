@@ -1,6 +1,7 @@
 """Automation tool handlers for AbletonBridge."""
 import json
 import math
+import random as _random_mod
 from typing import Dict, List, Optional
 from mcp.server.fastmcp import Context
 from MCP_Server.tools._base import _tool_handler
@@ -15,6 +16,78 @@ from shared.commands import (
     CreateStepAutomationParams, GetClipAutomationValueParams,
     GetClipAutomationHiresParams,
 )
+
+
+def build_adsr_points(attack, decay, sustain_level, release,
+                      peak=1.0, floor=0.0, sustain_time=None):
+    """Build ADSR envelope breakpoints with per-point interpolation modes.
+
+    Returns a list of {time, value, interpolation?} dicts ready for
+    create_clip_automation's per-point interpolation engine.
+    """
+    points = []
+    t = 0.0
+
+    points.append({"time": t, "value": floor, "interpolation": "ease_out"})
+    t += attack
+
+    points.append({"time": t, "value": peak, "interpolation": "exponential"})
+    t += decay
+
+    if sustain_time is not None and sustain_time > 0:
+        points.append({"time": t, "value": sustain_level, "interpolation": "hold"})
+        t += sustain_time
+
+    points.append({"time": t, "value": sustain_level, "interpolation": "exponential"})
+    t += release
+
+    points.append({"time": t, "value": floor})
+    return points
+
+
+def build_lfo_points(shape, beats, cycles=1.0, min_val=0.0, max_val=1.0,
+                     phase_offset=0.0, resolution=0.0625):
+    """Build LFO waveform sample points with per-point interpolation modes.
+
+    Returns a list of {time, value, interpolation?} dicts.
+    Shapes: sine, triangle, saw, square, random.
+    """
+    valid_shapes = ("sine", "triangle", "saw", "square", "random")
+    if shape not in valid_shapes:
+        raise ValueError(f"Unknown shape '{shape}'. Valid: {', '.join(valid_shapes)}")
+    if beats <= 0:
+        raise ValueError("beats must be positive")
+
+    points = []
+    num_steps = max(1, int(beats / resolution))
+
+    for i in range(num_steps + 1):
+        t = min(i * resolution, beats)
+        phase = (t / beats) * cycles + phase_offset
+        p = phase % 1.0
+
+        if shape == "sine":
+            raw = 0.5 + 0.5 * math.sin(2 * math.pi * phase)
+            interp = "linear"
+        elif shape == "triangle":
+            raw = 2 * p if p < 0.5 else 2 * (1 - p)
+            interp = "linear"
+        elif shape == "saw":
+            raw = p
+            interp = "linear"
+        elif shape == "square":
+            raw = 1.0 if p < 0.5 else 0.0
+            interp = "hold"
+        else:  # random
+            raw = _random_mod.random()
+            interp = "hold"
+
+        value = min_val + (max_val - min_val) * raw
+        points.append({"time": t, "value": value, "interpolation": interp})
+
+    if points:
+        points[-1].pop("interpolation", None)
+    return points
 
 
 def register_tools(mcp):
@@ -438,3 +511,124 @@ def register_tools(mcp):
             cmd_params["device_index"] = device_index
         result = ableton.send_command("create_step_automation", cmd_params)
         return json.dumps(result)
+
+    @mcp.tool()
+    @_tool_handler("generating ADSR automation")
+    def generate_adsr_automation(
+        ctx: Context,
+        track_index: int,
+        clip_index: int,
+        parameter_name: str,
+        attack: float,
+        decay: float,
+        sustain_level: float,
+        release: float,
+        peak: float = 1.0,
+        floor: float = 0.0,
+        sustain_time: Optional[float] = None,
+        device_index: Optional[int] = None,
+        resolution: float = 0.0625,
+    ) -> str:
+        """Generate ADSR envelope automation for a clip parameter.
+
+        Builds breakpoints with per-point interpolation curves:
+        attack (ease_out), decay (exponential), sustain (hold), release (exponential).
+
+        Parameters:
+        - track_index: The track index
+        - clip_index: The clip slot index
+        - parameter_name: Name of the parameter to automate
+        - attack: Attack time in beats (floor to peak)
+        - decay: Decay time in beats (peak to sustain_level)
+        - sustain_level: Sustain value (0.0-1.0)
+        - release: Release time in beats (sustain_level to floor)
+        - peak: Peak value reached at end of attack (default: 1.0)
+        - floor: Floor value at start and end (default: 0.0)
+        - sustain_time: Duration of sustain hold in beats (None = no hold phase)
+        - device_index: Optional device index to scope parameter lookup
+        - resolution: Beats between interpolated points (default: 0.0625)
+        """
+        _validate_index(track_index, "track_index")
+        _validate_index(clip_index, "clip_index")
+
+        points = build_adsr_points(
+            attack, decay, sustain_level, release,
+            peak=peak, floor=floor, sustain_time=sustain_time,
+        )
+
+        ableton = get_ableton_connection()
+        cmd_params = {
+            "track_index": track_index,
+            "clip_index": clip_index,
+            "parameter_name": parameter_name,
+            "automation_points": points,
+            "interpolation": "hold",
+            "resolution": resolution,
+        }
+        if device_index is not None:
+            cmd_params["device_index"] = device_index
+        result = ableton.send_command("create_clip_automation", cmd_params)
+        total_time = points[-1]["time"]
+        pts = result.get("points_added", len(points))
+        return (f"Created ADSR envelope for '{parameter_name}': "
+                f"A={attack} D={decay} S={sustain_level} R={release} "
+                f"({pts} points, {total_time} beats)")
+
+    @mcp.tool()
+    @_tool_handler("generating LFO automation")
+    def generate_lfo_automation(
+        ctx: Context,
+        track_index: int,
+        clip_index: int,
+        parameter_name: str,
+        shape: str,
+        beats: float,
+        cycles: float = 1.0,
+        min_val: float = 0.0,
+        max_val: float = 1.0,
+        phase_offset: float = 0.0,
+        device_index: Optional[int] = None,
+        resolution: float = 0.0625,
+    ) -> str:
+        """Generate LFO waveform automation for a clip parameter.
+
+        Generates sampled waveform points with per-point interpolation.
+        Smooth shapes (sine, triangle, saw) use linear interpolation;
+        square and random use hold.
+
+        Parameters:
+        - track_index: The track index
+        - clip_index: The clip slot index
+        - parameter_name: Name of the parameter to automate
+        - shape: Waveform shape: "sine", "triangle", "saw", "square", "random"
+        - beats: Total duration in beats
+        - cycles: Number of complete waveform cycles (default: 1.0)
+        - min_val: Minimum output value (default: 0.0)
+        - max_val: Maximum output value (default: 1.0)
+        - phase_offset: Phase offset as fraction of cycle, 0.0-1.0 (default: 0.0)
+        - device_index: Optional device index to scope parameter lookup
+        - resolution: Beats between sample points (default: 0.0625)
+        """
+        _validate_index(track_index, "track_index")
+        _validate_index(clip_index, "clip_index")
+
+        points = build_lfo_points(
+            shape, beats, cycles=cycles, min_val=min_val, max_val=max_val,
+            phase_offset=phase_offset, resolution=resolution,
+        )
+
+        ableton = get_ableton_connection()
+        cmd_params = {
+            "track_index": track_index,
+            "clip_index": clip_index,
+            "parameter_name": parameter_name,
+            "automation_points": points,
+            "interpolation": "hold",
+            "resolution": resolution,
+        }
+        if device_index is not None:
+            cmd_params["device_index"] = device_index
+        result = ableton.send_command("create_clip_automation", cmd_params)
+        pts = result.get("points_added", len(points))
+        return (f"Created {shape} LFO for '{parameter_name}': "
+                f"{cycles} cycle(s) over {beats} beats ({pts} points)")
