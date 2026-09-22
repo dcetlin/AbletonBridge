@@ -1049,6 +1049,47 @@ def register_tools(mcp):
         return json.dumps(result)
 
     @mcp.tool()
+    @_tool_handler("loading audio to arrangement")
+    def load_audio_to_arrangement(ctx: Context, track_index: int, file_path: str,
+                                   position: float) -> str:
+        """Load an audio file into the arrangement at a specific position (Live 12.0.5+).
+
+        Parameters:
+        - track_index: The audio track to load onto
+        - file_path: Absolute path to the audio file (WAV, AIFF, etc.)
+        - position: Arrangement position in beats
+        """
+        _validate_index(track_index, "track_index")
+        ableton = get_ableton_connection()
+        result = ableton.send_command("load_audio_to_arrangement", {
+            "track_index": track_index,
+            "file_path": file_path,
+            "position": position,
+        })
+        return f"Loaded '{file_path}' at position {position} on track {track_index}"
+
+    @mcp.tool()
+    @_tool_handler("loading audio to session")
+    def load_audio_to_session(ctx: Context, track_index: int, clip_index: int,
+                               file_path: str) -> str:
+        """Load an audio file into a session clip slot (Live 12.0.5+).
+
+        Parameters:
+        - track_index: The audio track
+        - clip_index: The clip slot to load into
+        - file_path: Absolute path to the audio file (WAV, AIFF, etc.)
+        """
+        _validate_index(track_index, "track_index")
+        _validate_index(clip_index, "clip_index")
+        ableton = get_ableton_connection()
+        result = ableton.send_command("load_audio_to_session", {
+            "track_index": track_index,
+            "clip_index": clip_index,
+            "file_path": file_path,
+        })
+        return f"Loaded '{file_path}' into track {track_index} slot {clip_index}"
+
+    @mcp.tool()
     @_tool_handler("getting warp markers")
     def get_warp_markers(ctx: Context, track_index: int, clip_index: int) -> str:
         """Get the warp markers of an audio clip. Each marker has a beat_time and sample_time.

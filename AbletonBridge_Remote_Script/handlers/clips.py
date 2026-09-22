@@ -716,6 +716,43 @@ def create_arrangement_audio_clip(song, track_index: int, time: float, length: f
     }
 
 
+@command("load_audio_to_arrangement", modifying=True)
+def load_audio_to_arrangement(song, track_index: int, file_path: str, position: float, ctrl=None) -> dict:
+    """Load an audio file into the arrangement at a specific position (Live 12.0.5+)."""
+    track = get_track(song, track_index)
+    if not getattr(track, 'has_audio_input', False):
+        raise ValueError("Track {0} is not an audio track".format(track_index))
+    if not hasattr(track, 'create_audio_clip'):
+        raise RuntimeError("create_audio_clip requires Live 12.0.5+")
+    clip = track.create_audio_clip(str(file_path), float(position))
+    return {
+        "created": True,
+        "track_index": track_index,
+        "file_path": file_path,
+        "position": float(position),
+        "clip_name": clip.name if clip else "Audio Clip",
+    }
+
+
+@command("load_audio_to_session", modifying=True)
+def load_audio_to_session(song, track_index: int, clip_index: int, file_path: str, ctrl=None) -> dict:
+    """Load an audio file into a session clip slot (Live 12.0.5+)."""
+    track, clip_slot = get_clip_slot(song, track_index, clip_index)
+    if not getattr(track, 'has_audio_input', False):
+        raise ValueError("Track {0} is not an audio track".format(track_index))
+    if not hasattr(clip_slot, 'create_audio_clip'):
+        raise RuntimeError("ClipSlot.create_audio_clip requires Live 12.0.5+")
+    clip_slot.create_audio_clip(str(file_path))
+    clip = clip_slot.clip if clip_slot.has_clip else None
+    return {
+        "created": True,
+        "track_index": track_index,
+        "clip_index": clip_index,
+        "file_path": file_path,
+        "clip_name": clip.name if clip else "Audio Clip",
+    }
+
+
 # --- Warp Markers ---
 
 
