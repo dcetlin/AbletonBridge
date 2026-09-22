@@ -6,6 +6,18 @@ from MCP_Server.connections.ableton import get_ableton_connection
 from MCP_Server.connections.m4l import get_m4l_connection
 from MCP_Server.validation import _validate_index, _validate_index_allow_negative, _validate_range
 import MCP_Server.state as state
+from shared.commands import (
+    ArmTrackParams, CreateAudioTrackParams, CreateMidiTrackParams,
+    CreateReturnTrackParams, DeleteReturnTrackParams, DeleteTrackParams,
+    DisarmTrackParams, DuplicateTrackParams, FreezeTrackParams,
+    GetAllTracksInfoParams, GetMasterTrackInfoParams, GetReturnTrackInfoParams,
+    GetReturnTracksParams, GetReturnTracksInfoParams, GetTrackDataParams,
+    GetTrackInfoParams, GetTrackMetersParams, GetTrackRoutingParams,
+    GroupTracksParams, SelectTrackParams, SetImplicitArmParams,
+    SetTrackCollapseParams, SetTrackColorParams, SetTrackDataParams,
+    SetTrackFoldParams, SetTrackMonitoringParams, SetTrackNameParams,
+    SetTrackRoutingParams, UnfreezeTrackParams,
+)
 
 
 def register_tools(mcp):

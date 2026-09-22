@@ -4,6 +4,15 @@ from mcp.server.fastmcp import Context
 from MCP_Server.tools._base import _tool_handler
 from MCP_Server.connections.ableton import get_ableton_connection
 from MCP_Server.validation import _validate_index, _validate_index_allow_negative, _validate_range, _validate_notes
+from shared.commands import (
+    ApplyGrooveParams, GetCrossfaderParams, GetTrackDelayParams,
+    SetCrossfadeAssignParams, SetCrossfaderParams, SetCueVolumeParams,
+    SetGrooveSettingsParams, SetMasterVolumeParams, SetPanningModeParams,
+    SetReturnTrackMuteParams, SetReturnTrackPanParams, SetReturnTrackSoloParams,
+    SetReturnTrackVolumeParams, SetSplitStereoPanParams, SetTrackArmParams,
+    SetTrackDelayParams, SetTrackMuteParams, SetTrackPanParams,
+    SetTrackSendParams, SetTrackSoloParams, SetTrackVolumeParams,
+)
 
 
 def register_tools(mcp):

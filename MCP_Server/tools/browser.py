@@ -8,6 +8,11 @@ from MCP_Server.validation import _validate_index, _validate_range
 from MCP_Server.cache.browser import resolve_device_uri, resolve_sample_uri, get_browser_cache, populate_browser_cache
 from MCP_Server.constants import CATEGORY_DISPLAY
 import MCP_Server.state as state
+from shared.commands import (
+    GetBrowserItemsAtPathParams, GetBrowserTreeParams, GetDevicePresetsParams,
+    GetUserFoldersParams, GetUserLibraryParams, LoadBrowserItemParams,
+    LoadDevicePresetParams, LoadSampleParams, PreviewBrowserItemParams,
+)
 
 
 def register_tools(mcp):

@@ -12,6 +12,25 @@ from MCP_Server.validation import _validate_index, _validate_range
 from MCP_Server.cache.browser import resolve_device_uri, resolve_sample_uri, get_browser_cache
 from MCP_Server.data import DEVICE_PROPERTIES
 import MCP_Server.state as state
+from shared.commands import (
+    AudioToMidiParams, ChainInsertDeviceParams, ControlLooperParams,
+    CopyDrumPadParams, CreateMidiTrackWithSimplerParams,
+    DeleteChainDeviceParams, DeleteDeviceParams, GetAppointedDeviceParams,
+    GetChainSelectorParams, GetCompressorSidechainParams, GetDeviceInfoParams,
+    GetDeviceParametersParams, GetDrumPadsParams, GetEq8PropertiesParams,
+    GetHybridReverbIrParams, GetMacroValuesParams, GetRackVariationsParams,
+    GetSelectedParameterParams, GetSimplerPropertiesParams,
+    GetTransmutePropertiesParams, GetTuningSystemParams, InsertChainParams,
+    InsertDeviceParams, LoadBrowserItemParams, ManageSampleSlicesParams,
+    MoveDeviceParams, RackVariationActionParams, SelectDeviceParams,
+    SelectInstrumentParams, SetChainPropertiesParams, SetChainSelectorParams,
+    SetCompressorSidechainParams, SetDeviceEnabledParams,
+    SetDeviceParameterParams, SetDeviceParametersBatchParams, SetDrumPadParams,
+    SetEq8PropertiesParams, SetHybridReverbIrParams, SetMacroValueParams,
+    SetSidechainByNameParams, SetSimplerPropertiesParams,
+    SetTransmutePropertiesParams, SimplerSampleActionParams,
+    SlicedSimplerToDrumRackParams,
+)
 
 logger = logging.getLogger("AbletonBridge")
 

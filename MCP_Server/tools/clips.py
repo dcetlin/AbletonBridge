@@ -5,6 +5,26 @@ from mcp.server.fastmcp import Context
 from MCP_Server.tools._base import _tool_handler
 from MCP_Server.connections.ableton import get_ableton_connection
 from MCP_Server.validation import _validate_index, _validate_index_allow_negative, _validate_range, _validate_notes
+from shared.commands import (
+    AddNotesExtendedParams, AddNotesToClipParams, AddWarpMarkerParams,
+    CaptureMidiParams, ClearClipNotesParams, ClipBeatToSampleTimeParams,
+    ClipSampleToBeatTimeParams, ClipScrubNativeParams, ClipStopScrubParams,
+    CreateClipParams, CropClipParams, DeleteClipParams, DeselectAllNotesParams,
+    DuplicateClipParams, DuplicateClipLoopParams, DuplicateClipRegionParams,
+    DuplicateClipSlotParams, DuplicateClipToArrangementParams, FireClipParams,
+    GetClipFollowActionsParams, GetClipInfoParams, GetClipNotesParams,
+    GetClipPropertiesParams, GetClipSlotPropertiesParams, GetNotesExtendedParams,
+    GetPlayingClipsParams, GetSelectedNotesParams, GetWarpMarkersParams,
+    JumpInRunningSessionClipParams, MoveClipPlayingPosParams, MoveWarpMarkerParams,
+    QuantizeClipNotesParams, RemoveNotesRangeParams, RemoveWarpMarkerParams,
+    ReverseClipParams, SelectAllNotesParams, SetClipColorParams,
+    SetClipFollowActionsParams, SetClipGridParams, SetClipLaunchModeParams,
+    SetClipLaunchQuantizationParams, SetClipLegatoParams, SetClipLoopPointsParams,
+    SetClipLoopingParams, SetClipNameParams, SetClipPitchParams,
+    SetClipPropertiesParams, SetClipSlotPropertiesParams, SetClipStartEndParams,
+    SetClipStartTimeParams, SetClipWarpParams, SetFireButtonStateParams,
+    SetWarpModeParams, StopClipParams, StopTrackClipsParams, TransposeClipNotesParams,
+)
 
 
 def register_tools(mcp):

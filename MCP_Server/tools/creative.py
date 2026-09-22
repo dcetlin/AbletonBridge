@@ -7,6 +7,10 @@ from MCP_Server.tools._base import _tool_handler
 from MCP_Server.connections.ableton import get_ableton_connection
 from MCP_Server.validation import _validate_index, _validate_range, _validate_notes
 from MCP_Server.data import SCALES, DRUM_PATTERNS
+from shared.commands import (
+    AddNotesToClipParams, GetClipNotesParams, RemoveNotesRangeParams,
+    SetClipFollowActionsParams,
+)
 
 
 def register_tools(mcp):

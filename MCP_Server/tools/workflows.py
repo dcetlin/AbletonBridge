@@ -15,6 +15,17 @@ from MCP_Server.cache.browser import resolve_device_uri
 from MCP_Server.validation import _validate_index, _validate_index_allow_negative, _validate_range, _validate_notes
 from MCP_Server.constants import CHAIN_TEMPLATES_PATH
 import MCP_Server.state as state
+from shared.commands import (
+    AddNotesToClipParams, CreateClipParams, CreateMidiTrackParams,
+    CreateReturnTrackParams, GetAllTracksInfoParams, GetDeviceParametersParams,
+    GetMasterTrackInfoParams, GetReturnTrackInfoParams, GetReturnTracksParams,
+    GetScenesParams, GetSessionInfoParams, GetTrackInfoParams,
+    LoadInstrumentOrEffectParams, SetClipNameParams, SetMasterVolumeParams,
+    SetReturnTrackMuteParams, SetReturnTrackPanParams, SetReturnTrackSoloParams,
+    SetReturnTrackVolumeParams, SetTrackColorParams, SetTrackMuteParams,
+    SetTrackNameParams, SetTrackPanParams, SetTrackSendParams,
+    SetTrackSoloParams, SetTrackVolumeParams,
+)
 
 logger = logging.getLogger("AbletonBridge")
 

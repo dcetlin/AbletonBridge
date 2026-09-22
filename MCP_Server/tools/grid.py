@@ -4,6 +4,9 @@ from mcp.server.fastmcp import Context
 from MCP_Server.tools._base import _tool_handler
 from MCP_Server.connections.ableton import get_ableton_connection
 from MCP_Server.validation import _validate_index
+from shared.commands import (
+    AddNotesToClipParams, ClearClipNotesParams, CreateClipParams, GetClipNotesParams,
+)
 
 logger = logging.getLogger("AbletonBridge")
 
