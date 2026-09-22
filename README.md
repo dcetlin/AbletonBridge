@@ -2,7 +2,7 @@
 
 **AI-to-Ableton Live integration through the Model Context Protocol.**
 
-AbletonBridge gives Claude (or any MCP client) direct control over Ableton Live sessions — 351 MCP tools backed by 260+ handler commands via a `@command` registry, dual-protocol transport (TCP + M4L/OSC), TypedDict codegen, and structured error codes.
+AbletonBridge gives Claude (or any MCP client) direct control over Ableton Live sessions — 351 MCP tools backed by 260+ handler commands via a `@command` registry, three transport layers (TCP, UDP/OSC, HTTP), TypedDict codegen, and structured error responses.
 
 Create tracks, write MIDI, design sounds, mix, automate, browse instruments, navigate deep into device chains and modulation matrices — all through natural language.
 
@@ -19,14 +19,16 @@ Claude AI  <──MCP──>  MCP Server  <──TCP :9877──>  Remote Script
                           └──────<──HTTP :9880──>  Web Dashboard
 ```
 
-### Transport tiers
+### Transport layers
 
-| Tier | Protocol | Latency | Use |
-|------|----------|---------|-----|
-| **TCP** | `:9877` | Command/response, newline-delimited JSON | All 260+ commands — session, tracks, clips, devices, automation |
-| **UDP real-time** | `:9882` | Fire-and-forget | Continuous parameter updates at 50+ Hz (knob sweeps, faders) |
+Three transport layers connect the MCP Server to Ableton:
+
+| Layer | Ports | Model | Use |
+|-------|-------|-------|-----|
+| **TCP (Remote Script)** | `:9877` | Command/response, newline-delimited JSON | All 260+ commands — session, tracks, clips, devices, automation |
+| | `:9882` | Fire-and-forget UDP | Real-time parameter updates at 50+ Hz (knob sweeps, faders) |
 | **UDP/OSC (M4L)** | `:9878`/`:9879` | Chunked, base64-encoded | Hidden parameters, rack internals, audio analysis, modulation matrices |
-| **HTTP** | `:9880` | Polling (3s) | Web dashboard — tool metrics, server logs, connection status |
+| **HTTP (Dashboard)** | `:9880` | Polling (3s) | Web dashboard — tool metrics, server logs, connection status |
 
 ### Command taxonomy
 
@@ -72,8 +74,8 @@ MCP_Server/                          Remote Script/
 - **Generic LOM access** — `lom_get`, `lom_set`, `lom_describe` for arbitrary Live Object Model traversal with path resolution, depth-bounded introspection, and a write denylist
 - **Per-point interpolation** — automation commands accept per-point `interpolation` overrides (linear/hold/custom exponent) with configurable resolution
 - **Step-budgeted automation** — `_reduce_automation_points` with collinear-point elimination keeps large automation writes within Ableton's dispatch timeout
-- **Structured error codes** — `_structured_error` classifies exceptions (`invalid_input`, `not_found`, `timeout`, `internal_error`) with optional `may_have_landed` flag for non-idempotent failures
-- **Dual-protocol transport** — TCP for commands, UDP for real-time parameters, UDP/OSC for M4L deep access
+- **Structured error responses** — Remote Script `_structured_error` classifies exceptions into 8 codes (`invalid_input`, `index_out_of_range`, `missing_parameter`, `type_error`, `attribute_error`, `not_implemented`, `timeout`, `internal_error`) with optional `may_have_landed` flag for non-idempotent failures
+- **3-layer transport** — TCP for commands + UDP for real-time parameters (Remote Script), UDP/OSC for M4L deep access, HTTP for dashboard
 - **MIDI CC control** — 100 built-in CC maps for Arturia V Collection and NI Komplete via virtual MIDI port
 - **Chunked async responses** — large payloads split, base64-encoded, reassembled with duplicate detection and missing-chunk reporting
 - **Tiered command delays** — 3-tier system (0 / 10 / 20 ms) with `asyncio.Semaphore(1)` serialization replacing large defensive delays
