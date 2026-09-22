@@ -360,7 +360,9 @@ class AbletonBridge(ControlSurface):
         elif isinstance(e, queue.Empty):
             code = "timeout"
             message = "Operation timed out"
-            may_have_landed = True
+            # Do NOT force may_have_landed here: the caller decides based on
+            # whether the timed-out command was modifying (Caller 4 passes
+            # may_have_landed=is_modifying). A read-only timeout must stay False.
         else:
             code = "internal_error"
             message = "Internal error - check Ableton log for details"
