@@ -7,7 +7,7 @@ from ._registry import command
 
 
 @command("set_track_volume", modifying=True)
-def set_track_volume(song, track_index, volume, ctrl=None):
+def set_track_volume(song, track_index: int, volume: float, ctrl=None) -> dict:
     """Set track volume."""
     try:
         track = get_track(song, track_index)
@@ -22,7 +22,7 @@ def set_track_volume(song, track_index, volume, ctrl=None):
 
 
 @command("set_track_pan", modifying=True)
-def set_track_pan(song, track_index, pan, ctrl=None):
+def set_track_pan(song, track_index: int, pan: float, ctrl=None) -> dict:
     """Set track panning."""
     try:
         track = get_track(song, track_index)
@@ -37,7 +37,7 @@ def set_track_pan(song, track_index, pan, ctrl=None):
 
 
 @command("set_track_mute", modifying=True)
-def set_track_mute(song, track_index, mute, ctrl=None):
+def set_track_mute(song, track_index: int, mute: bool, ctrl=None) -> dict:
     """Set track mute state."""
     try:
         track = get_track(song, track_index)
@@ -50,7 +50,7 @@ def set_track_mute(song, track_index, mute, ctrl=None):
 
 
 @command("set_track_solo", modifying=True)
-def set_track_solo(song, track_index, solo, ctrl=None):
+def set_track_solo(song, track_index: int, solo: bool, ctrl=None) -> dict:
     """Set track solo state."""
     try:
         track = get_track(song, track_index)
@@ -63,7 +63,7 @@ def set_track_solo(song, track_index, solo, ctrl=None):
 
 
 @command("set_track_arm", modifying=True)
-def set_track_arm(song, track_index, arm, ctrl=None):
+def set_track_arm(song, track_index: int, arm: bool, ctrl=None) -> dict:
     """Set the arm (record enable) state of a track."""
     try:
         track = get_track(song, track_index)
@@ -78,7 +78,7 @@ def set_track_arm(song, track_index, arm, ctrl=None):
 
 
 @command("set_track_send", modifying=True)
-def set_track_send(song, track_index, send_index, value, ctrl=None):
+def set_track_send(song, track_index: int, send_index: int, value: float, ctrl=None) -> dict:
     """Set the send level from a track to a return track."""
     try:
         track = get_track(song, track_index)
@@ -104,7 +104,7 @@ def set_track_send(song, track_index, send_index, value, ctrl=None):
 
 
 @command("set_return_track_volume", modifying=True)
-def set_return_track_volume(song, return_track_index, volume, ctrl=None):
+def set_return_track_volume(song, return_track_index: int, volume: float, ctrl=None) -> dict:
     """Set the volume of a return track."""
     try:
         return_track = get_track(song, return_track_index, "return")
@@ -122,7 +122,7 @@ def set_return_track_volume(song, return_track_index, volume, ctrl=None):
 
 
 @command("set_return_track_pan", modifying=True)
-def set_return_track_pan(song, return_track_index, pan, ctrl=None):
+def set_return_track_pan(song, return_track_index: int, pan: float, ctrl=None) -> dict:
     """Set the panning of a return track."""
     try:
         return_track = get_track(song, return_track_index, "return")
@@ -140,7 +140,7 @@ def set_return_track_pan(song, return_track_index, pan, ctrl=None):
 
 
 @command("set_return_track_mute", modifying=True)
-def set_return_track_mute(song, return_track_index, mute, ctrl=None):
+def set_return_track_mute(song, return_track_index: int, mute: bool, ctrl=None) -> dict:
     """Set the mute state of a return track."""
     try:
         return_track = get_track(song, return_track_index, "return")
@@ -156,7 +156,7 @@ def set_return_track_mute(song, return_track_index, mute, ctrl=None):
 
 
 @command("set_return_track_solo", modifying=True)
-def set_return_track_solo(song, return_track_index, solo, ctrl=None):
+def set_return_track_solo(song, return_track_index: int, solo: bool, ctrl=None) -> dict:
     """Set the solo state of a return track."""
     try:
         return_track = get_track(song, return_track_index, "return")
@@ -175,7 +175,7 @@ def set_return_track_solo(song, return_track_index, solo, ctrl=None):
 
 
 @command("set_crossfade_assign", modifying=True)
-def set_crossfade_assign(song, track_index, assign, ctrl=None):
+def set_crossfade_assign(song, track_index: int, assign: int, ctrl=None) -> dict:
     """Set A/B crossfade assignment for a track.
 
     Args:
@@ -203,7 +203,7 @@ def set_crossfade_assign(song, track_index, assign, ctrl=None):
 
 
 @command("set_crossfader", modifying=True)
-def set_crossfader(song, value, ctrl=None):
+def set_crossfader(song, value: float, ctrl=None) -> dict:
     """Set the master crossfader position (0.0=A, 0.5=center, 1.0=B)."""
     try:
         cf = song.master_track.mixer_device.crossfader
@@ -217,7 +217,7 @@ def set_crossfader(song, value, ctrl=None):
 
 
 @command("get_crossfader")
-def get_crossfader(song, ctrl=None):
+def get_crossfader(song, ctrl=None) -> dict:
     """Get the master crossfader position."""
     try:
         cf = song.master_track.mixer_device.crossfader
@@ -229,7 +229,7 @@ def get_crossfader(song, ctrl=None):
 
 
 @command("set_cue_volume", modifying=True)
-def set_cue_volume(song, value, ctrl=None):
+def set_cue_volume(song, value: float, ctrl=None) -> dict:
     """Set the cue/preview volume."""
     try:
         cv = song.master_track.mixer_device.cue_volume
@@ -243,7 +243,7 @@ def set_cue_volume(song, value, ctrl=None):
 
 
 @command("set_track_delay", modifying=True)
-def set_track_delay(song, track_index, delay, ctrl=None):
+def set_track_delay(song, track_index: int, delay: float, ctrl=None) -> dict:
     """Set the track delay compensation in ms."""
     try:
         track = get_track(song, track_index)
@@ -258,7 +258,7 @@ def set_track_delay(song, track_index, delay, ctrl=None):
 
 
 @command("get_track_delay")
-def get_track_delay(song, track_index, ctrl=None):
+def get_track_delay(song, track_index: int, ctrl=None) -> dict:
     """Get the track delay compensation value."""
     try:
         track = get_track(song, track_index)
@@ -272,7 +272,7 @@ def get_track_delay(song, track_index, ctrl=None):
 
 
 @command("set_panning_mode", modifying=True)
-def set_panning_mode(song, track_index, mode, ctrl=None):
+def set_panning_mode(song, track_index: int, mode: int, ctrl=None) -> dict:
     """Set the panning mode for a track.
 
     Args:
@@ -290,7 +290,7 @@ def set_panning_mode(song, track_index, mode, ctrl=None):
 
 
 @command("set_split_stereo_pan", modifying=True)
-def set_split_stereo_pan(song, track_index, left=None, right=None, ctrl=None):
+def set_split_stereo_pan(song, track_index: int, left: float | None = None, right: float | None = None, ctrl=None) -> dict:
     """Set split stereo pan values (when panning_mode is Split Stereo)."""
     try:
         track = get_track(song, track_index)
@@ -314,7 +314,7 @@ def set_split_stereo_pan(song, track_index, left=None, right=None, ctrl=None):
 
 
 @command("get_master_track_info")
-def get_master_track_info(song, ctrl=None):
+def get_master_track_info(song, ctrl=None) -> dict:
     """Get detailed information about the master track."""
     try:
         master = song.master_track
@@ -339,7 +339,7 @@ def get_master_track_info(song, ctrl=None):
 
 
 @command("set_master_volume", modifying=True)
-def set_master_volume(song, volume, ctrl=None):
+def set_master_volume(song, volume: float, ctrl=None) -> dict:
     """Set the volume of the master track."""
     try:
         master = song.master_track
@@ -360,7 +360,7 @@ def set_master_volume(song, volume, ctrl=None):
 
 
 @command("get_scenes")
-def get_scenes(song, ctrl=None):
+def get_scenes(song, ctrl=None) -> dict:
     """Get information about all scenes."""
     try:
         scenes = []
@@ -380,7 +380,7 @@ def get_scenes(song, ctrl=None):
 
 
 @command("get_return_tracks")
-def get_return_tracks(song, ctrl=None):
+def get_return_tracks(song, ctrl=None) -> dict:
     """Get information about all return tracks."""
     try:
         return_tracks = []
@@ -418,7 +418,7 @@ def get_return_tracks(song, ctrl=None):
 
 
 @command("get_return_track_info")
-def get_return_track_info(song, return_track_index, ctrl=None):
+def get_return_track_info(song, return_track_index: int, ctrl=None) -> dict:
     """Get detailed information about a specific return track."""
     try:
         track = get_track(song, return_track_index, "return")

@@ -9,7 +9,7 @@ from ._registry import command
 
 
 @command("get_clip_notes")
-def get_clip_notes(song, track_index, clip_index, start_time, time_span, start_pitch, pitch_span, ctrl=None):
+def get_clip_notes(song, track_index: int, clip_index: int, start_time: float, time_span: float, start_pitch: int, pitch_span: int, ctrl=None) -> dict:
     """Get MIDI notes from a clip."""
     try:
         clip = _get_midi_clip(song, track_index, clip_index)
@@ -44,7 +44,7 @@ def get_clip_notes(song, track_index, clip_index, start_time, time_span, start_p
 
 
 @command("add_notes_extended", modifying=True)
-def add_notes_extended(song, track_index, clip_index, notes, ctrl=None):
+def add_notes_extended(song, track_index: int, clip_index: int, notes: list, ctrl=None) -> dict:
     """Add MIDI notes with Live 11+ extended properties."""
     try:
         clip = _get_midi_clip(song, track_index, clip_index)
@@ -145,7 +145,7 @@ def add_notes_extended(song, track_index, clip_index, notes, ctrl=None):
 
 
 @command("get_notes_extended")
-def get_notes_extended(song, track_index, clip_index, start_time, time_span, ctrl=None):
+def get_notes_extended(song, track_index: int, clip_index: int, start_time: float, time_span: float, ctrl=None) -> dict:
     """Get MIDI notes with Live 11+ extended properties."""
     try:
         clip = _get_midi_clip(song, track_index, clip_index)
@@ -207,7 +207,7 @@ def get_notes_extended(song, track_index, clip_index, start_time, time_span, ctr
 
 
 @command("remove_notes_range", modifying=True)
-def remove_notes_range(song, track_index, clip_index, from_time, time_span, from_pitch, pitch_span, ctrl=None):
+def remove_notes_range(song, track_index: int, clip_index: int, from_time: float, time_span: float, from_pitch: int, pitch_span: int, ctrl=None) -> dict:
     """Remove notes within a specific time and pitch range."""
     try:
         clip = _get_midi_clip(song, track_index, clip_index)
@@ -237,7 +237,7 @@ def remove_notes_range(song, track_index, clip_index, from_time, time_span, from
 
 
 @command("clear_clip_notes", modifying=True)
-def clear_clip_notes(song, track_index, clip_index, ctrl=None):
+def clear_clip_notes(song, track_index: int, clip_index: int, ctrl=None) -> dict:
     """Remove all MIDI notes from a clip."""
     try:
         clip = _get_midi_clip(song, track_index, clip_index)
@@ -265,7 +265,7 @@ def clear_clip_notes(song, track_index, clip_index, ctrl=None):
 
 
 @command("quantize_clip_notes", modifying=True)
-def quantize_clip_notes(song, track_index, clip_index, grid_size, ctrl=None):
+def quantize_clip_notes(song, track_index: int, clip_index: int, grid_size: float, ctrl=None) -> dict:
     """Quantize MIDI notes in a clip to a grid."""
     try:
         if grid_size <= 0:
@@ -346,7 +346,7 @@ def quantize_clip_notes(song, track_index, clip_index, grid_size, ctrl=None):
 
 
 @command("transpose_clip_notes", modifying=True)
-def transpose_clip_notes(song, track_index, clip_index, semitones, ctrl=None):
+def transpose_clip_notes(song, track_index: int, clip_index: int, semitones: int, ctrl=None) -> dict:
     """Transpose MIDI notes in a clip by a number of semitones."""
     try:
         clip = _get_midi_clip(song, track_index, clip_index)
@@ -412,7 +412,7 @@ def transpose_clip_notes(song, track_index, clip_index, semitones, ctrl=None):
 
 
 @command("capture_midi", modifying=True)
-def capture_midi(song, ctrl=None):
+def capture_midi(song, ctrl=None) -> dict:
     """Capture recently played MIDI."""
     try:
         if not hasattr(song, "capture_midi"):
@@ -426,7 +426,7 @@ def capture_midi(song, ctrl=None):
 
 
 @command("apply_groove", modifying=True)
-def apply_groove(song, track_index, clip_index, groove_amount, ctrl=None):
+def apply_groove(song, track_index: int, clip_index: int, groove_amount: float, ctrl=None) -> dict:
     """Set global song.groove_amount. Validates clip exists but does NOT apply per-clip groove.
 
     NOTE: song.groove_amount is a global setting — it affects all clips that

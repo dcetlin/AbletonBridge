@@ -7,7 +7,7 @@ from ._registry import command
 
 
 @command("get_track_info")
-def get_track_info(song, track_index, ctrl=None):
+def get_track_info(song, track_index: int, ctrl=None) -> dict:
     """Get information about a track."""
     try:
         track = get_track(song, track_index)
@@ -143,7 +143,7 @@ def get_track_info(song, track_index, ctrl=None):
 
 
 @command("create_midi_track", modifying=True)
-def create_midi_track(song, index, ctrl=None):
+def create_midi_track(song, index: int = -1, ctrl=None) -> dict:
     """Create a new MIDI track at the specified index."""
     try:
         song.create_midi_track(index)
@@ -157,7 +157,7 @@ def create_midi_track(song, index, ctrl=None):
 
 
 @command("create_audio_track", modifying=True)
-def create_audio_track(song, index, ctrl=None):
+def create_audio_track(song, index: int = -1, ctrl=None) -> dict:
     """Create a new audio track at the specified index."""
     try:
         song.create_audio_track(index)
@@ -171,7 +171,7 @@ def create_audio_track(song, index, ctrl=None):
 
 
 @command("set_track_name", modifying=True)
-def set_track_name(song, track_index, name, ctrl=None):
+def set_track_name(song, track_index: int, name: str, ctrl=None) -> dict:
     """Set the name of a track."""
     try:
         track = get_track(song, track_index)
@@ -184,7 +184,7 @@ def set_track_name(song, track_index, name, ctrl=None):
 
 
 @command("delete_track", modifying=True)
-def delete_track(song, track_index, ctrl=None):
+def delete_track(song, track_index: int, ctrl=None) -> dict:
     """Delete a track from the session."""
     try:
         track = get_track(song, track_index)
@@ -202,7 +202,7 @@ def delete_track(song, track_index, ctrl=None):
 
 
 @command("duplicate_track", modifying=True)
-def duplicate_track(song, track_index, ctrl=None):
+def duplicate_track(song, track_index: int, ctrl=None) -> dict:
     """Duplicate a track with all its devices and clips."""
     try:
         track = get_track(song, track_index)
@@ -227,7 +227,7 @@ def duplicate_track(song, track_index, ctrl=None):
 
 
 @command("create_return_track", modifying=True)
-def create_return_track(song, ctrl=None):
+def create_return_track(song, ctrl=None) -> dict:
     """Create a new return track."""
     try:
         song.create_return_track()
@@ -241,7 +241,7 @@ def create_return_track(song, ctrl=None):
 
 
 @command("set_track_color", modifying=True)
-def set_track_color(song, track_index, color_index, ctrl=None):
+def set_track_color(song, track_index: int, color_index: int, ctrl=None) -> dict:
     """Set track color."""
     try:
         track = get_track(song, track_index)
@@ -254,7 +254,7 @@ def set_track_color(song, track_index, color_index, ctrl=None):
 
 
 @command("arm_track", modifying=True)
-def arm_track(song, track_index, ctrl=None):
+def arm_track(song, track_index: int, ctrl=None) -> dict:
     """Arm a track for recording."""
     try:
         track = get_track(song, track_index)
@@ -273,7 +273,7 @@ def arm_track(song, track_index, ctrl=None):
 
 
 @command("disarm_track", modifying=True)
-def disarm_track(song, track_index, ctrl=None):
+def disarm_track(song, track_index: int, ctrl=None) -> dict:
     """Disarm a track from recording."""
     try:
         track = get_track(song, track_index)
@@ -296,7 +296,7 @@ def disarm_track(song, track_index, ctrl=None):
 
 
 @command("group_tracks", modifying=True)
-def group_tracks(song, track_indices, name, ctrl=None):
+def group_tracks(song, track_indices: list, name: str = "", ctrl=None) -> dict:
     """Group tracks — not supported by Remote Script API. Selects first track and returns guidance."""
     if not track_indices or len(track_indices) == 0:
         raise ValueError("No tracks specified")
@@ -314,7 +314,7 @@ def group_tracks(song, track_indices, name, ctrl=None):
 
 
 @command("get_all_tracks_info")
-def get_all_tracks_info(song, ctrl=None):
+def get_all_tracks_info(song, ctrl=None) -> dict:
     """Get summary info for all tracks at once."""
     try:
         tracks_list = []
@@ -351,7 +351,7 @@ def get_all_tracks_info(song, ctrl=None):
 
 
 @command("get_return_tracks_info")
-def get_return_tracks_info(song, ctrl=None):
+def get_return_tracks_info(song, ctrl=None) -> dict:
     """Get info for all return tracks."""
     try:
         returns = []
@@ -375,7 +375,7 @@ def get_return_tracks_info(song, ctrl=None):
 
 
 @command("get_track_routing")
-def get_track_routing(song, track_index, ctrl=None):
+def get_track_routing(song, track_index: int, ctrl=None) -> dict:
     """Get current input/output routing and available options for a track."""
     try:
         track = get_track(song, track_index)
@@ -422,7 +422,7 @@ def get_track_routing(song, track_index, ctrl=None):
 
 
 @command("set_track_monitoring", modifying=True)
-def set_track_monitoring(song, track_index, state, ctrl=None):
+def set_track_monitoring(song, track_index: int, state: int, ctrl=None) -> dict:
     """Set the monitoring state of a track.
 
     Args:
@@ -446,7 +446,7 @@ def set_track_monitoring(song, track_index, state, ctrl=None):
 
 
 @command("create_midi_track_with_simpler", modifying=True)
-def create_midi_track_with_simpler(song, track_index, clip_index, ctrl=None):
+def create_midi_track_with_simpler(song, track_index: int, clip_index: int, ctrl=None) -> dict:
     """Create a new MIDI track with a Simpler containing an audio clip's sample."""
     try:
         _, clip = get_clip(song, track_index, clip_index)
@@ -469,7 +469,7 @@ def create_midi_track_with_simpler(song, track_index, clip_index, ctrl=None):
 
 
 @command("get_track_meters")
-def get_track_meters(song, track_index=None, ctrl=None):
+def get_track_meters(song, track_index: int = None, ctrl=None) -> dict:
     """Get live output meter levels and playing slot info for one or all tracks."""
     try:
         tracks_data = []
@@ -511,7 +511,7 @@ def get_track_meters(song, track_index=None, ctrl=None):
 
 
 @command("set_track_fold", modifying=True)
-def set_track_fold(song, track_index, fold_state, ctrl=None):
+def set_track_fold(song, track_index: int, fold_state: bool, ctrl=None) -> dict:
     """Collapse or expand a group track.
 
     Args:
@@ -534,8 +534,8 @@ def set_track_fold(song, track_index, fold_state, ctrl=None):
 
 
 @command("set_track_routing", modifying=True)
-def set_track_routing(song, track_index, input_type=None, input_channel=None,
-                      output_type=None, output_channel=None, ctrl=None):
+def set_track_routing(song, track_index: int, input_type: str = None, input_channel: str = None,
+                      output_type: str = None, output_channel: str = None, ctrl=None) -> dict:
     """Set track input/output routing by display name.
 
     Args:
@@ -599,7 +599,7 @@ def set_track_routing(song, track_index, input_type=None, input_channel=None,
 
 
 @command("get_take_lanes")
-def get_take_lanes(song, track_index, ctrl=None):
+def get_take_lanes(song, track_index: int, ctrl=None) -> dict:
     """Get take lanes for a track (used for comping in Arrangement)."""
     try:
         track = get_track(song, track_index)
@@ -637,7 +637,7 @@ def get_take_lanes(song, track_index, ctrl=None):
 
 
 @command("create_take_lane", modifying=True)
-def create_take_lane(song, track_index, ctrl=None):
+def create_take_lane(song, track_index: int, ctrl=None) -> dict:
     """Create a new take lane for a track."""
     try:
         track = get_track(song, track_index)
@@ -658,7 +658,7 @@ def create_take_lane(song, track_index, ctrl=None):
 
 
 @command("insert_device", modifying=True)
-def insert_device(song, track_index, device_name, target_index=None, ctrl=None):
+def insert_device(song, track_index: int, device_name: str, target_index: int = None, ctrl=None) -> dict:
     """Insert a native Live device by name into a track's device chain.
 
     Args:
@@ -705,7 +705,7 @@ def insert_device(song, track_index, device_name, target_index=None, ctrl=None):
 
 
 @command("delete_return_track", modifying=True)
-def delete_return_track(song, return_index, ctrl=None):
+def delete_return_track(song, return_index: int, ctrl=None) -> dict:
     """Delete a return track by index."""
     try:
         if return_index < 0 or return_index >= len(song.return_tracks):
@@ -724,7 +724,7 @@ def delete_return_track(song, return_index, ctrl=None):
 
 
 @command("set_track_collapse", modifying=True)
-def set_track_collapse(song, track_index, collapsed, ctrl=None):
+def set_track_collapse(song, track_index: int, collapsed: bool, ctrl=None) -> dict:
     """Set the collapsed state of a track in Arrangement view."""
     try:
         track = get_track(song, track_index)
@@ -744,7 +744,7 @@ def set_track_collapse(song, track_index, collapsed, ctrl=None):
 
 
 @command("jump_in_running_session_clip", modifying=True)
-def jump_in_running_session_clip(song, track_index, amount, ctrl=None):
+def jump_in_running_session_clip(song, track_index: int, amount: float, ctrl=None) -> dict:
     """Jump forward/backward in the currently playing session clip on a track.
 
     Args:
@@ -767,7 +767,7 @@ def jump_in_running_session_clip(song, track_index, amount, ctrl=None):
 
 
 @command("get_track_data")
-def get_track_data(song, track_index, key, ctrl=None):
+def get_track_data(song, track_index: int, key: str, ctrl=None) -> dict:
     """Get persistent data stored on a track (survives save/load)."""
     try:
         track = get_track(song, track_index)
@@ -786,7 +786,7 @@ def get_track_data(song, track_index, key, ctrl=None):
 
 
 @command("set_track_data", modifying=True)
-def set_track_data(song, track_index, key, value, ctrl=None):
+def set_track_data(song, track_index: int, key: str, value: str, ctrl=None) -> dict:
     """Set persistent data on a track (survives save/load in .als file)."""
     try:
         track = get_track(song, track_index)
@@ -806,7 +806,7 @@ def set_track_data(song, track_index, key, value, ctrl=None):
 
 
 @command("set_implicit_arm", modifying=True)
-def set_implicit_arm(song, track_index, enabled, ctrl=None):
+def set_implicit_arm(song, track_index: int, enabled: bool, ctrl=None) -> dict:
     """Set the implicit arm state of a track.
 
     Implicit arm means the track is auto-armed when selected (common in Push workflow).
@@ -828,7 +828,7 @@ def set_implicit_arm(song, track_index, enabled, ctrl=None):
 
 
 @command("get_track_input_meters")
-def get_track_input_meters(song, track_index=None, ctrl=None):
+def get_track_input_meters(song, track_index: int = None, ctrl=None) -> dict:
     """Get input meter levels for one or all tracks."""
     try:
         tracks_data = []

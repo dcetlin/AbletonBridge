@@ -17,7 +17,7 @@ def _get_audio_clip(song, track_index, clip_index):
 
 
 @command("get_audio_clip_info")
-def get_audio_clip_info(song, track_index, clip_index, ctrl=None):
+def get_audio_clip_info(song, track_index: int, clip_index: int, ctrl=None) -> dict:
     """Get information about an audio clip."""
     try:
         clip = _get_audio_clip(song, track_index, clip_index)
@@ -53,7 +53,7 @@ def get_audio_clip_info(song, track_index, clip_index, ctrl=None):
 
 
 @command("set_warp_mode", modifying=True)
-def set_warp_mode(song, track_index, clip_index, warp_mode, ctrl=None):
+def set_warp_mode(song, track_index: int, clip_index: int, warp_mode: str, ctrl=None) -> dict:
     """Set the warp mode for an audio clip."""
     try:
         clip = _get_audio_clip(song, track_index, clip_index)
@@ -76,7 +76,7 @@ def set_warp_mode(song, track_index, clip_index, warp_mode, ctrl=None):
 
 
 @command("set_clip_warp", modifying=True)
-def set_clip_warp(song, track_index, clip_index, warping_enabled, ctrl=None):
+def set_clip_warp(song, track_index: int, clip_index: int, warping_enabled: bool, ctrl=None) -> dict:
     """Enable or disable warping for an audio clip."""
     try:
         clip = _get_audio_clip(song, track_index, clip_index)
@@ -89,7 +89,7 @@ def set_clip_warp(song, track_index, clip_index, warping_enabled, ctrl=None):
 
 
 @command("reverse_clip", modifying=True)
-def reverse_clip(song, track_index, clip_index, ctrl=None):
+def reverse_clip(song, track_index: int, clip_index: int, ctrl=None) -> dict:
     """Reverse an audio clip.
 
     Audio clips don't expose a direct reverse API. If the track hosts a Simpler
@@ -118,7 +118,7 @@ def reverse_clip(song, track_index, clip_index, ctrl=None):
 
 
 @command("analyze_audio_clip")
-def analyze_audio_clip(song, track_index, clip_index, ctrl=None):
+def analyze_audio_clip(song, track_index: int, clip_index: int, ctrl=None) -> dict:
     """Analyze an audio clip comprehensively."""
     try:
         clip = _get_audio_clip(song, track_index, clip_index)
@@ -198,7 +198,7 @@ def analyze_audio_clip(song, track_index, clip_index, ctrl=None):
 
 
 @command("freeze_track", modifying=True)
-def freeze_track(song, track_index, ctrl=None):
+def freeze_track(song, track_index: int, ctrl=None) -> dict:
     """Freeze a track."""
     try:
         track = get_track(song, track_index)
@@ -233,7 +233,7 @@ def freeze_track(song, track_index, ctrl=None):
 
 
 @command("unfreeze_track", modifying=True)
-def unfreeze_track(song, track_index, ctrl=None):
+def unfreeze_track(song, track_index: int, ctrl=None) -> dict:
     """Unfreeze a track."""
     try:
         track = get_track(song, track_index)

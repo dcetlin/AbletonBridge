@@ -9,7 +9,7 @@ from ._registry import command
 
 
 @command("create_clip", modifying=True)
-def create_clip(song, track_index, clip_index, length, ctrl=None):
+def create_clip(song, track_index: int, clip_index: int, length: float, ctrl=None) -> dict:
     """Create a new MIDI clip in the specified track and clip slot."""
     try:
         track, clip_slot = get_clip_slot(song, track_index, clip_index)
@@ -30,7 +30,7 @@ def create_clip(song, track_index, clip_index, length, ctrl=None):
 
 
 @command("add_notes_to_clip", modifying=True)
-def add_notes_to_clip(song, track_index, clip_index, notes, ctrl=None):
+def add_notes_to_clip(song, track_index: int, clip_index: int, notes: list, ctrl=None) -> dict:
     """Add MIDI notes to a clip."""
     try:
         _, clip = get_clip(song, track_index, clip_index)
@@ -91,7 +91,7 @@ def add_notes_to_clip(song, track_index, clip_index, notes, ctrl=None):
 
 
 @command("set_clip_name", modifying=True)
-def set_clip_name(song, track_index, clip_index, name, ctrl=None):
+def set_clip_name(song, track_index: int, clip_index: int, name: str, ctrl=None) -> dict:
     """Set the name of a clip."""
     try:
         _, clip = get_clip(song, track_index, clip_index)
@@ -104,7 +104,7 @@ def set_clip_name(song, track_index, clip_index, name, ctrl=None):
 
 
 @command("fire_clip", modifying=True)
-def fire_clip(song, track_index, clip_index, ctrl=None):
+def fire_clip(song, track_index: int, clip_index: int, ctrl=None) -> dict:
     """Fire a clip."""
     try:
         _, clip_slot = get_clip_slot(song, track_index, clip_index)
@@ -119,7 +119,7 @@ def fire_clip(song, track_index, clip_index, ctrl=None):
 
 
 @command("stop_clip", modifying=True)
-def stop_clip(song, track_index, clip_index, ctrl=None):
+def stop_clip(song, track_index: int, clip_index: int, ctrl=None) -> dict:
     """Stop a clip."""
     try:
         _, clip_slot = get_clip_slot(song, track_index, clip_index)
@@ -132,7 +132,7 @@ def stop_clip(song, track_index, clip_index, ctrl=None):
 
 
 @command("delete_clip", modifying=True)
-def delete_clip(song, track_index, clip_index, ctrl=None):
+def delete_clip(song, track_index: int, clip_index: int, ctrl=None) -> dict:
     """Delete a clip from a clip slot."""
     try:
         _, clip_slot = get_clip_slot(song, track_index, clip_index)
@@ -153,7 +153,7 @@ def delete_clip(song, track_index, clip_index, ctrl=None):
 
 
 @command("get_clip_info")
-def get_clip_info(song, track_index, clip_index, ctrl=None):
+def get_clip_info(song, track_index: int, clip_index: int, ctrl=None) -> dict:
     """Get detailed information about a clip."""
     try:
         _, clip = get_clip(song, track_index, clip_index)
@@ -215,7 +215,7 @@ def get_clip_info(song, track_index, clip_index, ctrl=None):
 
 
 @command("duplicate_clip", modifying=True)
-def duplicate_clip(song, track_index, clip_index, target_clip_index, ctrl=None):
+def duplicate_clip(song, track_index: int, clip_index: int, target_clip_index: int, ctrl=None) -> dict:
     """Duplicate a clip to another slot on the same track."""
     try:
         track = get_track(song, track_index)
@@ -243,7 +243,7 @@ def duplicate_clip(song, track_index, clip_index, target_clip_index, ctrl=None):
 
 
 @command("set_clip_looping", modifying=True)
-def set_clip_looping(song, track_index, clip_index, looping, ctrl=None):
+def set_clip_looping(song, track_index: int, clip_index: int, looping: bool, ctrl=None) -> dict:
     """Set the looping state of a clip."""
     try:
         _, clip = get_clip(song, track_index, clip_index)
@@ -260,7 +260,7 @@ def set_clip_looping(song, track_index, clip_index, looping, ctrl=None):
 
 
 @command("set_clip_loop_points", modifying=True)
-def set_clip_loop_points(song, track_index, clip_index, loop_start, loop_end, ctrl=None):
+def set_clip_loop_points(song, track_index: int, clip_index: int, loop_start: float, loop_end: float, ctrl=None) -> dict:
     """Set the loop start and end points of a clip."""
     try:
         _, clip = get_clip(song, track_index, clip_index)
@@ -292,7 +292,7 @@ def set_clip_loop_points(song, track_index, clip_index, loop_start, loop_end, ct
 
 
 @command("set_clip_color", modifying=True)
-def set_clip_color(song, track_index, clip_index, color_index, ctrl=None):
+def set_clip_color(song, track_index: int, clip_index: int, color_index: int, ctrl=None) -> dict:
     """Set the color of a clip."""
     try:
         _, clip = get_clip(song, track_index, clip_index)
@@ -312,7 +312,7 @@ def set_clip_color(song, track_index, clip_index, color_index, ctrl=None):
 
 
 @command("crop_clip", modifying=True)
-def crop_clip(song, track_index, clip_index, ctrl=None):
+def crop_clip(song, track_index: int, clip_index: int, ctrl=None) -> dict:
     """Trim clip to its loop region."""
     try:
         _, clip = get_clip(song, track_index, clip_index)
@@ -331,7 +331,7 @@ def crop_clip(song, track_index, clip_index, ctrl=None):
 
 
 @command("duplicate_clip_loop", modifying=True)
-def duplicate_clip_loop(song, track_index, clip_index, ctrl=None):
+def duplicate_clip_loop(song, track_index: int, clip_index: int, ctrl=None) -> dict:
     """Double the loop content of a clip."""
     try:
         _, clip = get_clip(song, track_index, clip_index)
@@ -351,7 +351,7 @@ def duplicate_clip_loop(song, track_index, clip_index, ctrl=None):
 
 
 @command("set_clip_start_end", modifying=True)
-def set_clip_start_end(song, track_index, clip_index, start_marker, end_marker, ctrl=None):
+def set_clip_start_end(song, track_index: int, clip_index: int, start_marker: float = None, end_marker: float = None, ctrl=None) -> dict:
     """Set clip start_marker and end_marker."""
     try:
         _, clip = get_clip(song, track_index, clip_index)
@@ -396,7 +396,7 @@ def set_clip_start_end(song, track_index, clip_index, start_marker, end_marker, 
 
 
 @command("set_clip_pitch", modifying=True)
-def set_clip_pitch(song, track_index, clip_index, pitch_coarse=None, pitch_fine=None, ctrl=None):
+def set_clip_pitch(song, track_index: int, clip_index: int, pitch_coarse: int = None, pitch_fine: int = None, ctrl=None) -> dict:
     """Set pitch transposition for an audio clip.
 
     Args:
@@ -431,7 +431,7 @@ def set_clip_pitch(song, track_index, clip_index, pitch_coarse=None, pitch_fine=
 
 
 @command("set_clip_launch_mode", modifying=True)
-def set_clip_launch_mode(song, track_index, clip_index, launch_mode, ctrl=None):
+def set_clip_launch_mode(song, track_index: int, clip_index: int, launch_mode: int, ctrl=None) -> dict:
     """Set the launch mode for a clip.
 
     Args:
@@ -455,7 +455,7 @@ def set_clip_launch_mode(song, track_index, clip_index, launch_mode, ctrl=None):
 
 
 @command("set_clip_launch_quantization", modifying=True)
-def set_clip_launch_quantization(song, track_index, clip_index, quantization, ctrl=None):
+def set_clip_launch_quantization(song, track_index: int, clip_index: int, quantization: int, ctrl=None) -> dict:
     """Set the launch quantization for a clip.
 
     Args:
@@ -481,7 +481,7 @@ def set_clip_launch_quantization(song, track_index, clip_index, quantization, ct
 
 
 @command("set_clip_legato", modifying=True)
-def set_clip_legato(song, track_index, clip_index, legato, ctrl=None):
+def set_clip_legato(song, track_index: int, clip_index: int, legato: bool, ctrl=None) -> dict:
     """Set the legato mode for a clip.
 
     Args:
@@ -502,7 +502,7 @@ def set_clip_legato(song, track_index, clip_index, legato, ctrl=None):
 
 
 @command("audio_to_midi", modifying=True)
-def audio_to_midi(song, track_index, clip_index, conversion_type, ctrl=None):
+def audio_to_midi(song, track_index: int, clip_index: int, conversion_type: str, ctrl=None) -> dict:
     """Convert an audio clip to a MIDI clip.
 
     Args:
@@ -542,9 +542,9 @@ def audio_to_midi(song, track_index, clip_index, conversion_type, ctrl=None):
 
 
 @command("duplicate_clip_region", modifying=True)
-def duplicate_clip_region(song, track_index, clip_index,
-                          region_start, region_length, destination_time,
-                          pitch=-1, transposition_amount=0, ctrl=None):
+def duplicate_clip_region(song, track_index: int, clip_index: int,
+                          region_start: float, region_length: float, destination_time: float,
+                          pitch: int = -1, transposition_amount: int = 0, ctrl=None) -> dict:
     """Duplicate notes in a region to another position, with optional transposition.
 
     MIDI clips only. If pitch is -1, all notes in the region are duplicated.
@@ -578,7 +578,7 @@ def duplicate_clip_region(song, track_index, clip_index,
 
 
 @command("move_clip_playing_pos", modifying=True)
-def move_clip_playing_pos(song, track_index, clip_index, time, ctrl=None):
+def move_clip_playing_pos(song, track_index: int, clip_index: int, time: float, ctrl=None) -> dict:
     """Jump to a position within a currently playing clip.
 
     Args:
@@ -599,8 +599,8 @@ def move_clip_playing_pos(song, track_index, clip_index, time, ctrl=None):
 
 
 @command("set_clip_grid", modifying=True)
-def set_clip_grid(song, track_index, clip_index,
-                   grid_quantization=None, grid_is_triplet=None, ctrl=None):
+def set_clip_grid(song, track_index: int, clip_index: int,
+                   grid_quantization: float = None, grid_is_triplet: bool = None, ctrl=None) -> dict:
     """Set the MIDI editor grid resolution for a clip.
 
     Args:
@@ -632,7 +632,7 @@ def set_clip_grid(song, track_index, clip_index,
 
 
 @command("get_clip_follow_actions")
-def get_clip_follow_actions(song, track_index, clip_index, ctrl=None):
+def get_clip_follow_actions(song, track_index: int, clip_index: int, ctrl=None) -> dict:
     """Get follow action settings for a clip."""
     try:
         _, clip = get_clip(song, track_index, clip_index)
@@ -665,13 +665,13 @@ def get_clip_follow_actions(song, track_index, clip_index, ctrl=None):
 
 
 @command("set_clip_follow_actions", modifying=True)
-def set_clip_follow_actions(song, track_index, clip_index,
-                             follow_action_0=None, follow_action_1=None,
-                             follow_action_probability=None,
-                             follow_action_time=None,
-                             follow_action_enabled=None,
-                             follow_action_linked=None,
-                             follow_action_return_to_zero=None, ctrl=None):
+def set_clip_follow_actions(song, track_index: int, clip_index: int,
+                             follow_action_0: int = None, follow_action_1: int = None,
+                             follow_action_probability: float = None,
+                             follow_action_time: float = None,
+                             follow_action_enabled: bool = None,
+                             follow_action_linked: bool = None,
+                             follow_action_return_to_zero: bool = None, ctrl=None) -> dict:
     """Set follow action settings for a clip.
 
     Args:
@@ -724,7 +724,7 @@ def set_clip_follow_actions(song, track_index, clip_index,
 
 
 @command("get_clip_properties")
-def get_clip_properties(song, track_index, clip_index, ctrl=None):
+def get_clip_properties(song, track_index: int, clip_index: int, ctrl=None) -> dict:
     """Get extended clip properties including follow actions, RAM mode, etc."""
     try:
         _, clip = get_clip(song, track_index, clip_index)
@@ -765,10 +765,10 @@ def get_clip_properties(song, track_index, clip_index, ctrl=None):
 
 
 @command("set_clip_properties", modifying=True)
-def set_clip_properties(song, track_index, clip_index,
-                         muted=None, velocity_amount=None, groove=None,
-                         signature_numerator=None, signature_denominator=None,
-                         ram_mode=None, warping=None, gain=None, ctrl=None):
+def set_clip_properties(song, track_index: int, clip_index: int,
+                         muted: bool = None, velocity_amount: float = None, groove: float = None,
+                         signature_numerator: int = None, signature_denominator: int = None,
+                         ram_mode: bool = None, warping: bool = None, gain: float = None, ctrl=None) -> dict:
     """Set multiple clip properties at once."""
     try:
         _, clip = get_clip(song, track_index, clip_index)
@@ -810,7 +810,7 @@ def set_clip_properties(song, track_index, clip_index,
 
 
 @command("select_all_notes", modifying=True)
-def select_all_notes(song, track_index, clip_index, ctrl=None):
+def select_all_notes(song, track_index: int, clip_index: int, ctrl=None) -> dict:
     """Select all notes in a MIDI clip."""
     try:
         _, clip = get_clip(song, track_index, clip_index)
@@ -825,7 +825,7 @@ def select_all_notes(song, track_index, clip_index, ctrl=None):
 
 
 @command("set_clip_start_time", modifying=True)
-def set_clip_start_time(song, track_index, clip_index, time, ctrl=None):
+def set_clip_start_time(song, track_index: int, clip_index: int, time: float, ctrl=None) -> dict:
     """Set the start_time of a clip (arrangement position, Live 12.2+)."""
     try:
         _, clip = get_clip(song, track_index, clip_index)
@@ -842,7 +842,7 @@ def set_clip_start_time(song, track_index, clip_index, time, ctrl=None):
 
 
 @command("stop_track_clips", modifying=True)
-def stop_track_clips(song, track_index, ctrl=None):
+def stop_track_clips(song, track_index: int, ctrl=None) -> dict:
     """Stop all clips on a specific track."""
     try:
         track = get_track(song, track_index)
@@ -855,7 +855,7 @@ def stop_track_clips(song, track_index, ctrl=None):
 
 
 @command("create_arrangement_midi_clip", modifying=True)
-def create_arrangement_midi_clip(song, track_index, time, length, ctrl=None):
+def create_arrangement_midi_clip(song, track_index: int, time: float, length: float, ctrl=None) -> dict:
     """Create a MIDI clip in the arrangement view (Live 12.1+)."""
     try:
         track = get_track(song, track_index)
@@ -878,7 +878,7 @@ def create_arrangement_midi_clip(song, track_index, time, length, ctrl=None):
 
 
 @command("create_arrangement_audio_clip", modifying=True)
-def create_arrangement_audio_clip(song, track_index, time, length, ctrl=None):
+def create_arrangement_audio_clip(song, track_index: int, time: float, length: float, ctrl=None) -> dict:
     """Create an audio clip in the arrangement view (Live 12.2+)."""
     try:
         track = get_track(song, track_index)
@@ -904,7 +904,7 @@ def create_arrangement_audio_clip(song, track_index, time, length, ctrl=None):
 
 
 @command("get_warp_markers")
-def get_warp_markers(song, track_index, clip_index, ctrl=None):
+def get_warp_markers(song, track_index: int, clip_index: int, ctrl=None) -> dict:
     """Get the warp markers of an audio clip."""
     try:
         _, clip = get_clip(song, track_index, clip_index)
@@ -957,7 +957,7 @@ def get_warp_markers(song, track_index, clip_index, ctrl=None):
 
 
 @command("add_warp_marker", modifying=True)
-def add_warp_marker(song, track_index, clip_index, beat_time, sample_time=None, ctrl=None):
+def add_warp_marker(song, track_index: int, clip_index: int, beat_time: float, sample_time: float = None, ctrl=None) -> dict:
     """Add a warp marker to an audio clip.
 
     Args:
@@ -985,7 +985,7 @@ def add_warp_marker(song, track_index, clip_index, beat_time, sample_time=None, 
 
 
 @command("move_warp_marker", modifying=True)
-def move_warp_marker(song, track_index, clip_index, beat_time, beat_time_distance, ctrl=None):
+def move_warp_marker(song, track_index: int, clip_index: int, beat_time: float, beat_time_distance: float, ctrl=None) -> dict:
     """Move a warp marker by a beat-time distance.
 
     Args:
@@ -1009,7 +1009,7 @@ def move_warp_marker(song, track_index, clip_index, beat_time, beat_time_distanc
 
 
 @command("remove_warp_marker", modifying=True)
-def remove_warp_marker(song, track_index, clip_index, beat_time, ctrl=None):
+def remove_warp_marker(song, track_index: int, clip_index: int, beat_time: float, ctrl=None) -> dict:
     """Remove a warp marker from an audio clip.
 
     Args:
@@ -1034,7 +1034,7 @@ def remove_warp_marker(song, track_index, clip_index, beat_time, ctrl=None):
 
 
 @command("deselect_all_notes", modifying=True)
-def deselect_all_notes(song, track_index, clip_index, ctrl=None):
+def deselect_all_notes(song, track_index: int, clip_index: int, ctrl=None) -> dict:
     """Deselect all notes in a MIDI clip."""
     try:
         _, clip = get_clip(song, track_index, clip_index)
@@ -1049,7 +1049,7 @@ def deselect_all_notes(song, track_index, clip_index, ctrl=None):
 
 
 @command("get_selected_notes")
-def get_selected_notes(song, track_index, clip_index, ctrl=None):
+def get_selected_notes(song, track_index: int, clip_index: int, ctrl=None) -> dict:
     """Get the currently selected notes in a MIDI clip."""
     try:
         _, clip = get_clip(song, track_index, clip_index)
@@ -1099,7 +1099,7 @@ def get_selected_notes(song, track_index, clip_index, ctrl=None):
 
 
 @command("set_fire_button_state", modifying=True)
-def set_fire_button_state(song, track_index, clip_index, state, ctrl=None):
+def set_fire_button_state(song, track_index: int, clip_index: int, state: bool, ctrl=None) -> dict:
     """Set the clip's fire button state directly (supports all launch modes)."""
     try:
         _, clip = get_clip(song, track_index, clip_index)
@@ -1112,7 +1112,7 @@ def set_fire_button_state(song, track_index, clip_index, state, ctrl=None):
 
 
 @command("clip_scrub_native", modifying=True)
-def clip_scrub_native(song, track_index, clip_index, position, ctrl=None):
+def clip_scrub_native(song, track_index: int, clip_index: int, position: float, ctrl=None) -> dict:
     """Start scrubbing inside a clip (via Remote Script, not M4L)."""
     try:
         _, clip = get_clip(song, track_index, clip_index)
@@ -1125,7 +1125,7 @@ def clip_scrub_native(song, track_index, clip_index, position, ctrl=None):
 
 
 @command("clip_stop_scrub", modifying=True)
-def clip_stop_scrub(song, track_index, clip_index, ctrl=None):
+def clip_stop_scrub(song, track_index: int, clip_index: int, ctrl=None) -> dict:
     """Stop scrubbing a clip."""
     try:
         _, clip = get_clip(song, track_index, clip_index)
@@ -1138,7 +1138,7 @@ def clip_stop_scrub(song, track_index, clip_index, ctrl=None):
 
 
 @command("clip_beat_to_sample_time")
-def clip_beat_to_sample_time(song, track_index, clip_index, beat_time, ctrl=None):
+def clip_beat_to_sample_time(song, track_index: int, clip_index: int, beat_time: float, ctrl=None) -> dict:
     """Convert beat time to sample time (audio clips only)."""
     try:
         _, clip = get_clip(song, track_index, clip_index)
@@ -1153,7 +1153,7 @@ def clip_beat_to_sample_time(song, track_index, clip_index, beat_time, ctrl=None
 
 
 @command("clip_sample_to_beat_time")
-def clip_sample_to_beat_time(song, track_index, clip_index, sample_time, ctrl=None):
+def clip_sample_to_beat_time(song, track_index: int, clip_index: int, sample_time: float, ctrl=None) -> dict:
     """Convert sample time to beat time (audio clips only)."""
     try:
         _, clip = get_clip(song, track_index, clip_index)
@@ -1168,7 +1168,7 @@ def clip_sample_to_beat_time(song, track_index, clip_index, sample_time, ctrl=No
 
 
 @command("duplicate_clip_slot", modifying=True)
-def duplicate_clip_slot(song, track_index, clip_index, ctrl=None):
+def duplicate_clip_slot(song, track_index: int, clip_index: int, ctrl=None) -> dict:
     """Duplicate a clip slot within a track (puts copy in next free slot)."""
     try:
         track = get_track(song, track_index)
@@ -1188,7 +1188,7 @@ def duplicate_clip_slot(song, track_index, clip_index, ctrl=None):
 
 
 @command("get_clip_slot_properties")
-def get_clip_slot_properties(song, track_index, clip_index, ctrl=None):
+def get_clip_slot_properties(song, track_index: int, clip_index: int, ctrl=None) -> dict:
     """Get clip slot properties (has_stop_button, is_group_slot, color)."""
     try:
         track, clip_slot = get_clip_slot(song, track_index, clip_index)
@@ -1233,8 +1233,8 @@ def get_clip_slot_properties(song, track_index, clip_index, ctrl=None):
 
 
 @command("set_clip_slot_properties", modifying=True)
-def set_clip_slot_properties(song, track_index, clip_index, has_stop_button=None,
-                               color_index=None, ctrl=None):
+def set_clip_slot_properties(song, track_index: int, clip_index: int, has_stop_button: bool = None,
+                               color_index: int = None, ctrl=None) -> dict:
     """Set clip slot properties (has_stop_button, color)."""
     try:
         track, clip_slot = get_clip_slot(song, track_index, clip_index)

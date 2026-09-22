@@ -7,7 +7,7 @@ from ._registry import command
 
 
 @command("get_session_info")
-def get_session_info(song, ctrl=None):
+def get_session_info(song, ctrl=None) -> dict:
     """Get information about the current session."""
     try:
         result = {
@@ -30,7 +30,7 @@ def get_session_info(song, ctrl=None):
 
 
 @command("set_tempo", modifying=True)
-def set_tempo(song, tempo, ctrl=None):
+def set_tempo(song, tempo: float, ctrl=None) -> dict:
     """Set the tempo of the session (20.0-999.0 BPM)."""
     try:
         tempo = float(tempo)
@@ -46,7 +46,7 @@ def set_tempo(song, tempo, ctrl=None):
 
 
 @command("start_playback", modifying=True)
-def start_playback(song, ctrl=None):
+def start_playback(song, ctrl=None) -> dict:
     """Start playing the session."""
     try:
         song.start_playing()
@@ -58,7 +58,7 @@ def start_playback(song, ctrl=None):
 
 
 @command("stop_playback", modifying=True)
-def stop_playback(song, ctrl=None):
+def stop_playback(song, ctrl=None) -> dict:
     """Stop playing the session."""
     try:
         song.stop_playing()
@@ -70,7 +70,7 @@ def stop_playback(song, ctrl=None):
 
 
 @command("get_song_transport")
-def get_song_transport(song, ctrl=None):
+def get_song_transport(song, ctrl=None) -> dict:
     """Get transport/arrangement state."""
     try:
         result = {
@@ -112,7 +112,7 @@ def get_song_transport(song, ctrl=None):
 
 
 @command("set_song_time", modifying=True)
-def set_song_time(song, time, ctrl=None):
+def set_song_time(song, time: float, ctrl=None) -> dict:
     """Set the arrangement playhead position."""
     try:
         target = max(0.0, float(time))
@@ -125,7 +125,7 @@ def set_song_time(song, time, ctrl=None):
 
 
 @command("set_song_loop", modifying=True)
-def set_song_loop(song, enabled, start, length, ctrl=None):
+def set_song_loop(song, enabled: bool = None, start: float = None, length: float = None, ctrl=None) -> dict:
     """Control arrangement loop bracket."""
     try:
         # Validate all inputs before mutating
@@ -164,7 +164,7 @@ def set_song_loop(song, enabled, start, length, ctrl=None):
 
 
 @command("get_loop_info")
-def get_loop_info(song, ctrl=None):
+def get_loop_info(song, ctrl=None) -> dict:
     """Get loop information."""
     try:
         return {
@@ -181,7 +181,7 @@ def get_loop_info(song, ctrl=None):
 
 
 @command("set_loop_start", modifying=True)
-def set_loop_start(song, position, ctrl=None):
+def set_loop_start(song, position: float, ctrl=None) -> dict:
     """Set the loop start position."""
     try:
         position = max(0.0, float(position))
@@ -194,7 +194,7 @@ def set_loop_start(song, position, ctrl=None):
 
 
 @command("set_loop_end", modifying=True)
-def set_loop_end(song, position, ctrl=None):
+def set_loop_end(song, position: float, ctrl=None) -> dict:
     """Set the loop end position."""
     try:
         pos = float(position)
@@ -211,7 +211,7 @@ def set_loop_end(song, position, ctrl=None):
 
 
 @command("set_loop_length", modifying=True)
-def set_loop_length(song, length, ctrl=None):
+def set_loop_length(song, length: float, ctrl=None) -> dict:
     """Set the loop length."""
     try:
         length_val = float(length)
@@ -230,7 +230,7 @@ def set_loop_length(song, length, ctrl=None):
 
 
 @command("set_playback_position", modifying=True)
-def set_playback_position(song, position, ctrl=None):
+def set_playback_position(song, position: float, ctrl=None) -> dict:
     """Set the playback position."""
     try:
         song.current_song_time = max(0.0, float(position))
@@ -242,7 +242,7 @@ def set_playback_position(song, position, ctrl=None):
 
 
 @command("set_arrangement_overdub", modifying=True)
-def set_arrangement_overdub(song, enabled, ctrl=None):
+def set_arrangement_overdub(song, enabled: bool, ctrl=None) -> dict:
     """Enable or disable arrangement overdub mode."""
     try:
         song.arrangement_overdub = bool(enabled)
@@ -254,7 +254,7 @@ def set_arrangement_overdub(song, enabled, ctrl=None):
 
 
 @command("start_arrangement_recording", modifying=True)
-def start_arrangement_recording(song, ctrl=None):
+def start_arrangement_recording(song, ctrl=None) -> dict:
     """Start recording into the arrangement view."""
     try:
         song.record_mode = True
@@ -272,7 +272,7 @@ def start_arrangement_recording(song, ctrl=None):
 
 
 @command("stop_arrangement_recording", modifying=True)
-def stop_arrangement_recording(song, stop_playback=True, ctrl=None):
+def stop_arrangement_recording(song, stop_playback: bool = True, ctrl=None) -> dict:
     """Stop arrangement recording.
 
     Args:
@@ -294,7 +294,7 @@ def stop_arrangement_recording(song, stop_playback=True, ctrl=None):
 
 
 @command("get_recording_status")
-def get_recording_status(song, ctrl=None):
+def get_recording_status(song, ctrl=None) -> dict:
     """Get the current recording status."""
     try:
         armed_tracks = []
@@ -324,7 +324,7 @@ def get_recording_status(song, ctrl=None):
 
 
 @command("set_metronome", modifying=True)
-def set_metronome(song, enabled, ctrl=None):
+def set_metronome(song, enabled: bool, ctrl=None) -> dict:
     """Enable or disable the metronome."""
     try:
         song.metronome = bool(enabled)
@@ -336,7 +336,7 @@ def set_metronome(song, enabled, ctrl=None):
 
 
 @command("tap_tempo", modifying=True)
-def tap_tempo(song, ctrl=None):
+def tap_tempo(song, ctrl=None) -> dict:
     """Tap tempo to set BPM."""
     try:
         song.tap_tempo()
@@ -351,7 +351,7 @@ def tap_tempo(song, ctrl=None):
 
 
 @command("undo", modifying=True)
-def undo(song, ctrl=None):
+def undo(song, ctrl=None) -> dict:
     """Undo the last action."""
     try:
         if not song.can_undo:
@@ -365,7 +365,7 @@ def undo(song, ctrl=None):
 
 
 @command("redo", modifying=True)
-def redo(song, ctrl=None):
+def redo(song, ctrl=None) -> dict:
     """Redo the last undone action."""
     try:
         if not song.can_redo:
@@ -382,7 +382,7 @@ def redo(song, ctrl=None):
 
 
 @command("continue_playing", modifying=True)
-def continue_playing(song, ctrl=None):
+def continue_playing(song, ctrl=None) -> dict:
     """Continue playback from the current position (does not jump to start)."""
     try:
         song.continue_playing()
@@ -394,7 +394,7 @@ def continue_playing(song, ctrl=None):
 
 
 @command("re_enable_automation", modifying=True)
-def re_enable_automation(song, ctrl=None):
+def re_enable_automation(song, ctrl=None) -> dict:
     """Re-enable all automation that has been manually overridden."""
     try:
         song.re_enable_automation()
@@ -409,7 +409,7 @@ def re_enable_automation(song, ctrl=None):
 
 
 @command("get_cue_points")
-def get_cue_points(song, ctrl=None):
+def get_cue_points(song, ctrl=None) -> dict:
     """Get all cue points (markers) in the arrangement."""
     try:
         cues = []
@@ -427,7 +427,7 @@ def get_cue_points(song, ctrl=None):
 
 
 @command("set_or_delete_cue", modifying=True)
-def set_or_delete_cue(song, ctrl=None):
+def set_or_delete_cue(song, ctrl=None) -> dict:
     """Toggle a cue point at the current playback position.
 
     If a cue point exists at the current position, it is deleted.
@@ -443,7 +443,7 @@ def set_or_delete_cue(song, ctrl=None):
 
 
 @command("jump_to_cue", modifying=True)
-def jump_to_cue(song, direction, ctrl=None):
+def jump_to_cue(song, direction: str, ctrl=None) -> dict:
     """Jump to the next or previous cue point.
 
     Args:
@@ -468,7 +468,7 @@ def jump_to_cue(song, direction, ctrl=None):
 
 
 @command("get_groove_pool")
-def get_groove_pool(song, ctrl=None):
+def get_groove_pool(song, ctrl=None) -> dict:
     """Read the groove pool: global groove amount and list of grooves with their params."""
     try:
         result = {
@@ -499,7 +499,7 @@ def get_groove_pool(song, ctrl=None):
 
 
 @command("get_song_settings")
-def get_song_settings(song, ctrl=None):
+def get_song_settings(song, ctrl=None) -> dict:
     """Get global song settings: time signature, swing, quantization, overdub, etc."""
     try:
         result = {
@@ -553,11 +553,11 @@ def get_song_settings(song, ctrl=None):
 
 
 @command("set_song_settings", modifying=True)
-def set_song_settings(song, signature_numerator=None, signature_denominator=None,
-                       swing_amount=None, clip_trigger_quantization=None,
-                       midi_recording_quantization=None, back_to_arranger=None,
-                       follow_song=None, draw_mode=None,
-                       session_automation_record=None, ctrl=None):
+def set_song_settings(song, signature_numerator: int = None, signature_denominator: int = None,
+                       swing_amount: float = None, clip_trigger_quantization: int = None,
+                       midi_recording_quantization: int = None, back_to_arranger: bool = None,
+                       follow_song: bool = None, draw_mode: bool = None,
+                       session_automation_record: bool = None, ctrl=None) -> dict:
     """Set global song settings."""
     try:
         # Phase 1: validate all inputs into local vars before mutating song
@@ -638,7 +638,7 @@ def set_song_settings(song, signature_numerator=None, signature_denominator=None
 
 
 @command("trigger_session_record", modifying=True)
-def trigger_session_record(song, record_length=None, ctrl=None):
+def trigger_session_record(song, record_length: float = None, ctrl=None) -> dict:
     """Trigger a new session recording, optionally with a fixed bar length."""
     try:
         if record_length is not None:
@@ -653,7 +653,7 @@ def trigger_session_record(song, record_length=None, ctrl=None):
 
 
 @command("navigate_playback", modifying=True)
-def navigate_playback(song, action, beats=None, ctrl=None):
+def navigate_playback(song, action: str, beats: float = None, ctrl=None) -> dict:
     """Navigate playback position: jump_by, scrub_by, or play_selection.
 
     Args:
@@ -686,7 +686,7 @@ def navigate_playback(song, action, beats=None, ctrl=None):
 
 
 @command("select_scene", modifying=True)
-def select_scene(song, scene_index, ctrl=None):
+def select_scene(song, scene_index: int, ctrl=None) -> dict:
     """Select a scene by index in Live's Session view."""
     try:
         scenes = list(song.scenes)
@@ -702,7 +702,7 @@ def select_scene(song, scene_index, ctrl=None):
 
 
 @command("select_track", modifying=True)
-def select_track(song, track_index, track_type="track", ctrl=None):
+def select_track(song, track_index: int, track_type: str = "track", ctrl=None) -> dict:
     """Select a track by index in Live's Session or Arrangement view.
 
     Args:
@@ -720,7 +720,7 @@ def select_track(song, track_index, track_type="track", ctrl=None):
 
 
 @command("set_detail_clip", modifying=True)
-def set_detail_clip(song, track_index, clip_index, ctrl=None):
+def set_detail_clip(song, track_index: int, clip_index: int, ctrl=None) -> dict:
     """Show a clip in Live's Detail view.
 
     Args:
@@ -742,9 +742,9 @@ def set_detail_clip(song, track_index, clip_index, ctrl=None):
 
 
 @command("set_groove_settings", modifying=True)
-def set_groove_settings(song, groove_amount=None, groove_index=None,
-                         timing_amount=None, quantization_amount=None,
-                         random_amount=None, velocity_amount=None, ctrl=None):
+def set_groove_settings(song, groove_amount: float = None, groove_index: int = None,
+                         timing_amount: float = None, quantization_amount: float = None,
+                         random_amount: float = None, velocity_amount: float = None, ctrl=None) -> dict:
     """Set global groove amount or individual groove parameters."""
     try:
         result = {}
@@ -804,7 +804,7 @@ def set_groove_settings(song, groove_amount=None, groove_index=None,
 
 
 @command("get_song_scale")
-def get_song_scale(song, ctrl=None):
+def get_song_scale(song, ctrl=None) -> dict:
     """Get the song's current scale settings (root note, scale name, mode, intervals)."""
     try:
         result = {
@@ -824,7 +824,7 @@ def get_song_scale(song, ctrl=None):
 
 
 @command("set_song_scale", modifying=True)
-def set_song_scale(song, root_note=None, scale_name=None, scale_mode=None, ctrl=None):
+def set_song_scale(song, root_note: int = None, scale_name: str = None, scale_mode: bool = None, ctrl=None) -> dict:
     """Set the song's scale settings.
 
     Args:
@@ -859,7 +859,7 @@ def set_song_scale(song, root_note=None, scale_name=None, scale_mode=None, ctrl=
 
 
 @command("set_punch", modifying=True)
-def set_punch(song, punch_in=None, punch_out=None, count_in_duration=None, ctrl=None):
+def set_punch(song, punch_in: bool = None, punch_out: bool = None, count_in_duration: int = None, ctrl=None) -> dict:
     """Set punch in/out and count-in settings.
 
     Args:
@@ -897,7 +897,7 @@ def set_punch(song, punch_in=None, punch_out=None, count_in_duration=None, ctrl=
 
 
 @command("get_selection_state")
-def get_selection_state(song, ctrl=None):
+def get_selection_state(song, ctrl=None) -> dict:
     """Get what is currently selected in Live's UI."""
     try:
         result = {}
@@ -975,7 +975,7 @@ def get_selection_state(song, ctrl=None):
 
 
 @command("get_link_status")
-def get_link_status(song, ctrl=None):
+def get_link_status(song, ctrl=None) -> dict:
     """Get Ableton Link sync status."""
     try:
         result = {
@@ -993,7 +993,7 @@ def get_link_status(song, ctrl=None):
 
 
 @command("set_link_enabled", modifying=True)
-def set_link_enabled(song, enabled=None, start_stop_sync=None, ctrl=None):
+def set_link_enabled(song, enabled: bool = None, start_stop_sync: bool = None, ctrl=None) -> dict:
     """Enable/disable Ableton Link and start/stop sync."""
     try:
         changes = {}
@@ -1016,7 +1016,7 @@ def set_link_enabled(song, enabled=None, start_stop_sync=None, ctrl=None):
 
 
 @command("get_tuning_system")
-def get_tuning_system(song, ctrl=None):
+def get_tuning_system(song, ctrl=None) -> dict:
     """Get the current tuning system settings."""
     try:
         ts = song.tuning_system
@@ -1064,7 +1064,7 @@ def get_tuning_system(song, ctrl=None):
 
 
 @command("get_view_state")
-def get_view_state(song, ctrl=None):
+def get_view_state(song, ctrl=None) -> dict:
     """Get the current state of Live's application views."""
     try:
         import Live
@@ -1089,7 +1089,7 @@ def get_view_state(song, ctrl=None):
 
 
 @command("set_view", modifying=True)
-def set_view(song, action, view_name, ctrl=None):
+def set_view(song, action: str, view_name: str, ctrl=None) -> dict:
     """Show, hide, or focus a view in Live's UI.
 
     Args:
@@ -1120,7 +1120,7 @@ def set_view(song, action, view_name, ctrl=None):
 
 
 @command("zoom_scroll_view", modifying=True)
-def zoom_scroll_view(song, action, direction, view_name, modifier_pressed=False, ctrl=None):
+def zoom_scroll_view(song, action: str, direction: int, view_name: str, modifier_pressed: bool = False, ctrl=None) -> dict:
     """Zoom or scroll a view in Live's UI.
 
     Args:
@@ -1156,7 +1156,7 @@ def zoom_scroll_view(song, action, direction, view_name, modifier_pressed=False,
 
 
 @command("stop_all_clips", modifying=True)
-def stop_all_clips(song, ctrl=None):
+def stop_all_clips(song, ctrl=None) -> dict:
     """Stop all playing clips in the Live Set."""
     try:
         song.stop_all_clips()
@@ -1168,7 +1168,7 @@ def stop_all_clips(song, ctrl=None):
 
 
 @command("capture_and_insert_scene", modifying=True)
-def capture_and_insert_scene(song, ctrl=None):
+def capture_and_insert_scene(song, ctrl=None) -> dict:
     """Capture currently playing clips into a new scene."""
     try:
         song.capture_and_insert_scene()
@@ -1185,7 +1185,7 @@ def capture_and_insert_scene(song, ctrl=None):
 
 
 @command("get_song_file_path")
-def get_song_file_path(song, ctrl=None):
+def get_song_file_path(song, ctrl=None) -> dict:
     """Get the file path of the current Live Set."""
     try:
         return {"file_path": str(song.file_path) if song.file_path else None}
@@ -1196,7 +1196,7 @@ def get_song_file_path(song, ctrl=None):
 
 
 @command("set_session_record", modifying=True)
-def set_session_record(song, enabled, ctrl=None):
+def set_session_record(song, enabled: bool, ctrl=None) -> dict:
     """Enable or disable session recording."""
     try:
         song.session_record = bool(enabled)
@@ -1214,7 +1214,7 @@ def set_session_record(song, enabled, ctrl=None):
 
 
 @command("get_song_data")
-def get_song_data(song, key, ctrl=None):
+def get_song_data(song, key: str, ctrl=None) -> dict:
     """Get persistent data stored in the Live Set by key."""
     try:
         val = song.get_data(str(key), None)
@@ -1226,7 +1226,7 @@ def get_song_data(song, key, ctrl=None):
 
 
 @command("set_song_data", modifying=True)
-def set_song_data(song, key, value, ctrl=None):
+def set_song_data(song, key: str, value: str, ctrl=None) -> dict:
     """Store persistent data in the Live Set (survives save/load)."""
     try:
         song.set_data(str(key), value)
@@ -1238,7 +1238,7 @@ def set_song_data(song, key, value, ctrl=None):
 
 
 @command("end_undo_step", modifying=True)
-def end_undo_step(song, ctrl=None):
+def end_undo_step(song, ctrl=None) -> dict:
     """End the current undo step, grouping preceding operations into one undo action."""
     try:
         song.end_undo_step()
@@ -1250,7 +1250,7 @@ def end_undo_step(song, ctrl=None):
 
 
 @command("get_song_length")
-def get_song_length(song, ctrl=None):
+def get_song_length(song, ctrl=None) -> dict:
     """Get the total song length and last event time in beats."""
     try:
         result = {"song_length": song.song_length}
@@ -1268,7 +1268,7 @@ def get_song_length(song, ctrl=None):
 
 
 @command("get_beat_time")
-def get_beat_time(song, ctrl=None):
+def get_beat_time(song, ctrl=None) -> dict:
     """Get current song time as structured bars:beats:sub_division:ticks."""
     try:
         bt = song.get_current_beats_song_time()
@@ -1299,7 +1299,7 @@ def get_beat_time(song, ctrl=None):
 
 
 @command("get_smpte_time")
-def get_smpte_time(song, time_format=0, ctrl=None):
+def get_smpte_time(song, time_format: int = 0, ctrl=None) -> dict:
     """Get current song time in SMPTE format.
 
     Args:
@@ -1321,7 +1321,7 @@ def get_smpte_time(song, time_format=0, ctrl=None):
 
 
 @command("get_all_scales")
-def get_all_scales(song, ctrl=None):
+def get_all_scales(song, ctrl=None) -> dict:
     """Get all available scale names and intervals."""
     try:
         from Live.Song import get_all_scales_ordered
@@ -1340,7 +1340,7 @@ def get_all_scales(song, ctrl=None):
 
 
 @command("nudge_tempo", modifying=True)
-def nudge_tempo(song, direction, ctrl=None):
+def nudge_tempo(song, direction: str, ctrl=None) -> dict:
     """Nudge the tempo up or down momentarily.
 
     Args:
@@ -1364,7 +1364,7 @@ def nudge_tempo(song, direction, ctrl=None):
 
 
 @command("get_appointed_device")
-def get_appointed_device(song, ctrl=None):
+def get_appointed_device(song, ctrl=None) -> dict:
     """Get the currently appointed (selected) device."""
     try:
         dev = song.appointed_device
@@ -1383,7 +1383,7 @@ def get_appointed_device(song, ctrl=None):
 
 
 @command("get_count_in_duration")
-def get_count_in_duration(song, ctrl=None):
+def get_count_in_duration(song, ctrl=None) -> dict:
     """Get the count-in duration setting (0=None, 1=1 Bar, 2=2 Bars, 3=4 Bars)."""
     try:
         return {
@@ -1400,7 +1400,7 @@ def get_count_in_duration(song, ctrl=None):
 
 
 @command("set_draw_mode", modifying=True)
-def set_draw_mode(song, enabled, ctrl=None):
+def set_draw_mode(song, enabled: bool, ctrl=None) -> dict:
     """Toggle envelope/note draw mode."""
     try:
         song.view.draw_mode = bool(enabled)
@@ -1412,7 +1412,7 @@ def set_draw_mode(song, enabled, ctrl=None):
 
 
 @command("set_follow_song", modifying=True)
-def set_follow_song(song, enabled, ctrl=None):
+def set_follow_song(song, enabled: bool, ctrl=None) -> dict:
     """Toggle follow song (auto-scroll arrangement to playback position)."""
     try:
         song.view.follow_song = bool(enabled)
@@ -1424,7 +1424,7 @@ def set_follow_song(song, enabled, ctrl=None):
 
 
 @command("get_highlighted_clip_slot")
-def get_highlighted_clip_slot(song, ctrl=None):
+def get_highlighted_clip_slot(song, ctrl=None) -> dict:
     """Get the currently highlighted clip slot in Session View."""
     try:
         cs = song.view.highlighted_clip_slot
@@ -1441,7 +1441,7 @@ def get_highlighted_clip_slot(song, ctrl=None):
 
 
 @command("select_device", modifying=True)
-def select_device(song, track_index, device_index, track_type="track", ctrl=None):
+def select_device(song, track_index: int, device_index: int, track_type: str = "track", ctrl=None) -> dict:
     """Select a device in the detail view."""
     try:
         if track_type == "return":
@@ -1460,7 +1460,7 @@ def select_device(song, track_index, device_index, track_type="track", ctrl=None
 
 
 @command("get_selected_parameter")
-def get_selected_parameter(song, ctrl=None):
+def get_selected_parameter(song, ctrl=None) -> dict:
     """Get the currently selected device parameter."""
     try:
         param = song.view.selected_parameter
@@ -1480,7 +1480,7 @@ def get_selected_parameter(song, ctrl=None):
 
 
 @command("select_instrument", modifying=True)
-def select_instrument(song, track_index, ctrl=None):
+def select_instrument(song, track_index: int, ctrl=None) -> dict:
     """Select the instrument on a track (if it has one)."""
     try:
         track = song.tracks[int(track_index)]
@@ -1493,7 +1493,7 @@ def select_instrument(song, track_index, ctrl=None):
 
 
 @command("get_playing_clips")
-def get_playing_clips(song, ctrl=None):
+def get_playing_clips(song, ctrl=None) -> dict:
     """Get all currently playing/triggered clips across all tracks."""
     try:
         playing = []

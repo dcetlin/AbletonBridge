@@ -84,7 +84,7 @@ def find_browser_item_by_uri(browser_or_item, uri, max_depth=10, current_depth=0
 
 
 @command("get_browser_item")
-def get_browser_item(song, uri, path, ctrl=None):
+def get_browser_item(song, uri: str | None, path: str | None, ctrl=None) -> dict:
     """Get a browser item by URI or path."""
     try:
         if ctrl is None:
@@ -165,7 +165,7 @@ def get_browser_item(song, uri, path, ctrl=None):
 
 
 @command("load_browser_item", modifying=True)
-def load_browser_item(song, track_index, item_uri, ctrl=None):
+def load_browser_item(song, track_index: int, item_uri: str, ctrl=None) -> dict:
     """Load a browser item onto a track by URI."""
     try:
         track = get_track(song, track_index)
@@ -197,7 +197,7 @@ def load_browser_item(song, track_index, item_uri, ctrl=None):
 
 
 @command("load_instrument_or_effect", modifying=True)
-def load_instrument_or_effect(song, track_index, uri, ctrl=None):
+def load_instrument_or_effect(song, track_index: int, uri: str, ctrl=None) -> dict:
     """Load an instrument or effect onto a track by URI (alias)."""
     return load_browser_item(song, track_index, uri, ctrl)
 
@@ -270,7 +270,7 @@ def _find_browser_item_by_name(browser, name, ctrl=None):
 
 
 @command("load_sample", modifying=True)
-def load_sample(song, track_index, sample_uri, ctrl=None):
+def load_sample(song, track_index: int, sample_uri: str, ctrl=None) -> dict:
     """Load a sample onto a track by URI or filename (with name-based fallback)."""
     try:
         track = get_track(song, track_index)
@@ -335,7 +335,7 @@ def _process_item(item):
 
 
 @command("get_browser_tree")
-def get_browser_tree(song, category_type, ctrl=None):
+def get_browser_tree(song, category_type: str, ctrl=None) -> dict:
     """Get a simplified tree of browser categories."""
     try:
         if ctrl is None:
@@ -402,7 +402,7 @@ def get_browser_tree(song, category_type, ctrl=None):
 
 
 @command("get_browser_items_at_path")
-def get_browser_items_at_path(song, path, ctrl=None):
+def get_browser_items_at_path(song, path: str, ctrl=None) -> dict:
     """Get browser items at a specific path."""
     try:
         if ctrl is None:
@@ -510,7 +510,7 @@ def get_browser_items_at_path(song, path, ctrl=None):
 
 
 @command("search_browser")
-def search_browser(song, query, category, ctrl=None):
+def search_browser(song, query: str, category: str, ctrl=None) -> dict:
     """Search the browser for items matching a query."""
     try:
         if ctrl is None:
@@ -603,7 +603,7 @@ def search_browser(song, query, category, ctrl=None):
 
 
 @command("get_user_library")
-def get_user_library(song, ctrl=None):
+def get_user_library(song, ctrl=None) -> dict:
     """Get the user library browser tree."""
     try:
         if ctrl is None:
@@ -632,7 +632,7 @@ def get_user_library(song, ctrl=None):
 
 
 @command("get_user_folders")
-def get_user_folders(song, ctrl=None):
+def get_user_folders(song, ctrl=None) -> dict:
     """Get user-configured sample folders from Ableton's browser."""
     try:
         if ctrl is None:
@@ -666,7 +666,7 @@ def get_user_folders(song, ctrl=None):
 
 
 @command("get_device_presets")
-def get_device_presets(song, track_index, device_index, track_type="track", ctrl=None):
+def get_device_presets(song, track_index: int, device_index: int, track_type: str = "track", ctrl=None) -> dict:
     """Get available presets for a device by navigating the browser."""
     track = get_track(song, track_index, track_type)
 
@@ -736,7 +736,7 @@ def get_device_presets(song, track_index, device_index, track_type="track", ctrl
 
 
 @command("load_device_preset", modifying=True)
-def load_device_preset(song, track_index, device_index, preset_uri, track_type="track", ctrl=None):
+def load_device_preset(song, track_index: int, device_index: int, preset_uri: str, track_type: str = "track", ctrl=None) -> dict:
     """Load a preset onto a device using hot-swap."""
     track = get_track(song, track_index, track_type)
 
@@ -784,7 +784,7 @@ def load_device_preset(song, track_index, device_index, preset_uri, track_type="
 
 
 @command("preview_browser_item", modifying=True)
-def preview_browser_item(song, uri=None, action="preview", ctrl=None):
+def preview_browser_item(song, uri: str | None = None, action: str = "preview", ctrl=None) -> dict:
     """Preview (audition) a browser item, or stop the current preview.
 
     Args:

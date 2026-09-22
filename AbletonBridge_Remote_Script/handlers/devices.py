@@ -162,7 +162,7 @@ def _resolve_display_value(param, display_string, ctrl=None):
 
 
 @command("get_device_parameters")
-def get_device_parameters(song, track_index, device_index, track_type="track", ctrl=None):
+def get_device_parameters(song, track_index: int, device_index: int, track_type: str = "track", ctrl=None) -> dict:
     """Get all parameters for a device on any track type."""
     try:
         track = resolve_track(song, track_index, track_type)
@@ -207,9 +207,9 @@ def get_device_parameters(song, track_index, device_index, track_type="track", c
 
 @command("set_device_parameter", modifying=True)
 def set_device_parameter(
-    song, track_index, device_index, parameter_name, value,
-    track_type="track", value_display=None, ctrl=None
-):
+    song, track_index: int, device_index: int, parameter_name: str, value: float,
+    track_type: str = "track", value_display: str | None = None, ctrl=None
+) -> dict:
     """Set a device parameter by name on any track type.
 
     value_display: optional display string (e.g. '1/4') for quantized params.
@@ -270,8 +270,8 @@ def set_device_parameter(
 
 @command("set_device_parameters_batch", modifying=True)
 def set_device_parameters_batch(
-    song, track_index, device_index, parameters, track_type="track", ctrl=None
-):
+    song, track_index: int, device_index: int, parameters: list, track_type: str = "track", ctrl=None
+) -> dict:
     """Set multiple device parameters at once.
 
     parameters is a list of dicts with 'name' and either 'value' (numeric)
@@ -346,7 +346,7 @@ def _resolve_device(song, track_index, device_index, track_type="track"):
 
 
 @command("delete_device", modifying=True)
-def delete_device(song, track_index, device_index, track_type="track", ctrl=None):
+def delete_device(song, track_index: int, device_index: int, track_type: str = "track", ctrl=None) -> dict:
     """Delete a device from a track."""
     try:
         track, device = _resolve_device(song, track_index, device_index, track_type)
@@ -368,7 +368,7 @@ def delete_device(song, track_index, device_index, track_type="track", ctrl=None
 
 
 @command("get_macro_values")
-def get_macro_values(song, track_index, device_index, track_type="track", ctrl=None):
+def get_macro_values(song, track_index: int, device_index: int, track_type: str = "track", ctrl=None) -> dict:
     """Get the values of all macro controls on a rack device."""
     try:
         _track, device = _resolve_device(song, track_index, device_index, track_type)
@@ -403,7 +403,7 @@ def get_macro_values(song, track_index, device_index, track_type="track", ctrl=N
 
 
 @command("set_macro_value", modifying=True)
-def set_macro_value(song, track_index, device_index, macro_index, value, track_type="track", ctrl=None):
+def set_macro_value(song, track_index: int, device_index: int, macro_index: int, value: float, track_type: str = "track", ctrl=None) -> dict:
     """Set the value of a specific macro control on a rack device."""
     try:
         _track, device = _resolve_device(song, track_index, device_index, track_type)
@@ -448,7 +448,7 @@ def _get_drum_rack(song, track_index, device_index, track_type="track"):
 
 
 @command("get_drum_pads")
-def get_drum_pads(song, track_index, device_index, track_type="track", ctrl=None):
+def get_drum_pads(song, track_index: int, device_index: int, track_type: str = "track", ctrl=None) -> dict:
     """Get drum pad info from a drum rack device."""
     try:
         device = _get_drum_rack(song, track_index, device_index, track_type)
@@ -479,7 +479,7 @@ def get_drum_pads(song, track_index, device_index, track_type="track", ctrl=None
 
 
 @command("set_drum_pad", modifying=True)
-def set_drum_pad(song, track_index, device_index, note, mute=None, solo=None, track_type="track", ctrl=None):
+def set_drum_pad(song, track_index: int, device_index: int, note: int, mute: bool | None = None, solo: bool | None = None, track_type: str = "track", ctrl=None) -> dict:
     """Set mute/solo on a drum pad by MIDI note number."""
     try:
         device = _get_drum_rack(song, track_index, device_index, track_type)
@@ -508,7 +508,7 @@ def set_drum_pad(song, track_index, device_index, note, mute=None, solo=None, tr
 
 
 @command("copy_drum_pad", modifying=True)
-def copy_drum_pad(song, track_index, device_index, source_note, dest_note, track_type="track", ctrl=None):
+def copy_drum_pad(song, track_index: int, device_index: int, source_note: int, dest_note: int, track_type: str = "track", ctrl=None) -> dict:
     """Copy drum pad contents from source to destination note."""
     try:
         device = _get_drum_rack(song, track_index, device_index, track_type)
@@ -552,7 +552,7 @@ def _get_rack_device(song, track_index, device_index, track_type="track"):
 
 
 @command("get_rack_variations")
-def get_rack_variations(song, track_index, device_index, track_type="track", ctrl=None):
+def get_rack_variations(song, track_index: int, device_index: int, track_type: str = "track", ctrl=None) -> dict:
     """Read variation count, selected index, and macro mapping status."""
     try:
         device = _get_rack_device(song, track_index, device_index, track_type)
@@ -571,7 +571,7 @@ def get_rack_variations(song, track_index, device_index, track_type="track", ctr
 
 
 @command("rack_variation_action", modifying=True)
-def rack_variation_action(song, track_index, device_index, action, variation_index=None, track_type="track", ctrl=None):
+def rack_variation_action(song, track_index: int, device_index: int, action: str, variation_index: int | None = None, track_type: str = "track", ctrl=None) -> dict:
     """Perform a variation action on a rack device.
 
     Args:
@@ -613,7 +613,7 @@ def rack_variation_action(song, track_index, device_index, action, variation_ind
 
 
 @command("sliced_simpler_to_drum_rack", modifying=True)
-def sliced_simpler_to_drum_rack(song, track_index, device_index, track_type="track", ctrl=None):
+def sliced_simpler_to_drum_rack(song, track_index: int, device_index: int, track_type: str = "track", ctrl=None) -> dict:
     """Convert a sliced Simpler device to a Drum Rack."""
     try:
         track = resolve_track(song, track_index, track_type)
@@ -668,7 +668,7 @@ def _get_sidechain_io(device):
 
 
 @command("get_compressor_sidechain")
-def get_compressor_sidechain(song, track_index, device_index, track_type="track", ctrl=None):
+def get_compressor_sidechain(song, track_index: int, device_index: int, track_type: str = "track", ctrl=None) -> dict:
     """Get side-chain routing info from a Compressor device."""
     try:
         device = _get_compressor_device(song, track_index, device_index, track_type)
@@ -732,8 +732,8 @@ def get_compressor_sidechain(song, track_index, device_index, track_type="track"
 
 
 @command("set_compressor_sidechain", modifying=True)
-def set_compressor_sidechain(song, track_index, device_index,
-                              input_type=None, input_channel=None, track_type="track", ctrl=None):
+def set_compressor_sidechain(song, track_index: int, device_index: int,
+                              input_type: str | None = None, input_channel: str | None = None, track_type: str = "track", ctrl=None) -> dict:
     """Set side-chain routing on a Compressor device by display name.
 
     Uses the DeviceIO path (device.input_routings[0]) which exposes writable
@@ -792,7 +792,7 @@ def _get_eq8_device(song, track_index, device_index, track_type="track"):
 
 
 @command("get_eq8_properties")
-def get_eq8_properties(song, track_index, device_index, track_type="track", ctrl=None):
+def get_eq8_properties(song, track_index: int, device_index: int, track_type: str = "track", ctrl=None) -> dict:
     """Get EQ8-specific properties: edit_mode, global_mode, oversample, selected_band."""
     try:
         device = _get_eq8_device(song, track_index, device_index, track_type)
@@ -827,9 +827,9 @@ def get_eq8_properties(song, track_index, device_index, track_type="track", ctrl
 
 
 @command("set_eq8_properties", modifying=True)
-def set_eq8_properties(song, track_index, device_index,
-                        edit_mode=None, global_mode=None,
-                        oversample=None, selected_band=None, track_type="track", ctrl=None):
+def set_eq8_properties(song, track_index: int, device_index: int,
+                        edit_mode: int | None = None, global_mode: int | None = None,
+                        oversample: bool | None = None, selected_band: int | None = None, track_type: str = "track", ctrl=None) -> dict:
     """Set EQ8-specific properties."""
     try:
         device = _get_eq8_device(song, track_index, device_index, track_type)
@@ -881,7 +881,7 @@ def _get_hybrid_reverb_device(song, track_index, device_index, track_type="track
 
 
 @command("get_hybrid_reverb_ir")
-def get_hybrid_reverb_ir(song, track_index, device_index, track_type="track", ctrl=None):
+def get_hybrid_reverb_ir(song, track_index: int, device_index: int, track_type: str = "track", ctrl=None) -> dict:
     """Get IR configuration from a Hybrid Reverb device."""
     try:
         device = _get_hybrid_reverb_device(song, track_index, device_index, track_type)
@@ -930,11 +930,11 @@ def get_hybrid_reverb_ir(song, track_index, device_index, track_type="track", ct
 
 
 @command("set_hybrid_reverb_ir", modifying=True)
-def set_hybrid_reverb_ir(song, track_index, device_index,
-                          ir_category_index=None, ir_file_index=None,
-                          ir_attack_time=None, ir_decay_time=None,
-                          ir_size_factor=None, ir_time_shaping_on=None,
-                          track_type="track", ctrl=None):
+def set_hybrid_reverb_ir(song, track_index: int, device_index: int,
+                          ir_category_index: int | None = None, ir_file_index: int | None = None,
+                          ir_attack_time: float | None = None, ir_decay_time: float | None = None,
+                          ir_size_factor: float | None = None, ir_time_shaping_on: bool | None = None,
+                          track_type: str = "track", ctrl=None) -> dict:
     """Set IR configuration on a Hybrid Reverb device."""
     try:
         device = _get_hybrid_reverb_device(song, track_index, device_index, track_type)
@@ -983,7 +983,7 @@ def _get_transmute_device(song, track_index, device_index, track_type="track"):
 
 
 @command("get_transmute_properties")
-def get_transmute_properties(song, track_index, device_index, track_type="track", ctrl=None):
+def get_transmute_properties(song, track_index: int, device_index: int, track_type: str = "track", ctrl=None) -> dict:
     """Get Transmute-specific properties: mode indices, polyphony, pitch bend range."""
     try:
         device = _get_transmute_device(song, track_index, device_index, track_type)
@@ -1024,11 +1024,11 @@ def get_transmute_properties(song, track_index, device_index, track_type="track"
 
 
 @command("set_transmute_properties", modifying=True)
-def set_transmute_properties(song, track_index, device_index,
-                              frequency_dial_mode_index=None, pitch_mode_index=None,
-                              mod_mode_index=None, mono_poly_index=None,
-                              midi_gate_index=None, polyphony=None,
-                              pitch_bend_range=None, track_type="track", ctrl=None):
+def set_transmute_properties(song, track_index: int, device_index: int,
+                              frequency_dial_mode_index: int | None = None, pitch_mode_index: int | None = None,
+                              mod_mode_index: int | None = None, mono_poly_index: int | None = None,
+                              midi_gate_index: int | None = None, polyphony: int | None = None,
+                              pitch_bend_range: int | None = None, track_type: str = "track", ctrl=None) -> dict:
     """Set Transmute-specific properties."""
     try:
         device = _get_transmute_device(song, track_index, device_index, track_type)
@@ -1080,7 +1080,7 @@ def _get_simpler_device(song, track_index, device_index, track_type="track"):
 
 
 @command("get_simpler_properties")
-def get_simpler_properties(song, track_index, device_index, track_type="track", ctrl=None):
+def get_simpler_properties(song, track_index: int, device_index: int, track_type: str = "track", ctrl=None) -> dict:
     """Get Simpler device and its sample properties."""
     try:
         device = _get_simpler_device(song, track_index, device_index, track_type)
@@ -1163,19 +1163,19 @@ def get_simpler_properties(song, track_index, device_index, track_type="track", 
 
 
 @command("set_simpler_properties", modifying=True)
-def set_simpler_properties(song, track_index, device_index,
-                            playback_mode=None, voices=None, retrigger=None,
-                            slicing_playback_mode=None,
-                            start_marker=None, end_marker=None, gain=None,
-                            warp_mode=None, warping=None,
-                            slicing_style=None, slicing_sensitivity=None,
-                            slicing_beat_division=None,
-                            beats_granulation_resolution=None,
-                            beats_transient_envelope=None,
-                            beats_transient_loop_mode=None,
-                            complex_pro_formants=None, complex_pro_envelope=None,
-                            texture_grain_size=None, texture_flux=None,
-                            tones_grain_size=None, track_type="track", ctrl=None):
+def set_simpler_properties(song, track_index: int, device_index: int,
+                            playback_mode: int | None = None, voices: int | None = None, retrigger: bool | None = None,
+                            slicing_playback_mode: int | None = None,
+                            start_marker: int | None = None, end_marker: int | None = None, gain: float | None = None,
+                            warp_mode: int | None = None, warping: bool | None = None,
+                            slicing_style: int | None = None, slicing_sensitivity: float | None = None,
+                            slicing_beat_division: int | None = None,
+                            beats_granulation_resolution: int | None = None,
+                            beats_transient_envelope: float | None = None,
+                            beats_transient_loop_mode: int | None = None,
+                            complex_pro_formants: float | None = None, complex_pro_envelope: float | None = None,
+                            texture_grain_size: float | None = None, texture_flux: float | None = None,
+                            tones_grain_size: float | None = None, track_type: str = "track", ctrl=None) -> dict:
     """Set Simpler device and sample properties."""
     try:
         device = _get_simpler_device(song, track_index, device_index, track_type)
@@ -1277,7 +1277,7 @@ def set_simpler_properties(song, track_index, device_index,
 
 
 @command("simpler_sample_action", modifying=True)
-def simpler_sample_action(song, track_index, device_index, action, beats=None, track_type="track", ctrl=None):
+def simpler_sample_action(song, track_index: int, device_index: int, action: str, beats: float | None = None, track_type: str = "track", ctrl=None) -> dict:
     """Perform an action on a Simpler device's sample.
 
     Args:
@@ -1314,8 +1314,8 @@ def simpler_sample_action(song, track_index, device_index, action, beats=None, t
 
 
 @command("manage_sample_slices", modifying=True)
-def manage_sample_slices(song, track_index, device_index, action,
-                          slice_time=None, new_time=None, track_type="track", ctrl=None):
+def manage_sample_slices(song, track_index: int, device_index: int, action: str,
+                          slice_time: int | None = None, new_time: int | None = None, track_type: str = "track", ctrl=None) -> dict:
     """Manage slice points on a Simpler device's sample.
 
     Args:
@@ -1369,7 +1369,7 @@ def manage_sample_slices(song, track_index, device_index, action,
 
 
 @command("control_looper", modifying=True)
-def control_looper(song, track_index, device_index, action, clip_slot_index=None, track_type="track", ctrl=None):
+def control_looper(song, track_index: int, device_index: int, action: str, clip_slot_index: int | None = None, track_type: str = "track", ctrl=None) -> dict:
     """Control a Looper device with specialized actions.
 
     Args:
@@ -1443,7 +1443,7 @@ def control_looper(song, track_index, device_index, action, clip_slot_index=None
 
 
 @command("get_chain_selector")
-def get_chain_selector(song, track_index, device_index, track_type="track", ctrl=None):
+def get_chain_selector(song, track_index: int, device_index: int, track_type: str = "track", ctrl=None) -> dict:
     """Get the chain selector value for a rack device."""
     try:
         device = _get_rack_device(song, track_index, device_index, track_type)
@@ -1461,7 +1461,7 @@ def get_chain_selector(song, track_index, device_index, track_type="track", ctrl
 
 
 @command("set_chain_selector", modifying=True)
-def set_chain_selector(song, track_index, device_index, value, track_type="track", ctrl=None):
+def set_chain_selector(song, track_index: int, device_index: int, value: float, track_type: str = "track", ctrl=None) -> dict:
     """Set the chain selector value for a rack device."""
     try:
         device = _get_rack_device(song, track_index, device_index, track_type)
@@ -1479,7 +1479,7 @@ def set_chain_selector(song, track_index, device_index, value, track_type="track
 
 
 @command("insert_chain", modifying=True)
-def insert_chain(song, track_index, device_index, index=0, track_type="track", ctrl=None):
+def insert_chain(song, track_index: int, device_index: int, index: int = 0, track_type: str = "track", ctrl=None) -> dict:
     """Insert a new chain into a rack device (Live 12.3+)."""
     try:
         device = _get_rack_device(song, track_index, device_index, track_type)
@@ -1498,8 +1498,8 @@ def insert_chain(song, track_index, device_index, index=0, track_type="track", c
 
 
 @command("chain_insert_device", modifying=True)
-def chain_insert_device(song, track_index, device_index, chain_index,
-                         device_name, target_index=None, track_type="track", ctrl=None):
+def chain_insert_device(song, track_index: int, device_index: int, chain_index: int,
+                         device_name: str, target_index: int | None = None, track_type: str = "track", ctrl=None) -> dict:
     """Insert a device into a chain within a rack (Live 12.3+)."""
     try:
         device = _get_rack_device(song, track_index, device_index, track_type)
@@ -1528,8 +1528,8 @@ def chain_insert_device(song, track_index, device_index, chain_index,
 
 
 @command("delete_chain_device", modifying=True)
-def delete_chain_device(song, track_index, device_index, chain_index,
-                         chain_device_index, track_type="track", ctrl=None):
+def delete_chain_device(song, track_index: int, device_index: int, chain_index: int,
+                         chain_device_index: int, track_type: str = "track", ctrl=None) -> dict:
     """Delete a device from a chain within a rack."""
     try:
         device = _get_rack_device(song, track_index, device_index, track_type)
@@ -1555,9 +1555,9 @@ def delete_chain_device(song, track_index, device_index, chain_index,
 
 
 @command("set_chain_properties", modifying=True)
-def set_chain_properties(song, track_index, device_index, chain_index,
-                          mute=None, solo=None, name=None, color_index=None,
-                          volume=None, panning=None, track_type="track", ctrl=None):
+def set_chain_properties(song, track_index: int, device_index: int, chain_index: int,
+                          mute: bool | None = None, solo: bool | None = None, name: str | None = None, color_index: int | None = None,
+                          volume: float | None = None, panning: float | None = None, track_type: str = "track", ctrl=None) -> dict:
     """Set properties on a chain within a rack device."""
     try:
         device = _get_rack_device(song, track_index, device_index, track_type)
@@ -1598,7 +1598,7 @@ def set_chain_properties(song, track_index, device_index, chain_index,
 
 
 @command("set_device_enabled", modifying=True)
-def set_device_enabled(song, track_index, device_index, enabled, track_type="track", ctrl=None):
+def set_device_enabled(song, track_index: int, device_index: int, enabled: bool, track_type: str = "track", ctrl=None) -> dict:
     """Toggle a device on or off (bypass).
 
     Args:
@@ -1622,7 +1622,7 @@ def set_device_enabled(song, track_index, device_index, enabled, track_type="tra
 
 
 @command("move_device", modifying=True)
-def move_device(song, track_index, device_index, dest_track_index, dest_position, track_type="track", ctrl=None):
+def move_device(song, track_index: int, device_index: int, dest_track_index: int, dest_position: int, track_type: str = "track", ctrl=None) -> dict:
     """Move a device to a different position or track."""
     try:
         track = resolve_track(song, track_index, track_type)
@@ -1650,7 +1650,7 @@ def move_device(song, track_index, device_index, dest_track_index, dest_position
 
 
 @command("get_device_info")
-def get_device_info(song, track_index, device_index, track_type="track", ctrl=None):
+def get_device_info(song, track_index: int, device_index: int, track_type: str = "track", ctrl=None) -> dict:
     """Get detailed info about a specific device including type classification."""
     from ._helpers import get_track
     track = get_track(song, track_index, track_type)
@@ -1710,7 +1710,7 @@ def get_device_info(song, track_index, device_index, track_type="track", ctrl=No
 
 
 @command("set_sidechain_by_name", modifying=True)
-def set_sidechain_by_name(song, track_index, device_index, source_track_name, track_type="track", ctrl=None):
+def set_sidechain_by_name(song, track_index: int, device_index: int, source_track_name: str, track_type: str = "track", ctrl=None) -> dict:
     """Set sidechain input to a specific track by name."""
     from ._helpers import get_track
     track = get_track(song, track_index, track_type)

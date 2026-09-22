@@ -21,7 +21,7 @@ def _get_arrangement_clip(song, track_index, clip_index_in_arrangement, ctrl=Non
 
 
 @command("duplicate_clip_to_arrangement", modifying=True)
-def duplicate_clip_to_arrangement(song, track_index, clip_index, time, ctrl=None):
+def duplicate_clip_to_arrangement(song, track_index: int, clip_index: int, time: float, ctrl=None) -> dict:
     """Copy a session clip to the arrangement timeline."""
     try:
         track, clip = get_clip(song, track_index, clip_index)
@@ -45,7 +45,7 @@ def duplicate_clip_to_arrangement(song, track_index, clip_index, time, ctrl=None
 
 
 @command("get_arrangement_clips")
-def get_arrangement_clips(song, track_index, ctrl=None):
+def get_arrangement_clips(song, track_index: int, ctrl=None) -> dict:
     """Get all clips in arrangement view for a track."""
     try:
         track = get_track(song, track_index)
@@ -88,7 +88,7 @@ def get_arrangement_clips(song, track_index, ctrl=None):
 
 
 @command("move_arrangement_clip", modifying=True)
-def move_arrangement_clip(song, track_index, clip_index_in_arrangement, new_start_time, ctrl=None):
+def move_arrangement_clip(song, track_index: int, clip_index_in_arrangement: int, new_start_time: float, ctrl=None) -> dict:
     """Move an arrangement clip to a new start position (Live 12.2+)."""
     try:
         track, clip = _get_arrangement_clip(song, track_index, clip_index_in_arrangement, ctrl)
@@ -111,7 +111,7 @@ def move_arrangement_clip(song, track_index, clip_index_in_arrangement, new_star
 
 
 @command("delete_arrangement_clip", modifying=True)
-def delete_arrangement_clip(song, track_index, clip_index_in_arrangement, ctrl=None):
+def delete_arrangement_clip(song, track_index: int, clip_index_in_arrangement: int, ctrl=None) -> dict:
     """Delete an arrangement clip by its index in the arrangement."""
     try:
         track, clip = _get_arrangement_clip(song, track_index, clip_index_in_arrangement, ctrl)
@@ -132,11 +132,14 @@ def delete_arrangement_clip(song, track_index, clip_index_in_arrangement, ctrl=N
 
 
 @command("set_arrangement_clip_properties", modifying=True)
-def set_arrangement_clip_properties(song, track_index, clip_index_in_arrangement,
-                                     muted=None, gain=None, name=None, color_index=None,
-                                     loop_start=None, loop_end=None, looping=None,
-                                     start_marker=None, end_marker=None,
-                                     pitch_coarse=None, pitch_fine=None, ctrl=None):
+def set_arrangement_clip_properties(song, track_index: int, clip_index_in_arrangement: int,
+                                     muted: bool | None = None, gain: float | None = None,
+                                     name: str | None = None, color_index: int | None = None,
+                                     loop_start: float | None = None, loop_end: float | None = None,
+                                     looping: bool | None = None,
+                                     start_marker: float | None = None, end_marker: float | None = None,
+                                     pitch_coarse: int | None = None, pitch_fine: int | None = None,
+                                     ctrl=None) -> dict:
     """Set properties on an arrangement clip (mute, gain, name, color, loop, pitch)."""
     try:
         track, clip = _get_arrangement_clip(song, track_index, clip_index_in_arrangement, ctrl)
@@ -188,7 +191,7 @@ def set_arrangement_clip_properties(song, track_index, clip_index_in_arrangement
 
 
 @command("get_arrangement_clip_info")
-def get_arrangement_clip_info(song, track_index, clip_index_in_arrangement, ctrl=None):
+def get_arrangement_clip_info(song, track_index: int, clip_index_in_arrangement: int, ctrl=None) -> dict:
     """Get detailed info about a specific arrangement clip."""
     try:
         track, clip = _get_arrangement_clip(song, track_index, clip_index_in_arrangement, ctrl)

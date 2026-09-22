@@ -53,8 +53,8 @@ def _find_parameter(song, track_index, parameter_name, device_index=None):
 
 
 @command("create_clip_automation", modifying=True)
-def create_clip_automation(song, track_index, clip_index, parameter_name, automation_points,
-                           device_index=None, append=False, ctrl=None):
+def create_clip_automation(song, track_index: int, clip_index: int, parameter_name: str, automation_points: list,
+                           device_index: int | None = None, append: bool = False, ctrl=None) -> dict:
     """Create automation for a parameter within a clip."""
     try:
         track, clip = get_clip(song, track_index, clip_index)
@@ -103,7 +103,7 @@ def create_clip_automation(song, track_index, clip_index, parameter_name, automa
 
 
 @command("get_clip_automation")
-def get_clip_automation(song, track_index, clip_index, parameter_name, device_index=None, ctrl=None):
+def get_clip_automation(song, track_index: int, clip_index: int, parameter_name: str, device_index: int | None = None, ctrl=None) -> dict:
     """Read automation envelope from a clip."""
     try:
         track, clip = get_clip(song, track_index, clip_index)
@@ -150,7 +150,7 @@ def get_clip_automation(song, track_index, clip_index, parameter_name, device_in
 
 
 @command("clear_clip_automation", modifying=True)
-def clear_clip_automation(song, track_index, clip_index, parameter_name, device_index=None, ctrl=None):
+def clear_clip_automation(song, track_index: int, clip_index: int, parameter_name: str, device_index: int | None = None, ctrl=None) -> dict:
     """Clear automation for a specific parameter in a clip."""
     try:
         track, clip = get_clip(song, track_index, clip_index)
@@ -176,7 +176,7 @@ def clear_clip_automation(song, track_index, clip_index, parameter_name, device_
 
 
 @command("list_clip_automated_params")
-def list_clip_automated_params(song, track_index, clip_index, ctrl=None):
+def list_clip_automated_params(song, track_index: int, clip_index: int, ctrl=None) -> dict:
     """List all parameters that have automation in a clip."""
     try:
         track, clip = get_clip(song, track_index, clip_index)
@@ -229,8 +229,8 @@ def list_clip_automated_params(song, track_index, clip_index, ctrl=None):
 
 
 @command("create_track_automation", modifying=True)
-def create_track_automation(song, track_index, parameter_name, automation_points,
-                            device_index=None, append=False, ctrl=None):
+def create_track_automation(song, track_index: int, parameter_name: str, automation_points: list,
+                            device_index: int | None = None, append: bool = False, ctrl=None) -> dict:
     """Create automation for a track parameter (arrangement-level).
 
     Uses arrangement clips to access the automation envelope for the given
@@ -334,7 +334,7 @@ def create_track_automation(song, track_index, parameter_name, automation_points
 
 
 @command("clear_track_automation", modifying=True)
-def clear_track_automation(song, track_index, parameter_name, start_time, end_time, device_index=None, ctrl=None):
+def clear_track_automation(song, track_index: int, parameter_name: str, start_time: float, end_time: float, device_index: int | None = None, ctrl=None) -> dict:
     """Clear automation for a parameter in an arrangement time range.
 
     Finds the arrangement clip at the given time range and clears (flattens)
@@ -408,7 +408,7 @@ def clear_track_automation(song, track_index, parameter_name, start_time, end_ti
 
 
 @command("delete_time", modifying=True)
-def delete_time(song, start_time, end_time, ctrl=None):
+def delete_time(song, start_time: float, end_time: float, ctrl=None) -> dict:
     """Delete a section of time from the arrangement."""
     try:
         start_time = float(start_time)
@@ -432,7 +432,7 @@ def delete_time(song, start_time, end_time, ctrl=None):
 
 
 @command("duplicate_time", modifying=True)
-def duplicate_time(song, start_time, end_time, ctrl=None):
+def duplicate_time(song, start_time: float, end_time: float, ctrl=None) -> dict:
     """Duplicate a section of time in the arrangement."""
     try:
         start_time = float(start_time)
@@ -457,7 +457,7 @@ def duplicate_time(song, start_time, end_time, ctrl=None):
 
 
 @command("insert_silence", modifying=True)
-def insert_silence(song, position, length, ctrl=None):
+def insert_silence(song, position: float, length: float, ctrl=None) -> dict:
     """Insert silence at a position in the arrangement."""
     try:
         position = float(position)
@@ -480,7 +480,7 @@ def insert_silence(song, position, length, ctrl=None):
 
 
 @command("clear_clip_envelope", modifying=True)
-def clear_clip_envelope(song, track_index, clip_index, parameter_name, device_index=None, ctrl=None):
+def clear_clip_envelope(song, track_index: int, clip_index: int, parameter_name: str, device_index: int | None = None, ctrl=None) -> dict:
     """Clear automation envelope for a specific parameter using clip.clear_envelope()."""
     try:
         track, clip = get_clip(song, track_index, clip_index)
@@ -498,7 +498,7 @@ def clear_clip_envelope(song, track_index, clip_index, parameter_name, device_in
 
 
 @command("clear_all_clip_envelopes", modifying=True)
-def clear_all_clip_envelopes(song, track_index, clip_index, ctrl=None):
+def clear_all_clip_envelopes(song, track_index: int, clip_index: int, ctrl=None) -> dict:
     """Clear ALL automation envelopes from a clip."""
     try:
         _, clip = get_clip(song, track_index, clip_index)
@@ -515,7 +515,7 @@ def clear_all_clip_envelopes(song, track_index, clip_index, ctrl=None):
 
 
 @command("get_clip_automation_value")
-def get_clip_automation_value(song, track_index, clip_index, parameter_name, time, device_index=None, ctrl=None):
+def get_clip_automation_value(song, track_index: int, clip_index: int, parameter_name: str, time: float, device_index: int | None = None, ctrl=None) -> dict:
     """Read the automation envelope value at a specific time."""
     try:
         track, clip = get_clip(song, track_index, clip_index)
@@ -544,7 +544,7 @@ def get_clip_automation_value(song, track_index, clip_index, parameter_name, tim
 
 
 @command("get_clip_automation_hires")
-def get_clip_automation_hires(song, track_index, clip_index, parameter_name, sample_count=128, device_index=None, ctrl=None):
+def get_clip_automation_hires(song, track_index: int, clip_index: int, parameter_name: str, sample_count: int = 128, device_index: int | None = None, ctrl=None) -> dict:
     """Read automation envelope with configurable sample resolution."""
     try:
         track, clip = get_clip(song, track_index, clip_index)
@@ -590,7 +590,7 @@ def get_clip_automation_hires(song, track_index, clip_index, parameter_name, sam
 
 
 @command("create_step_automation", modifying=True)
-def create_step_automation(song, track_index, clip_index, parameter_name, steps, device_index=None, ctrl=None):
+def create_step_automation(song, track_index: int, clip_index: int, parameter_name: str, steps: list, device_index: int | None = None, ctrl=None) -> dict:
     """Create step (held-value) automation — each step holds its value for a duration.
 
     Args:

@@ -7,7 +7,7 @@ from ._registry import command
 
 
 @command("create_scene", modifying=True)
-def create_scene(song, index, name="", ctrl=None):
+def create_scene(song, index: int, name: str = "", ctrl=None) -> dict:
     """Create a new scene."""
     try:
         if index < 0:
@@ -24,7 +24,7 @@ def create_scene(song, index, name="", ctrl=None):
 
 
 @command("delete_scene", modifying=True)
-def delete_scene(song, scene_index, ctrl=None):
+def delete_scene(song, scene_index: int, ctrl=None) -> dict:
     """Delete a scene from the session."""
     try:
         scene = get_scene(song, scene_index)
@@ -42,7 +42,7 @@ def delete_scene(song, scene_index, ctrl=None):
 
 
 @command("duplicate_scene", modifying=True)
-def duplicate_scene(song, scene_index, ctrl=None):
+def duplicate_scene(song, scene_index: int, ctrl=None) -> dict:
     """Duplicate a scene."""
     try:
         get_scene(song, scene_index)
@@ -56,7 +56,7 @@ def duplicate_scene(song, scene_index, ctrl=None):
 
 
 @command("fire_scene", modifying=True)
-def fire_scene(song, scene_index, ctrl=None):
+def fire_scene(song, scene_index: int, ctrl=None) -> dict:
     """Fire (launch) a scene."""
     try:
         scene = get_scene(song, scene_index)
@@ -69,7 +69,7 @@ def fire_scene(song, scene_index, ctrl=None):
 
 
 @command("set_scene_name", modifying=True)
-def set_scene_name(song, scene_index, name, ctrl=None):
+def set_scene_name(song, scene_index: int, name: str, ctrl=None) -> dict:
     """Set a scene's name."""
     try:
         scene = get_scene(song, scene_index)
@@ -82,7 +82,7 @@ def set_scene_name(song, scene_index, name, ctrl=None):
 
 
 @command("get_scene_follow_actions")
-def get_scene_follow_actions(song, scene_index, ctrl=None):
+def get_scene_follow_actions(song, scene_index: int, ctrl=None) -> dict:
     """Get follow action settings for a scene."""
     try:
         scene = get_scene(song, scene_index)
@@ -110,12 +110,12 @@ def get_scene_follow_actions(song, scene_index, ctrl=None):
 
 
 @command("set_scene_follow_actions", modifying=True)
-def set_scene_follow_actions(song, scene_index,
-                              follow_action_0=None, follow_action_1=None,
-                              follow_action_probability=None,
-                              follow_action_time=None,
-                              follow_action_enabled=None,
-                              follow_action_linked=None, ctrl=None):
+def set_scene_follow_actions(song, scene_index: int,
+                              follow_action_0: int | None = None, follow_action_1: int | None = None,
+                              follow_action_probability: float | None = None,
+                              follow_action_time: float | None = None,
+                              follow_action_enabled: bool | None = None,
+                              follow_action_linked: bool | None = None, ctrl=None) -> dict:
     """Set follow action settings for a scene."""
     try:
         scene = get_scene(song, scene_index)
@@ -151,7 +151,7 @@ def set_scene_follow_actions(song, scene_index,
 
 
 @command("fire_scene_as_selected", modifying=True)
-def fire_scene_as_selected(song, scene_index, ctrl=None):
+def fire_scene_as_selected(song, scene_index: int, ctrl=None) -> dict:
     """Fire a scene without moving the selection highlight."""
     try:
         scene = get_scene(song, scene_index)
@@ -164,7 +164,7 @@ def fire_scene_as_selected(song, scene_index, ctrl=None):
 
 
 @command("set_scene_color", modifying=True)
-def set_scene_color(song, scene_index, color_index, ctrl=None):
+def set_scene_color(song, scene_index: int, color_index: int, ctrl=None) -> dict:
     """Set the color of a scene."""
     try:
         scene = get_scene(song, scene_index)
@@ -180,7 +180,7 @@ def set_scene_color(song, scene_index, color_index, ctrl=None):
 
 
 @command("set_scene_tempo", modifying=True)
-def set_scene_tempo(song, scene_index, tempo, ctrl=None):
+def set_scene_tempo(song, scene_index: int, tempo: float, ctrl=None) -> dict:
     """Set or clear a scene's tempo override.
 
     Args:
