@@ -1,7 +1,7 @@
 """Automation tool handlers for AbletonBridge."""
 import json
 import math
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
 from mcp.server.fastmcp import Context
 from MCP_Server.tools._base import _tool_handler
 from MCP_Server.connections.ableton import get_ableton_connection
@@ -12,7 +12,9 @@ def register_tools(mcp):
     @mcp.tool()
     @_tool_handler("creating clip automation")
     def create_clip_automation(ctx: Context, track_index: int, clip_index: int,
-                                parameter_name: str, automation_points: List[Dict[str, float]]) -> str:
+                                parameter_name: str, automation_points: List[Dict[str, float]],
+                                device_index: Optional[int] = None,
+                                reduce: bool = False, append: bool = False) -> str:
         """Create automation for a parameter within a session clip.
 
         For automation inside a session clip's envelope. For arrangement-level track
@@ -23,35 +25,37 @@ def register_tools(mcp):
         - clip_index: The index of the clip slot
         - parameter_name: Name of the parameter to automate (e.g., "Osc 1 Pos", "Filter 1 Freq")
         - automation_points: List of {time: float, value: float} dictionaries
-
-        IMPORTANT — use as FEW points as possible.  Ableton linearly interpolates
-        between breakpoints, so a smooth ramp from 0→1 over 4 beats needs only
-        2 points:  [{"time": 0, "value": 0}, {"time": 4, "value": 1}]
-        For a triangle (up then down) use 3 points.  For gentle curves 4-8 max.
-        Do NOT send 20+ points for simple shapes — it creates staircase artifacts.
+        - device_index: Optional device index to scope parameter lookup (avoids ambiguity when multiple devices share a parameter name)
+        - reduce: If True, apply RDP point reduction to simplify the automation curve (default: False)
+        - append: If True, add points to existing automation instead of clearing first (default: False)
 
         Values are in the parameter's native range (usually 0.0–1.0).
         Time is in beats from clip start.
-        Any existing automation for this parameter is cleared before writing.
         """
         _validate_index(track_index, "track_index")
         _validate_index(clip_index, "clip_index")
         _validate_automation_points(automation_points)
-        automation_points = _reduce_automation_points(automation_points)
+        if reduce:
+            automation_points = _reduce_automation_points(automation_points, max_points=20)
         ableton = get_ableton_connection()
-        result = ableton.send_command("create_clip_automation", {
+        cmd_params = {
             "track_index": track_index,
             "clip_index": clip_index,
             "parameter_name": parameter_name,
-            "automation_points": automation_points
-        })
+            "automation_points": automation_points,
+            "append": append,
+        }
+        if device_index is not None:
+            cmd_params["device_index"] = device_index
+        result = ableton.send_command("create_clip_automation", cmd_params)
         pts = result.get("points_added", len(automation_points))
         return f"Created automation with {pts} points for parameter '{parameter_name}'"
 
     @mcp.tool()
     @_tool_handler("getting clip automation")
     def get_clip_automation(ctx: Context, track_index: int, clip_index: int,
-                            parameter_name: str) -> str:
+                            parameter_name: str,
+                            device_index: Optional[int] = None) -> str:
         """
         Read existing automation from a clip for a specific parameter.
 
@@ -61,15 +65,19 @@ def register_tools(mcp):
         - track_index: The index of the track containing the clip
         - clip_index: The index of the clip slot containing the clip
         - parameter_name: Name of the parameter (e.g., "Volume", "Pan", or any device parameter name)
+        - device_index: Optional device index to scope parameter lookup
         """
         _validate_index(track_index, "track_index")
         _validate_index(clip_index, "clip_index")
         ableton = get_ableton_connection()
-        result = ableton.send_command("get_clip_automation", {
+        cmd_params = {
             "track_index": track_index,
             "clip_index": clip_index,
             "parameter_name": parameter_name,
-        })
+        }
+        if device_index is not None:
+            cmd_params["device_index"] = device_index
+        result = ableton.send_command("get_clip_automation", cmd_params)
         if not result.get("has_automation"):
             reason = result.get("reason", "No automation found")
             return f"No automation for '{parameter_name}': {reason}"
@@ -135,6 +143,9 @@ def register_tools(mcp):
         track_index: int,
         parameter_name: str,
         automation_points: list,
+        device_index: Optional[int] = None,
+        reduce: bool = False,
+        append: bool = False,
     ) -> str:
         """Create automation for a track parameter (arrangement-level).
 
@@ -145,16 +156,24 @@ def register_tools(mcp):
         - track_index: The index of the track
         - parameter_name: Name of the parameter to automate (e.g., "Volume", "Pan")
         - automation_points: List of {time: float, value: float} dictionaries
+        - device_index: Optional device index to scope parameter lookup (avoids ambiguity when multiple devices share a parameter name)
+        - reduce: If True, apply RDP point reduction to simplify the automation curve (default: False)
+        - append: If True, add points to existing automation instead of clearing first (default: False)
         """
         _validate_index(track_index, "track_index")
         _validate_automation_points(automation_points)
-        automation_points = _reduce_automation_points(automation_points)
+        if reduce:
+            automation_points = _reduce_automation_points(automation_points, max_points=20)
         ableton = get_ableton_connection()
-        result = ableton.send_command("create_track_automation", {
+        cmd_params = {
             "track_index": track_index,
             "parameter_name": parameter_name,
             "automation_points": automation_points,
-        })
+            "append": append,
+        }
+        if device_index is not None:
+            cmd_params["device_index"] = device_index
+        result = ableton.send_command("create_track_automation", cmd_params)
         return f"Created track automation for '{parameter_name}' with {result.get('points_added', len(automation_points))} points"
 
     @mcp.tool()
@@ -317,7 +336,8 @@ def register_tools(mcp):
     @mcp.tool()
     @_tool_handler("getting automation value at time")
     def get_clip_automation_value(ctx: Context, track_index: int, clip_index: int,
-                                    parameter_name: str, time: float) -> str:
+                                    parameter_name: str, time: float,
+                                    device_index: Optional[int] = None) -> str:
         """Read the automation envelope value at a specific time.
 
         Parameters:
@@ -325,20 +345,25 @@ def register_tools(mcp):
         - clip_index: The clip slot index
         - parameter_name: Name of the parameter
         - time: Time position in beats to read the value at
+        - device_index: Optional device index to scope parameter lookup
         """
         _validate_index(track_index, "track_index")
         _validate_index(clip_index, "clip_index")
         ableton = get_ableton_connection()
-        result = ableton.send_command("get_clip_automation_value", {
+        cmd_params = {
             "track_index": track_index, "clip_index": clip_index,
             "parameter_name": parameter_name, "time": time,
-        })
+        }
+        if device_index is not None:
+            cmd_params["device_index"] = device_index
+        result = ableton.send_command("get_clip_automation_value", cmd_params)
         return json.dumps(result)
 
     @mcp.tool()
     @_tool_handler("getting hi-res automation")
     def get_clip_automation_hires(ctx: Context, track_index: int, clip_index: int,
-                                    parameter_name: str, sample_count: int = 128) -> str:
+                                    parameter_name: str, sample_count: int = 128,
+                                    device_index: Optional[int] = None) -> str:
         """Read automation envelope with configurable sample resolution.
 
         Parameters:
@@ -346,20 +371,25 @@ def register_tools(mcp):
         - clip_index: The clip slot index
         - parameter_name: Name of the parameter
         - sample_count: Number of sample points (2-512, default: 128)
+        - device_index: Optional device index to scope parameter lookup
         """
         _validate_index(track_index, "track_index")
         _validate_index(clip_index, "clip_index")
         ableton = get_ableton_connection()
-        result = ableton.send_command("get_clip_automation_hires", {
+        cmd_params = {
             "track_index": track_index, "clip_index": clip_index,
             "parameter_name": parameter_name, "sample_count": sample_count,
-        })
+        }
+        if device_index is not None:
+            cmd_params["device_index"] = device_index
+        result = ableton.send_command("get_clip_automation_hires", cmd_params)
         return json.dumps(result)
 
     @mcp.tool()
     @_tool_handler("creating step automation")
     def create_step_automation(ctx: Context, track_index: int, clip_index: int,
-                                 parameter_name: str, steps: list) -> str:
+                                 parameter_name: str, steps: list,
+                                 device_index: Optional[int] = None) -> str:
         """Create step (held-value) automation — each step holds its value for a duration.
 
         Parameters:
@@ -367,12 +397,16 @@ def register_tools(mcp):
         - clip_index: The clip slot index
         - parameter_name: Name of the parameter to automate
         - steps: List of {time, value, duration} dicts. duration > 0 creates a held step.
+        - device_index: Optional device index to scope parameter lookup
         """
         _validate_index(track_index, "track_index")
         _validate_index(clip_index, "clip_index")
         ableton = get_ableton_connection()
-        result = ableton.send_command("create_step_automation", {
+        cmd_params = {
             "track_index": track_index, "clip_index": clip_index,
             "parameter_name": parameter_name, "steps": steps,
-        })
+        }
+        if device_index is not None:
+            cmd_params["device_index"] = device_index
+        result = ableton.send_command("create_step_automation", cmd_params)
         return json.dumps(result)

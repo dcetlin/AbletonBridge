@@ -6,7 +6,7 @@ logger = logging.getLogger("AbletonBridge")
 
 # Phase 4.4: Input size limits
 MAX_NOTES_PER_CALL = 10_000
-MAX_AUTOMATION_POINTS = 500
+MAX_AUTOMATION_POINTS = 10_000
 MAX_BATCH_PARAMS = 200
 MAX_TRACKS_PER_BATCH = 50
 MAX_SEARCH_QUERY_LENGTH = 500
@@ -113,7 +113,7 @@ def _rdp_recursive(norm_points, epsilon):
         return [first[2], last[2]]
 
 
-def _reduce_automation_points(points, max_points=20, time_epsilon=0.001,
+def _reduce_automation_points(points, max_points=10_000, time_epsilon=0.001,
                                collinear_epsilon=0.005):
     """Reduce automation point density while preserving shape.
 

@@ -10,26 +10,40 @@ from ._helpers import get_track, get_clip
 _RE_SEND_NAME = re.compile(r'^send\s*([a-z])$')
 
 
-def _find_parameter(song, track_index, parameter_name):
-    """Find a track mixer or device parameter by name."""
+def _find_parameter(song, track_index, parameter_name, device_index=None):
+    """Find a track mixer or device parameter by name.
+
+    When device_index is provided, only search that device's parameters
+    (including rack macros named "Macro 1" through "Macro 16").
+    """
     track = get_track(song, track_index)
     lower = parameter_name.lower()
 
-    # Check mixer parameters
-    if lower == "volume":
-        return track.mixer_device.volume
-    elif lower in ("pan", "panning"):
-        return track.mixer_device.panning
+    if device_index is None:
+        # Check mixer parameters
+        if lower == "volume":
+            return track.mixer_device.volume
+        elif lower in ("pan", "panning"):
+            return track.mixer_device.panning
 
-    # Check send parameters — accept "send a", "send_a", "senda", etc.
-    m = _RE_SEND_NAME.match(lower.replace("_", ""))
-    if m:
-        send_index = ord(m.group(1).upper()) - ord("A")
-        if 0 <= send_index < len(track.mixer_device.sends):
-            return track.mixer_device.sends[send_index]
+        # Check send parameters — accept "send a", "send_a", "senda", etc.
+        m = _RE_SEND_NAME.match(lower.replace("_", ""))
+        if m:
+            send_index = ord(m.group(1).upper()) - ord("A")
+            if 0 <= send_index < len(track.mixer_device.sends):
+                return track.mixer_device.sends[send_index]
 
-    # Check device parameters
-    for device in track.devices:
+        # Check all device parameters
+        for device in track.devices:
+            for p in device.parameters:
+                if p.name.lower() == lower:
+                    return p
+    else:
+        devices = list(track.devices)
+        if device_index < 0 or device_index >= len(devices):
+            raise ValueError("device_index {0} out of range (track has {1} devices)".format(
+                device_index, len(devices)))
+        device = devices[device_index]
         for p in device.parameters:
             if p.name.lower() == lower:
                 return p
@@ -37,13 +51,13 @@ def _find_parameter(song, track_index, parameter_name):
     raise ValueError("Parameter '{0}' not found".format(parameter_name))
 
 
-def create_clip_automation(song, track_index, clip_index, parameter_name, automation_points, ctrl=None):
+def create_clip_automation(song, track_index, clip_index, parameter_name, automation_points,
+                           device_index=None, append=False, ctrl=None):
     """Create automation for a parameter within a clip."""
     try:
         track, clip = get_clip(song, track_index, clip_index)
 
-        # Find the parameter
-        param = _find_parameter(song, track_index, parameter_name)
+        param = _find_parameter(song, track_index, parameter_name, device_index=device_index)
 
         if not hasattr(clip, 'automation_envelope'):
             if hasattr(clip, 'create_automation_envelope'):
@@ -59,15 +73,12 @@ def create_clip_automation(song, track_index, clip_index, parameter_name, automa
             if envelope is None:
                 raise RuntimeError("Could not get automation envelope for parameter '{0}'".format(parameter_name))
 
-        # Clear existing automation so we start with a clean envelope
-        if hasattr(envelope, 'clear'):
+        if not append and hasattr(envelope, 'clear'):
             try:
                 envelope.clear()
             except Exception:
                 pass
 
-        # Insert breakpoints — Ableton linearly interpolates between them.
-        # Use duration=0 to create simple breakpoints (not held steps).
         clip_length = clip.length
         for point in automation_points:
             time_val = float(point.get("time", 0.0))
@@ -89,12 +100,12 @@ def create_clip_automation(song, track_index, clip_index, parameter_name, automa
         raise
 
 
-def get_clip_automation(song, track_index, clip_index, parameter_name, ctrl=None):
+def get_clip_automation(song, track_index, clip_index, parameter_name, device_index=None, ctrl=None):
     """Read automation envelope from a clip."""
     try:
         track, clip = get_clip(song, track_index, clip_index)
 
-        param = _find_parameter(song, track_index, parameter_name)
+        param = _find_parameter(song, track_index, parameter_name, device_index=device_index)
 
         if not hasattr(clip, 'automation_envelope'):
             return {"has_automation": False, "parameter": parameter_name, "reason": "Clip does not support automation envelopes"}
@@ -135,12 +146,12 @@ def get_clip_automation(song, track_index, clip_index, parameter_name, ctrl=None
         raise
 
 
-def clear_clip_automation(song, track_index, clip_index, parameter_name, ctrl=None):
+def clear_clip_automation(song, track_index, clip_index, parameter_name, device_index=None, ctrl=None):
     """Clear automation for a specific parameter in a clip."""
     try:
         track, clip = get_clip(song, track_index, clip_index)
 
-        param = _find_parameter(song, track_index, parameter_name)
+        param = _find_parameter(song, track_index, parameter_name, device_index=device_index)
 
         if not hasattr(clip, 'automation_envelope'):
             raise RuntimeError("Clip does not support automation envelopes")
@@ -212,30 +223,23 @@ def list_clip_automated_params(song, track_index, clip_index, ctrl=None):
 # --- New: Track-level automation and arrangement time editing (from MacWhite) ---
 
 
-def create_track_automation(song, track_index, parameter_name, automation_points, ctrl=None):
+def create_track_automation(song, track_index, parameter_name, automation_points,
+                            device_index=None, append=False, ctrl=None):
     """Create automation for a track parameter (arrangement-level).
 
     Uses arrangement clips to access the automation envelope for the given
-    parameter.  Raises ValueError if no arrangement clip covers the target time.
+    parameter.  If no arrangement clip exists, attempts to create one covering
+    the automation range.
     """
     try:
         track = get_track(song, track_index)
-        parameter = _find_parameter(song, track_index, parameter_name)
+        parameter = _find_parameter(song, track_index, parameter_name, device_index=device_index)
 
-        # Find an arrangement clip that covers the automation time range.
-        # arrangement_clips() is available on tracks in Live 11+.
         if not hasattr(track, "arrangement_clips"):
             raise RuntimeError(
                 "Arrangement automation requires Live 11+ (track.arrangement_clips not available)"
             )
 
-        arr_clips = list(track.arrangement_clips)
-        if not arr_clips:
-            raise ValueError(
-                "No arrangement clips on track {0} — record or place a clip first".format(track_index)
-            )
-
-        # Determine the time span the caller wants to automate
         times = [float(p.get("time", 0.0)) for p in automation_points]
         if not times:
             return {
@@ -244,6 +248,26 @@ def create_track_automation(song, track_index, parameter_name, automation_points
                 "points_added": 0,
             }
         t_min = min(times)
+        t_max = max(times)
+
+        arr_clips = list(track.arrangement_clips)
+        if not arr_clips:
+            # Auto-create an arrangement clip covering the automation range
+            if hasattr(track, "create_arrangement_clip"):
+                end_time = t_max + 1.0
+                try:
+                    track.create_arrangement_clip(0.0, end_time)
+                    arr_clips = list(track.arrangement_clips)
+                except Exception as create_err:
+                    raise ValueError(
+                        "No arrangement clips on track {0} and auto-create failed: {1}. "
+                        "Create a clip manually first.".format(track_index, create_err)
+                    )
+            else:
+                raise ValueError(
+                    "No arrangement clips on track {0} and create_arrangement_clip is not "
+                    "available (requires Live 12+). Create a clip manually first.".format(track_index)
+                )
 
         # Pick the first arrangement clip whose range covers t_min
         target_clip = None
@@ -262,17 +286,14 @@ def create_track_automation(song, track_index, parameter_name, automation_points
                 "No arrangement clip covers time {0}. Clip ranges: [{1}]".format(
                     t_min, ", ".join(ranges)))
 
-        # Validate all points against clip bounds
         clip_start = target_clip.start_time if hasattr(target_clip, "start_time") else 0.0
         clip_end = target_clip.end_time if hasattr(target_clip, "end_time") else (clip_start + target_clip.length)
-        t_max = max(times)
         if t_max >= clip_end:
             raise ValueError(
                 "Automation point at time {0} exceeds clip end {1}. "
                 "All points must fall within clip range [{2}, {3})".format(
                     t_max, clip_end, clip_start, clip_end))
 
-        # Get or create the automation envelope on that clip
         envelope = None
         if hasattr(target_clip, "automation_envelope"):
             envelope = target_clip.automation_envelope(parameter)
@@ -282,6 +303,12 @@ def create_track_automation(song, track_index, parameter_name, automation_points
             raise RuntimeError(
                 "Could not get automation envelope for '{0}' on arrangement clip".format(parameter_name)
             )
+
+        if not append and hasattr(envelope, 'clear'):
+            try:
+                envelope.clear()
+            except Exception:
+                pass
 
         for point in automation_points:
             time_val = max(clip_start, min(clip_end - 0.001, float(point.get("time", 0.0))))
@@ -300,7 +327,7 @@ def create_track_automation(song, track_index, parameter_name, automation_points
         raise
 
 
-def clear_track_automation(song, track_index, parameter_name, start_time, end_time, ctrl=None):
+def clear_track_automation(song, track_index, parameter_name, start_time, end_time, device_index=None, ctrl=None):
     """Clear automation for a parameter in an arrangement time range.
 
     Finds the arrangement clip at the given time range and clears (flattens)
@@ -312,7 +339,7 @@ def clear_track_automation(song, track_index, parameter_name, start_time, end_ti
         end_time = float(end_time)
 
         track = get_track(song, track_index)
-        parameter = _find_parameter(song, track_index, parameter_name)
+        parameter = _find_parameter(song, track_index, parameter_name, device_index=device_index)
 
         if end_time <= start_time:
             msg = "End time must be greater than start time"
@@ -442,11 +469,11 @@ def insert_silence(song, position, length, ctrl=None):
 # --- v4.0: Enhanced automation ---
 
 
-def clear_clip_envelope(song, track_index, clip_index, parameter_name, ctrl=None):
+def clear_clip_envelope(song, track_index, clip_index, parameter_name, device_index=None, ctrl=None):
     """Clear automation envelope for a specific parameter using clip.clear_envelope()."""
     try:
         track, clip = get_clip(song, track_index, clip_index)
-        param = _find_parameter(song, track_index, parameter_name)
+        param = _find_parameter(song, track_index, parameter_name, device_index=device_index)
 
         if not hasattr(clip, 'clear_envelope'):
             raise NotImplementedError("Clip does not support clear_envelope()")
@@ -475,11 +502,11 @@ def clear_all_clip_envelopes(song, track_index, clip_index, ctrl=None):
         raise
 
 
-def get_clip_automation_value(song, track_index, clip_index, parameter_name, time, ctrl=None):
+def get_clip_automation_value(song, track_index, clip_index, parameter_name, time, device_index=None, ctrl=None):
     """Read the automation envelope value at a specific time."""
     try:
         track, clip = get_clip(song, track_index, clip_index)
-        param = _find_parameter(song, track_index, parameter_name)
+        param = _find_parameter(song, track_index, parameter_name, device_index=device_index)
 
         if not hasattr(clip, 'automation_envelope'):
             raise RuntimeError("Clip does not support automation envelopes")
@@ -503,11 +530,11 @@ def get_clip_automation_value(song, track_index, clip_index, parameter_name, tim
         raise
 
 
-def get_clip_automation_hires(song, track_index, clip_index, parameter_name, sample_count=128, ctrl=None):
+def get_clip_automation_hires(song, track_index, clip_index, parameter_name, sample_count=128, device_index=None, ctrl=None):
     """Read automation envelope with configurable sample resolution."""
     try:
         track, clip = get_clip(song, track_index, clip_index)
-        param = _find_parameter(song, track_index, parameter_name)
+        param = _find_parameter(song, track_index, parameter_name, device_index=device_index)
 
         if not hasattr(clip, 'automation_envelope'):
             return {"has_automation": False, "parameter": parameter_name, "reason": "Clip does not support automation envelopes"}
@@ -548,7 +575,7 @@ def get_clip_automation_hires(song, track_index, clip_index, parameter_name, sam
         raise
 
 
-def create_step_automation(song, track_index, clip_index, parameter_name, steps, ctrl=None):
+def create_step_automation(song, track_index, clip_index, parameter_name, steps, device_index=None, ctrl=None):
     """Create step (held-value) automation — each step holds its value for a duration.
 
     Args:
@@ -556,7 +583,7 @@ def create_step_automation(song, track_index, clip_index, parameter_name, steps,
     """
     try:
         track, clip = get_clip(song, track_index, clip_index)
-        param = _find_parameter(song, track_index, parameter_name)
+        param = _find_parameter(song, track_index, parameter_name, device_index=device_index)
 
         if not hasattr(clip, 'automation_envelope'):
             if hasattr(clip, 'create_automation_envelope'):

@@ -360,27 +360,31 @@ _MODIFYING_HANDLERS = {
     # --- Automation ---
     "create_clip_automation": lambda song, p, ctrl: handlers.automation.create_clip_automation(
         song, p.get("track_index", 0), p.get("clip_index", 0),
-        p.get("parameter_name", ""), p.get("automation_points", []), ctrl),
+        p.get("parameter_name", ""), p.get("automation_points", []),
+        device_index=p.get("device_index"), append=p.get("append", False), ctrl=ctrl),
     "clear_clip_automation": lambda song, p, ctrl: handlers.automation.clear_clip_automation(
         song, p.get("track_index", 0), p.get("clip_index", 0),
-        p.get("parameter_name", ""), ctrl),
+        p.get("parameter_name", ""), device_index=p.get("device_index"), ctrl=ctrl),
     "create_track_automation": lambda song, p, ctrl: handlers.automation.create_track_automation(
         song, p.get("track_index", 0), p.get("parameter_name", ""),
-        p.get("automation_points", []), ctrl),
+        p.get("automation_points", []),
+        device_index=p.get("device_index"), append=p.get("append", False), ctrl=ctrl),
     "clear_track_automation": lambda song, p, ctrl: handlers.automation.clear_track_automation(
         song, p.get("track_index", 0), p.get("parameter_name", ""),
-        p.get("start_time", 0.0), p.get("end_time", 0.0), ctrl),
+        p.get("start_time", 0.0), p.get("end_time", 0.0),
+        device_index=p.get("device_index"), ctrl=ctrl),
     "delete_time": lambda song, p, ctrl: handlers.automation.delete_time(song, p.get("start_time", 0.0), p.get("end_time", 0.0), ctrl),
     "duplicate_time": lambda song, p, ctrl: handlers.automation.duplicate_time(song, p.get("start_time", 0.0), p.get("end_time", 0.0), ctrl),
     "insert_silence": lambda song, p, ctrl: handlers.automation.insert_silence(song, p.get("position", 0.0), p.get("length", 0.0), ctrl),
     "clear_clip_envelope": lambda song, p, ctrl: handlers.automation.clear_clip_envelope(
         song, p.get("track_index", 0), p.get("clip_index", 0),
-        p.get("parameter_name", ""), ctrl),
+        p.get("parameter_name", ""), device_index=p.get("device_index"), ctrl=ctrl),
     "clear_all_clip_envelopes": lambda song, p, ctrl: handlers.automation.clear_all_clip_envelopes(
         song, p.get("track_index", 0), p.get("clip_index", 0), ctrl),
     "create_step_automation": lambda song, p, ctrl: handlers.automation.create_step_automation(
         song, p.get("track_index", 0), p.get("clip_index", 0),
-        p.get("parameter_name", ""), p.get("steps", []), ctrl),
+        p.get("parameter_name", ""), p.get("steps", []),
+        device_index=p.get("device_index"), ctrl=ctrl),
 
     # --- Arrangement ---
     "duplicate_clip_to_arrangement": lambda song, p, ctrl: handlers.arrangement.duplicate_clip_to_arrangement(
@@ -521,7 +525,7 @@ _READONLY_HANDLERS = {
     # --- Automation ---
     "get_clip_automation": lambda song, p, ctrl: handlers.automation.get_clip_automation(
         song, p.get("track_index", 0), p.get("clip_index", 0),
-        p.get("parameter_name", ""), ctrl),
+        p.get("parameter_name", ""), device_index=p.get("device_index"), ctrl=ctrl),
     "list_clip_automated_params": lambda song, p, ctrl: handlers.automation.list_clip_automated_params(
         song, p.get("track_index", 0), p.get("clip_index", 0), ctrl),
 
@@ -539,10 +543,12 @@ _READONLY_HANDLERS = {
     # Automation
     "get_clip_automation_value": lambda song, p, ctrl: handlers.automation.get_clip_automation_value(
         song, p.get("track_index", 0), p.get("clip_index", 0),
-        p.get("parameter_name", ""), p.get("time", 0.0), ctrl),
+        p.get("parameter_name", ""), p.get("time", 0.0),
+        device_index=p.get("device_index"), ctrl=ctrl),
     "get_clip_automation_hires": lambda song, p, ctrl: handlers.automation.get_clip_automation_hires(
         song, p.get("track_index", 0), p.get("clip_index", 0),
-        p.get("parameter_name", ""), p.get("sample_count", 128), ctrl),
+        p.get("parameter_name", ""), p.get("sample_count", 128),
+        device_index=p.get("device_index"), ctrl=ctrl),
 
     # Clips
     "get_selected_notes": lambda song, p, ctrl: handlers.clips.get_selected_notes(

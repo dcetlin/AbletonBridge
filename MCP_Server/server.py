@@ -275,6 +275,55 @@ register_all_tools(mcp)
 
 
 # ===================================================================
+# Hot-reload tool — reload tool modules without restarting the server
+# ===================================================================
+
+@mcp.tool()
+async def reload_tools() -> str:
+    """Hot-reload all tool modules without restarting the MCP server.
+
+    Use after editing tool handler code to pick up changes in the running
+    session. The stdio connection to Claude Code stays alive — no session
+    restart needed. Does NOT reload the Remote Script inside Ableton
+    (that requires toggling the control surface in Preferences).
+    """
+    import importlib
+    import MCP_Server.tools as tools_pkg
+
+    module_names = [
+        "session", "tracks", "clips", "devices", "browser", "mixer",
+        "automation", "arrangement", "scenes", "creative", "m4l_tools",
+        "snapshots", "audio", "grid", "workflows", "midi_cc",
+    ]
+
+    reloaded = []
+    errors = []
+    for name in module_names:
+        try:
+            mod = getattr(tools_pkg, name)
+            importlib.reload(mod)
+            reloaded.append(name)
+        except Exception as e:
+            errors.append(f"{name}: {e}")
+
+    # Also reload validation (shared by automation tools)
+    try:
+        import MCP_Server.validation
+        importlib.reload(MCP_Server.validation)
+        reloaded.append("validation")
+    except Exception as e:
+        errors.append(f"validation: {e}")
+
+    # Re-register all tools (FastMCP overwrites by name)
+    register_all_tools(mcp)
+
+    result = f"Reloaded {len(reloaded)} modules"
+    if errors:
+        result += f", {len(errors)} errors: {'; '.join(errors)}"
+    return result
+
+
+# ===================================================================
 # Register MCP prompts
 # ===================================================================
 
