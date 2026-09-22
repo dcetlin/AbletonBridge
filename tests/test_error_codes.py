@@ -14,7 +14,15 @@ import pytest
 
 
 def _load_structured_error():
-    """Import the real method, stubbing Ableton's _Framework if needed."""
+    """Import the real method, stubbing Ableton's _Framework if needed.
+
+    The stub is only needed at *import* time (the package resolves
+    ``ControlSurface`` at its top level). Once imported, we remove any
+    sys.modules entries we added so the stub cannot leak into other test
+    modules and mask, e.g., a future test that verifies ``_Framework`` is
+    genuinely absent off-host.
+    """
+    added = []
     if "_Framework" not in sys.modules:
         cs = types.ModuleType("_Framework.ControlSurface")
         cs.ControlSurface = object
@@ -22,8 +30,13 @@ def _load_structured_error():
         fw.ControlSurface = cs
         sys.modules["_Framework"] = fw
         sys.modules["_Framework.ControlSurface"] = cs
-    import AbletonBridge_Remote_Script as pkg
-    return pkg.AbletonBridge._structured_error
+        added = ["_Framework", "_Framework.ControlSurface"]
+    try:
+        import AbletonBridge_Remote_Script as pkg
+        return pkg.AbletonBridge._structured_error
+    finally:
+        for name in added:
+            sys.modules.pop(name, None)
 
 
 # Bound to a dummy self (the method reads no instance state).

@@ -207,6 +207,15 @@ class AbletonConnection:
                         command_name = response.get("command", command_type)
                         logger.error("Ableton error [%s]: %s (command=%s, may_have_landed=%s)",
                                      code, message, command_name, may_have_landed)
+                        # Forward interface: these attributes carry the structured
+                        # error up the stack. NOTE (follow-up): the tool-boundary
+                        # handler in MCP_Server/tools/_base.py currently catches the
+                        # generic Exception and returns str(e), so `.code` /
+                        # `.may_have_landed` / `.ableton_command` do not yet reach the
+                        # MCP client. A separate build should teach _base.py to read
+                        # them (and ideally promote this to a typed AbletonCommandError
+                        # so the interface is intentional by construction). Until then
+                        # they are consumed only by logging above.
                         error = Exception(message)
                         error.code = code
                         error.may_have_landed = may_have_landed
