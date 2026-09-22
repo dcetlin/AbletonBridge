@@ -36,7 +36,7 @@ def get_clip_notes(song, track_index: int, clip_index: int, start_time: float, t
     }
 
 
-@command("add_notes_extended", modifying=True)
+@command("add_notes_extended", modifying=True, idempotent=False)
 def add_notes_extended(song, track_index: int, clip_index: int, notes: list, ctrl=None) -> dict:
     """Add MIDI notes using MidiNoteSpecification (Live 12+)."""
     import Live

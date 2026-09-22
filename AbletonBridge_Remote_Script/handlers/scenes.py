@@ -6,7 +6,7 @@ from ._helpers import get_scene
 from ._registry import command
 
 
-@command("create_scene", modifying=True)
+@command("create_scene", modifying=True, idempotent=False)
 def create_scene(song, index: int, name: str = "", ctrl=None) -> dict:
     """Create a new scene."""
     if index < 0:
@@ -18,7 +18,7 @@ def create_scene(song, index: int, name: str = "", ctrl=None) -> dict:
     return {"index": index, "name": scene.name}
 
 
-@command("delete_scene", modifying=True)
+@command("delete_scene", modifying=True, destructive=True, idempotent=False)
 def delete_scene(song, scene_index: int, ctrl=None) -> dict:
     """Delete a scene from the session."""
     scene = get_scene(song, scene_index)
@@ -31,7 +31,7 @@ def delete_scene(song, scene_index: int, ctrl=None) -> dict:
     }
 
 
-@command("duplicate_scene", modifying=True)
+@command("duplicate_scene", modifying=True, idempotent=False)
 def duplicate_scene(song, scene_index: int, ctrl=None) -> dict:
     """Duplicate a scene."""
     get_scene(song, scene_index)

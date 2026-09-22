@@ -15,15 +15,17 @@ _REGISTRY = {}
 
 
 class _CommandEntry(object):
-    __slots__ = ("func", "modifying", "params")
+    __slots__ = ("func", "modifying", "destructive", "idempotent", "params")
 
-    def __init__(self, func, modifying, params):
+    def __init__(self, func, modifying, destructive, idempotent, params):
         self.func = func
         self.modifying = modifying
+        self.destructive = destructive
+        self.idempotent = idempotent
         self.params = params
 
 
-def command(name, modifying=False):
+def command(name, modifying=False, destructive=False, idempotent=True):
     """Register a handler function in the command registry.
 
     Usage::
@@ -46,7 +48,7 @@ def command(name, modifying=False):
             params.append((pname, default))
         if name in _REGISTRY:
             raise ValueError("Duplicate command registration: {0}".format(name))
-        _REGISTRY[name] = _CommandEntry(func=func, modifying=modifying, params=params)
+        _REGISTRY[name] = _CommandEntry(func=func, modifying=modifying, destructive=destructive, idempotent=idempotent, params=params)
         return func
     return decorator
 
@@ -88,3 +90,15 @@ def get_readonly_commands():
 def get_registry():
     """Return the full registry dict (for testing/introspection)."""
     return _REGISTRY
+
+
+def get_command_annotations():
+    """Return {name: {modifying, destructive, idempotent}} for all commands."""
+    return {
+        name: {
+            "modifying": entry.modifying,
+            "destructive": entry.destructive,
+            "idempotent": entry.idempotent,
+        }
+        for name, entry in _REGISTRY.items()
+    }

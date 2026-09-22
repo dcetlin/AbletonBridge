@@ -137,7 +137,7 @@ def get_track_info(song, track_index: int, ctrl=None) -> dict:
     return result
 
 
-@command("create_midi_track", modifying=True)
+@command("create_midi_track", modifying=True, idempotent=False)
 def create_midi_track(song, index: int = -1, ctrl=None) -> dict:
     """Create a new MIDI track at the specified index."""
     song.create_midi_track(index)
@@ -146,7 +146,7 @@ def create_midi_track(song, index: int = -1, ctrl=None) -> dict:
     return {"index": new_track_index, "name": new_track.name}
 
 
-@command("create_audio_track", modifying=True)
+@command("create_audio_track", modifying=True, idempotent=False)
 def create_audio_track(song, index: int = -1, ctrl=None) -> dict:
     """Create a new audio track at the specified index."""
     song.create_audio_track(index)
@@ -163,7 +163,7 @@ def set_track_name(song, track_index: int, name: str, ctrl=None) -> dict:
     return {"name": track.name}
 
 
-@command("delete_track", modifying=True)
+@command("delete_track", modifying=True, destructive=True, idempotent=False)
 def delete_track(song, track_index: int, ctrl=None) -> dict:
     """Delete a track from the session."""
     track = get_track(song, track_index)
@@ -176,7 +176,7 @@ def delete_track(song, track_index: int, ctrl=None) -> dict:
     }
 
 
-@command("duplicate_track", modifying=True)
+@command("duplicate_track", modifying=True, idempotent=False)
 def duplicate_track(song, track_index: int, ctrl=None) -> dict:
     """Duplicate a track with all its devices and clips."""
     track = get_track(song, track_index)
@@ -196,7 +196,7 @@ def duplicate_track(song, track_index: int, ctrl=None) -> dict:
 # --- New commands from MacWhite ---
 
 
-@command("create_return_track", modifying=True)
+@command("create_return_track", modifying=True, idempotent=False)
 def create_return_track(song, ctrl=None) -> dict:
     """Create a new return track."""
     song.create_return_track()
@@ -599,7 +599,7 @@ def insert_device(song, track_index: int, device_name: str, target_index: int = 
 # --- Delete Return Track & Track Collapse ---
 
 
-@command("delete_return_track", modifying=True)
+@command("delete_return_track", modifying=True, destructive=True, idempotent=False)
 def delete_return_track(song, return_index: int, ctrl=None) -> dict:
     """Delete a return track by index."""
     if return_index < 0 or return_index >= len(song.return_tracks):

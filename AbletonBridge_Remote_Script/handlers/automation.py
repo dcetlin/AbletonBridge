@@ -141,7 +141,7 @@ def get_clip_automation(song, track_index: int, clip_index: int, parameter_name:
     }
 
 
-@command("clear_clip_automation", modifying=True)
+@command("clear_clip_automation", modifying=True, destructive=True)
 def clear_clip_automation(song, track_index: int, clip_index: int, parameter_name: str, device_index: int | None = None, ctrl=None) -> dict:
     """Clear automation for a specific parameter in a clip."""
     track, clip = get_clip(song, track_index, clip_index)
@@ -324,7 +324,7 @@ def create_track_automation(song, track_index: int, parameter_name: str, automat
     }
 
 
-@command("clear_track_automation", modifying=True)
+@command("clear_track_automation", modifying=True, destructive=True)
 def clear_track_automation(song, track_index: int, parameter_name: str, start_time: float, end_time: float, device_index: int | None = None, ctrl=None) -> dict:
     """Clear automation for a parameter in an arrangement time range.
 
@@ -393,7 +393,7 @@ def clear_track_automation(song, track_index: int, parameter_name: str, start_ti
     }
 
 
-@command("delete_time", modifying=True)
+@command("delete_time", modifying=True, destructive=True, idempotent=False)
 def delete_time(song, start_time: float, end_time: float, ctrl=None) -> dict:
     """Delete a section of time from the arrangement."""
     try:
@@ -465,7 +465,7 @@ def insert_silence(song, position: float, length: float, ctrl=None) -> dict:
 # --- v4.0: Enhanced automation ---
 
 
-@command("clear_clip_envelope", modifying=True)
+@command("clear_clip_envelope", modifying=True, destructive=True)
 def clear_clip_envelope(song, track_index: int, clip_index: int, parameter_name: str, device_index: int | None = None, ctrl=None) -> dict:
     """Clear automation envelope for a specific parameter using clip.clear_envelope()."""
     track, clip = get_clip(song, track_index, clip_index)
@@ -478,7 +478,7 @@ def clear_clip_envelope(song, track_index: int, clip_index: int, parameter_name:
     return {"cleared": True, "parameter": parameter_name, "track_index": track_index, "clip_index": clip_index}
 
 
-@command("clear_all_clip_envelopes", modifying=True)
+@command("clear_all_clip_envelopes", modifying=True, destructive=True)
 def clear_all_clip_envelopes(song, track_index: int, clip_index: int, ctrl=None) -> dict:
     """Clear ALL automation envelopes from a clip."""
     _, clip = get_clip(song, track_index, clip_index)

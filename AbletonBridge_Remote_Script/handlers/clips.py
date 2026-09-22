@@ -8,7 +8,7 @@ from ._helpers import get_track, get_clip_slot, get_clip, safe_getattr
 from ._registry import command
 
 
-@command("create_clip", modifying=True)
+@command("create_clip", modifying=True, idempotent=False)
 def create_clip(song, track_index: int, clip_index: int, length: float, ctrl=None) -> dict:
     """Create a new MIDI clip in the specified track and clip slot."""
     track, clip_slot = get_clip_slot(song, track_index, clip_index)
@@ -24,7 +24,7 @@ def create_clip(song, track_index: int, clip_index: int, length: float, ctrl=Non
     }
 
 
-@command("add_notes_to_clip", modifying=True)
+@command("add_notes_to_clip", modifying=True, idempotent=False)
 def add_notes_to_clip(song, track_index: int, clip_index: int, notes: list, ctrl=None) -> dict:
     """Add MIDI notes to a clip."""
     _, clip = get_clip(song, track_index, clip_index)
@@ -77,7 +77,7 @@ def stop_clip(song, track_index: int, clip_index: int, ctrl=None) -> dict:
     return {"stopped": True}
 
 
-@command("delete_clip", modifying=True)
+@command("delete_clip", modifying=True, destructive=True, idempotent=False)
 def delete_clip(song, track_index: int, clip_index: int, ctrl=None) -> dict:
     """Delete a clip from a clip slot."""
     _, clip_slot = get_clip_slot(song, track_index, clip_index)
@@ -150,7 +150,7 @@ def get_clip_info(song, track_index: int, clip_index: int, ctrl=None) -> dict:
     return result
 
 
-@command("duplicate_clip", modifying=True)
+@command("duplicate_clip", modifying=True, idempotent=False)
 def duplicate_clip(song, track_index: int, clip_index: int, target_clip_index: int, ctrl=None) -> dict:
     """Duplicate a clip to another slot on the same track."""
     track = get_track(song, track_index)

@@ -92,7 +92,7 @@ def move_arrangement_clip(song, track_index: int, clip_index_in_arrangement: int
     }
 
 
-@command("delete_arrangement_clip", modifying=True)
+@command("delete_arrangement_clip", modifying=True, destructive=True, idempotent=False)
 def delete_arrangement_clip(song, track_index: int, clip_index_in_arrangement: int, ctrl=None) -> dict:
     """Delete an arrangement clip by its index in the arrangement."""
     track, clip = _get_arrangement_clip(song, track_index, clip_index_in_arrangement, ctrl)

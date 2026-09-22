@@ -330,7 +330,7 @@ def _resolve_device(song, track_index, device_index, track_type="track"):
     return track, devices[device_index]
 
 
-@command("delete_device", modifying=True)
+@command("delete_device", modifying=True, destructive=True, idempotent=False)
 def delete_device(song, track_index: int, device_index: int, track_type: str = "track", ctrl=None) -> dict:
     """Delete a device from a track."""
     track, device = _resolve_device(song, track_index, device_index, track_type)
