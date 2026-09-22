@@ -7,6 +7,7 @@ import time as _time
 from ._helpers import (
     get_track, get_clip, interpolate_automation,
     budget_automation_steps, AUTOMATION_WRITE_BUDGET_SECONDS,
+    verify_automation,
 )
 from ._registry import command
 
@@ -57,7 +58,8 @@ def _find_parameter(song, track_index, parameter_name, device_index=None):
 @command("create_clip_automation", modifying=True)
 def create_clip_automation(song, track_index: int, clip_index: int, parameter_name: str, automation_points: list,
                            device_index: int | None = None, append: bool = False,
-                           interpolation: str = "hold", resolution: float = 0.0625, ctrl=None) -> dict:
+                           interpolation: str = "hold", resolution: float = 0.0625,
+                           verify: bool = False, ctrl=None) -> dict:
     """Create automation for a parameter within a clip."""
     track, clip = get_clip(song, track_index, clip_index)
 
@@ -94,6 +96,7 @@ def create_clip_automation(song, track_index: int, clip_index: int, parameter_na
     deadline = _time.time() + AUTOMATION_WRITE_BUDGET_SECONDS
     written = 0
     last_written_time = None
+    written_points = []
     for point in automation_points:
         if _time.time() > deadline:
             break
@@ -105,8 +108,13 @@ def create_clip_automation(song, track_index: int, clip_index: int, parameter_na
         envelope.insert_step(time_val, 0.001, clamped)
         written += 1
         last_written_time = time_val
+        # Record the clamped time/value we actually wrote, so verify reads back at
+        # the same coordinates (not the raw breakpoint time, which can exceed the
+        # clip boundary) and only checks steps that actually landed (not any tail
+        # skipped past the write deadline).
+        written_points.append({"time": time_val, "value": clamped})
 
-    return {
+    result = {
         "parameter": parameter_name,
         "track_index": track_index,
         "clip_index": clip_index,
@@ -118,6 +126,9 @@ def create_clip_automation(song, track_index: int, clip_index: int, parameter_na
         # points are time-sorted, so a caller can resume past this boundary.
         "last_written_time": last_written_time,
     }
+    if verify:
+        result["verified"] = verify_automation(envelope, written_points, param.min, param.max)
+    return result
 
 
 @command("get_clip_automation")
@@ -234,7 +245,8 @@ def list_clip_automated_params(song, track_index: int, clip_index: int, ctrl=Non
 @command("create_track_automation", modifying=True)
 def create_track_automation(song, track_index: int, parameter_name: str, automation_points: list,
                             device_index: int | None = None, append: bool = False,
-                            interpolation: str = "hold", resolution: float = 0.0625, ctrl=None) -> dict:
+                            interpolation: str = "hold", resolution: float = 0.0625,
+                            verify: bool = False, ctrl=None) -> dict:
     """Create automation for a track parameter (arrangement-level).
 
     Uses arrangement clips to access the automation envelope for the given
@@ -344,6 +356,7 @@ def create_track_automation(song, track_index: int, parameter_name: str, automat
     deadline = _time.time() + AUTOMATION_WRITE_BUDGET_SECONDS
     written = 0
     last_written_time = None
+    written_points = []
     for point in automation_points:
         if _time.time() > deadline:
             break
@@ -352,8 +365,11 @@ def create_track_automation(song, track_index: int, parameter_name: str, automat
         envelope.insert_step(time_val, 0.001, value)
         written += 1
         last_written_time = time_val
+        # Record actually-written coordinates for read-back verification (see the
+        # clip-automation path for the rationale).
+        written_points.append({"time": time_val, "value": value})
 
-    return {
+    result = {
         "parameter": parameter_name,
         "track_index": track_index,
         "points_added": written,
@@ -364,6 +380,9 @@ def create_track_automation(song, track_index: int, parameter_name: str, automat
         # points are time-sorted, so a caller can resume past this boundary.
         "last_written_time": last_written_time,
     }
+    if verify:
+        result["verified"] = verify_automation(envelope, written_points, parameter.min, parameter.max)
+    return result
 
 
 @command("clear_track_automation", modifying=True, destructive=True)

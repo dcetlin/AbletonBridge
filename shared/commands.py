@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any, TypedDict
 
-REGISTRY_FINGERPRINT = "579a8618a46d620f"
+REGISTRY_FINGERPRINT = "789f9de68a7da992"
 
 
 # ============================================================
@@ -136,6 +136,7 @@ class CreateClipAutomationParams(TypedDict, total=False):
     append: bool
     interpolation: str
     resolution: float
+    verify: bool
 
 
 class CreateStepAutomationParams(TypedDict, total=False):
@@ -154,6 +155,7 @@ class CreateTrackAutomationParams(TypedDict, total=False):
     append: bool
     interpolation: str
     resolution: float
+    verify: bool
 
 
 class DeleteTimeParams(TypedDict, total=False):
