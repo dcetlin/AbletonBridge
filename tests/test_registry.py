@@ -14,6 +14,7 @@ def _load_registry():
     from handlers import (
         session, tracks, clips, mixer, devices,
         browser, scenes, arrangement, audio, midi, automation,
+        lom,
     )
     return get_registry()
 

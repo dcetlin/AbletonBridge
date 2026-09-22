@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any, TypedDict
 
-REGISTRY_FINGERPRINT = "400b04b65bc96590"
+REGISTRY_FINGERPRINT = "579a8618a46d620f"
 
 
 # ============================================================
@@ -847,6 +847,24 @@ class SlicedSimplerToDrumRackParams(TypedDict, total=False):
 
 
 # ============================================================
+# lom
+# ============================================================
+
+class LomDescribeParams(TypedDict, total=False):
+    path: str
+    depth: int
+
+
+class LomGetParams(TypedDict, total=False):
+    path: str
+
+
+class LomSetParams(TypedDict, total=False):
+    path: str
+    value: Any
+
+
+# ============================================================
 # midi
 # ============================================================
 
@@ -1651,6 +1669,9 @@ COMMAND_TYPES: dict[str, type] = {
     "load_device_preset": LoadDevicePresetParams,
     "load_instrument_or_effect": LoadInstrumentOrEffectParams,
     "load_sample": LoadSampleParams,
+    "lom_describe": LomDescribeParams,
+    "lom_get": LomGetParams,
+    "lom_set": LomSetParams,
     "manage_sample_slices": ManageSampleSlicesParams,
     "move_arrangement_clip": MoveArrangementClipParams,
     "move_clip_playing_pos": MoveClipPlayingPosParams,
@@ -1838,6 +1859,7 @@ MODIFYING_COMMANDS: frozenset[str] = frozenset({
     "load_device_preset",
     "load_instrument_or_effect",
     "load_sample",
+    "lom_set",
     "manage_sample_slices",
     "move_arrangement_clip",
     "move_clip_playing_pos",
@@ -2030,5 +2052,7 @@ READONLY_COMMANDS: frozenset[str] = frozenset({
     "get_view_state",
     "get_warp_markers",
     "list_clip_automated_params",
+    "lom_describe",
+    "lom_get",
     "search_browser",
 })

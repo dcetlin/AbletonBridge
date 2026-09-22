@@ -22,6 +22,7 @@ from handlers._registry import get_registry, _SENTINEL
 from handlers import (
     session, tracks, clips, mixer, devices,
     browser, scenes, arrangement, audio, midi, automation,
+    lom,
 )
 
 
