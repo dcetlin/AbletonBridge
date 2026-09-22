@@ -165,3 +165,28 @@ def interpolate_automation(points, resolution=0.0625, mode="hold"):
     last = sorted_pts[-1]
     result.append({"time": round(float(last["time"]), 6), "value": round(float(last["value"]), 6)})
     return result
+
+
+def verify_automation(envelope, expected_points, param_min, param_max, epsilon=0.01):
+    """Read back automation and compare. Returns {verdict, median_error, max_error, samples}."""
+    if not expected_points:
+        return {"verdict": "match", "median_error": 0, "max_error": 0, "samples": 0}
+    errors = []
+    for point in expected_points:
+        t = float(point.get("time", 0.0))
+        expected = max(param_min, min(param_max, float(point.get("value", 0.0))))
+        try:
+            actual = envelope.value_at_time(t)
+            errors.append(abs(actual - expected))
+        except Exception:
+            errors.append(abs(expected))
+    sorted_errors = sorted(errors)
+    median_err = sorted_errors[len(sorted_errors) // 2]
+    max_err = max(errors)
+    if max_err < epsilon:
+        verdict = "match"
+    elif median_err < epsilon:
+        verdict = "drift"
+    else:
+        verdict = "mismatch"
+    return {"verdict": verdict, "median_error": round(median_err, 6), "max_error": round(max_err, 6), "samples": len(errors)}

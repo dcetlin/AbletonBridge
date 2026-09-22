@@ -405,13 +405,49 @@ class AbletonBridge(ControlSurface):
         return response
 
     def _dispatch_on_main_thread_impl(self, command_type, params, timeout_msg):
-        """Schedule a command on Ableton's main thread and wait for the result."""
+        """Schedule a command on Ableton's main thread and wait for the result.
+
+        If ``params`` carries a ``_deferred_read`` key, it is popped off before
+        dispatch (so the handler never sees it) and treated as a follow-up read
+        command: ``{"command": <name>, "params": {...}}``. After the write lands,
+        a second dispatch is scheduled one tick later so Live has committed the
+        change, and its result is merged into the response under ``_verified``.
+        """
         response_queue = queue.Queue()
+
+        deferred = params.pop("_deferred_read", None) if isinstance(params, dict) else None
+
+        def put_result(result):
+            # Merge the deferred read-back (if any) into the result before returning.
+            if not deferred:
+                response_queue.put({"status": "success", "result": result})
+                return
+
+            def read_back():
+                try:
+                    verified = dispatch(
+                        deferred.get("command"), self._song,
+                        deferred.get("params", {}) or {}, self)
+                    if isinstance(result, dict):
+                        result["_verified"] = verified
+                    response_queue.put({"status": "success", "result": result})
+                except Exception as e:
+                    self.log_message("Deferred read-back error: " + str(e))
+                    if isinstance(result, dict):
+                        result["_verified"] = {"status": "error", "message": str(e)}
+                    response_queue.put({"status": "success", "result": result})
+
+            try:
+                # Run one tick later so Live has committed the write before we read.
+                self.schedule_message(1, read_back)
+            except AssertionError:
+                # No follow-up scheduling available — return the write result as-is.
+                response_queue.put({"status": "success", "result": result})
 
         def main_thread_task():
             try:
                 result = dispatch(command_type, self._song, params, self)
-                response_queue.put({"status": "success", "result": result})
+                put_result(result)
             except Exception as e:
                 self.log_message("Error in main thread task: " + str(e))
                 self.log_message(traceback.format_exc())
@@ -423,8 +459,10 @@ class AbletonBridge(ControlSurface):
             self.log_message("TCP command: schedule_message unavailable, returning error")
             return {"status": "error", "message": "Ableton scheduling unavailable — try again shortly"}
 
+        # A deferred read-back adds a second main-thread round-trip; give it headroom.
+        timeout = 12.0 if deferred else 10.0
         try:
-            return response_queue.get(timeout=10.0)
+            return response_queue.get(timeout=timeout)
         except queue.Empty:
             is_modifying = command_type in get_modifying_commands()
             return self._structured_error(

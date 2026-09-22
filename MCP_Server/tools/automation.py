@@ -25,7 +25,8 @@ def register_tools(mcp):
                                 device_index: Optional[int] = None,
                                 reduce: bool = False, append: bool = False,
                                 interpolation: str = "hold",
-                                resolution: float = 0.0625) -> str:
+                                resolution: float = 0.0625,
+                                verify: bool = False) -> str:
         """Create automation for a parameter within a session clip.
 
         For automation inside a session clip's envelope. For arrangement-level track
@@ -43,6 +44,8 @@ def register_tools(mcp):
           "linear" (smooth ramps), "exponential" (exponential curve)
         - resolution: Beats between interpolated points (default: 0.0625 = 64th note).
           Lower = smoother but more points. Only used when interpolation != "hold".
+        - verify: If True, read the envelope back after writing and return a
+          {verdict, median_error, max_error, samples} report (default: False)
 
         Values are in the parameter's native range (usually 0.0–1.0).
         Time is in beats from clip start.
@@ -61,12 +64,15 @@ def register_tools(mcp):
             "append": append,
             "interpolation": interpolation,
             "resolution": resolution,
+            "verify": verify,
         }
         if device_index is not None:
             cmd_params["device_index"] = device_index
         result = ableton.send_command("create_clip_automation", cmd_params)
         pts = result.get("points_added", len(automation_points))
         mode_label = f" ({interpolation}, res={resolution})" if interpolation != "hold" else ""
+        if verify and result.get("verified"):
+            return json.dumps(result)
         return f"Created automation with {pts} points{mode_label} for parameter '{parameter_name}'"
 
     @mcp.tool()
@@ -166,6 +172,7 @@ def register_tools(mcp):
         append: bool = False,
         interpolation: str = "hold",
         resolution: float = 0.0625,
+        verify: bool = False,
     ) -> str:
         """Create automation for a track parameter (arrangement-level).
 
@@ -183,6 +190,8 @@ def register_tools(mcp):
           "linear" (smooth ramps), "exponential" (exponential curve)
         - resolution: Beats between interpolated points (default: 0.0625 = 64th note).
           Only used when interpolation != "hold".
+        - verify: If True, read the envelope back after writing and return a
+          {verdict, median_error, max_error, samples} report (default: False)
         """
         _validate_index(track_index, "track_index")
         _validate_automation_points(automation_points)
@@ -196,12 +205,15 @@ def register_tools(mcp):
             "append": append,
             "interpolation": interpolation,
             "resolution": resolution,
+            "verify": verify,
         }
         if device_index is not None:
             cmd_params["device_index"] = device_index
         result = ableton.send_command("create_track_automation", cmd_params)
         pts = result.get("points_added", len(automation_points))
         mode_label = f" ({interpolation}, res={resolution})" if interpolation != "hold" else ""
+        if verify and result.get("verified"):
+            return json.dumps(result)
         return f"Created track automation for '{parameter_name}' with {pts} points{mode_label}"
 
     @mcp.tool()
