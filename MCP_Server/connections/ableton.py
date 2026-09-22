@@ -201,8 +201,26 @@ class AbletonConnection:
                     logger.debug("Response status: %s", response.get('status', 'unknown'))
 
                     if response.get("status") == "error":
-                        logger.error("Ableton error: %s", response.get('message'))
-                        raise Exception(response.get("message", "Unknown error from Ableton"))
+                        code = response.get("code", "unknown")
+                        message = response.get("message", "Unknown error from Ableton")
+                        may_have_landed = response.get("may_have_landed", False)
+                        command_name = response.get("command", command_type)
+                        logger.error("Ableton error [%s]: %s (command=%s, may_have_landed=%s)",
+                                     code, message, command_name, may_have_landed)
+                        # Forward interface: these attributes carry the structured
+                        # error up the stack. NOTE (follow-up): the tool-boundary
+                        # handler in MCP_Server/tools/_base.py currently catches the
+                        # generic Exception and returns str(e), so `.code` /
+                        # `.may_have_landed` / `.ableton_command` do not yet reach the
+                        # MCP client. A separate build should teach _base.py to read
+                        # them (and ideally promote this to a typed AbletonCommandError
+                        # so the interface is intentional by construction). Until then
+                        # they are consumed only by logging above.
+                        error = Exception(message)
+                        error.code = code
+                        error.may_have_landed = may_have_landed
+                        error.ableton_command = command_name
+                        raise error
 
                     # Post-delay: let Ableton settle before the next command
                     if post_delay:

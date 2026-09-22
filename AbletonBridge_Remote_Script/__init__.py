@@ -300,7 +300,7 @@ class AbletonBridge(ControlSurface):
                     self.log_message("Error handling client data: " + str(e))
                     self.log_message(traceback.format_exc())
 
-                    error_response = {"status": "error", "message": self._safe_error_message(e)}
+                    error_response = self._structured_error(e)
                     try:
                         client.sendall((json.dumps(error_response) + '\n').encode('utf-8'))
                     except Exception:
@@ -330,23 +330,53 @@ class AbletonBridge(ControlSurface):
     # Error sanitisation
     # ------------------------------------------------------------------
 
-    def _safe_error_message(self, e):
-        """Return a client-safe error message.
+    def _structured_error(self, e, command_type=None, may_have_landed=False):
+        """Return a structured error response dict with code and message.
 
-        ValueError/IndexError messages are kept (user-input validation).
-        KeyError -> "Missing required parameter: <key>"
-        TypeError -> "Invalid parameter type"
+        ValueError/IndexError/TypeError/KeyError messages are preserved.
         Everything else gets a generic message; details stay in the log.
         """
-        if isinstance(e, (ValueError, IndexError)):
-            return str(e)
-        if isinstance(e, KeyError):
-            return "Missing required parameter: {0}".format(e)
-        if isinstance(e, TypeError):
-            return "Invalid parameter type: {0}".format(e)
-        if isinstance(e, queue.Empty):
-            return "Operation timed out"
-        return "Internal error - check Ableton log for details"
+        if isinstance(e, ValueError):
+            code = "invalid_input"
+            message = str(e)
+        elif isinstance(e, IndexError):
+            code = "index_out_of_range"
+            message = str(e)
+        elif isinstance(e, KeyError):
+            code = "missing_parameter"
+            message = "Missing required parameter: {0}".format(e)
+        elif isinstance(e, TypeError):
+            code = "type_error"
+            message = str(e)
+        elif isinstance(e, AttributeError):
+            code = "attribute_error"
+            message = str(e)
+        elif isinstance(e, NotImplementedError):
+            code = "not_implemented"
+            message = str(e)
+        elif isinstance(e, RuntimeError):
+            code = "runtime_error"
+            message = str(e)
+        elif isinstance(e, queue.Empty):
+            code = "timeout"
+            message = "Operation timed out"
+            # Do NOT force may_have_landed here: the caller decides based on
+            # whether the timed-out command was modifying (Caller 4 passes
+            # may_have_landed=is_modifying). A read-only timeout must stay False.
+        else:
+            code = "internal_error"
+            message = "Internal error - check Ableton log for details"
+
+        result = {
+            "status": "error",
+            "code": code,
+            "message": message,
+        }
+        if command_type:
+            result["command"] = command_type
+        if may_have_landed:
+            result["may_have_landed"] = True
+        return result
 
     # ------------------------------------------------------------------
     # Command routing
@@ -369,8 +399,7 @@ class AbletonBridge(ControlSurface):
         except Exception as e:
             self.log_message("Error processing command: " + str(e))
             self.log_message(traceback.format_exc())
-            response["status"] = "error"
-            response["message"] = self._safe_error_message(e)
+            response = self._structured_error(e, command_type=command_type)
 
         return response
 
@@ -385,7 +414,7 @@ class AbletonBridge(ControlSurface):
             except Exception as e:
                 self.log_message("Error in main thread task: " + str(e))
                 self.log_message(traceback.format_exc())
-                response_queue.put({"status": "error", "message": self._safe_error_message(e)})
+                response_queue.put(self._structured_error(e, command_type=command_type))
 
         try:
             self.schedule_message(0, main_thread_task)
@@ -396,7 +425,11 @@ class AbletonBridge(ControlSurface):
         try:
             return response_queue.get(timeout=10.0)
         except queue.Empty:
-            return {"status": "error", "message": timeout_msg}
+            is_modifying = command_type in get_modifying_commands()
+            return self._structured_error(
+                queue.Empty(), command_type=command_type,
+                may_have_landed=is_modifying
+            )
 
     def _dispatch_on_main_thread(self, command_type, params):
         return self._dispatch_on_main_thread_impl(
