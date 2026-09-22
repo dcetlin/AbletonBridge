@@ -6,6 +6,7 @@ from mcp.server.fastmcp import Context
 from MCP_Server.tools._base import _tool_handler
 from MCP_Server.connections.ableton import get_ableton_connection
 from MCP_Server.validation import _validate_index, _validate_range, _validate_notes
+from MCP_Server.data import SCALES, DRUM_PATTERNS
 
 
 def register_tools(mcp):
@@ -205,24 +206,11 @@ def register_tools(mcp):
         _validate_index(clip_index, "clip_index")
         import random
 
-        scales = {
-            "major": [0, 2, 4, 5, 7, 9, 11],
-            "minor": [0, 2, 3, 5, 7, 8, 10],
-            "dorian": [0, 2, 3, 5, 7, 9, 10],
-            "mixolydian": [0, 2, 4, 5, 7, 9, 10],
-            "pentatonic": [0, 2, 4, 7, 9],
-            "blues": [0, 3, 5, 6, 7, 10],
-            "harmonic_minor": [0, 2, 3, 5, 7, 8, 11],
-            "melodic_minor": [0, 2, 3, 5, 7, 9, 11],
-            "chromatic": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
-            "whole_tone": [0, 2, 4, 6, 8, 10],
-        }
-
-        if scale_name not in scales:
-            raise ValueError(f"Unknown scale '{scale_name}'. Available: {', '.join(scales.keys())}")
+        if scale_name not in SCALES:
+            raise ValueError(f"Unknown scale '{scale_name}'. Available: {', '.join(SCALES.keys())}")
 
         # Build all pitches in range
-        intervals = scales[scale_name]
+        intervals = SCALES[scale_name]
         pitches = []
         root_base = root
         for octave in range(octave_range + 1):
@@ -671,17 +659,11 @@ def register_tools(mcp):
         _validate_index(clip_index, "clip_index")
         _validate_range(velocity, "velocity", 1, 127)
 
-        scales = {
-            "major": [0, 2, 4, 5, 7, 9, 11],
-            "minor": [0, 2, 3, 5, 7, 8, 10],
-            "dorian": [0, 2, 3, 5, 7, 9, 10],
-            "mixolydian": [0, 2, 4, 5, 7, 9, 10],
-            "harmonic_minor": [0, 2, 3, 5, 7, 8, 11],
-        }
-        if scale_name not in scales:
-            raise ValueError(f"Unknown scale '{scale_name}'. Available: {', '.join(scales.keys())}")
+        _CHORD_SCALES = {"major", "minor", "dorian", "mixolydian", "harmonic_minor"}
+        if scale_name not in _CHORD_SCALES:
+            raise ValueError(f"Unknown scale '{scale_name}'. Available: {', '.join(sorted(_CHORD_SCALES))}")
 
-        intervals = scales[scale_name]
+        intervals = SCALES[scale_name]
 
         # Map Roman numerals to scale degrees (0-indexed)
         numeral_map = {
@@ -869,64 +851,19 @@ def register_tools(mcp):
         _validate_range(velocity, "velocity", 1, 127)
         _validate_range(swing, "swing", 0.0, 1.0)
 
-        KICK, SNARE, HIHAT, OPEN_HAT = 36, 38, 42, 46
-        RIDE, CRASH, CLAP, RIM = 51, 49, 39, 37
-        TOM_LO, TOM_MID, TOM_HI = 45, 47, 50
-
-        # Define patterns as (pitch, [beat positions], velocity_ratio, duration)
-        patterns = {
-            "basic_rock": [
-                (KICK,    [0.0, 2.0],           1.0, 0.25),
-                (SNARE,   [1.0, 3.0],           1.0, 0.25),
-                (HIHAT,   [i * 0.5 for i in range(8)], 0.7, 0.125),
-            ],
-            "house": [
-                (KICK,    [0.0, 1.0, 2.0, 3.0], 1.0, 0.25),
-                (CLAP,    [1.0, 3.0],           0.9, 0.25),
-                (OPEN_HAT,[0.5, 1.5, 2.5, 3.5], 0.6, 0.25),
-                (HIHAT,   [i * 0.25 for i in range(16)], 0.5, 0.0625),
-            ],
-            "hiphop": [
-                (KICK,    [0.0, 0.75, 2.0, 2.5], 1.0, 0.25),
-                (SNARE,   [1.0, 3.0],           1.0, 0.25),
-                (HIHAT,   [i * 0.5 for i in range(8)], 0.65, 0.125),
-            ],
-            "dnb": [
-                (KICK,    [0.0, 1.75],          1.0, 0.25),
-                (SNARE,   [1.0, 3.0],           1.0, 0.25),
-                (HIHAT,   [i * 0.25 for i in range(16)], 0.6, 0.0625),
-            ],
-            "halftime": [
-                (KICK,    [0.0],                1.0, 0.25),
-                (SNARE,   [2.0],                1.0, 0.25),
-                (HIHAT,   [i * 0.5 for i in range(8)], 0.6, 0.125),
-            ],
-            "jazz_ride": [
-                (RIDE,    [0.0, 0.67, 1.0, 1.67, 2.0, 2.67, 3.0, 3.67], 0.7, 0.25),
-                (KICK,    [0.0, 2.5],           0.5, 0.25),
-                (HIHAT,   [1.0, 3.0],           0.4, 0.125),
-            ],
-            "latin": [
-                (KICK,    [0.0, 1.5, 3.0],      1.0, 0.25),
-                (RIM,     [0.5, 1.0, 2.5, 3.0], 0.8, 0.125),
-                (HIHAT,   [i * 0.25 for i in range(16)], 0.5, 0.0625),
-                (OPEN_HAT,[1.5, 3.5],           0.7, 0.25),
-            ],
-            "trap": [
-                (KICK,    [0.0, 0.75, 2.0],     1.0, 0.25),
-                (SNARE,   [1.0, 3.0],           1.0, 0.25),
-                (HIHAT,   [i * 0.125 for i in range(32)], 0.55, 0.0625),
-                (OPEN_HAT,[1.75, 3.75],         0.7, 0.125),
-            ],
-        }
-
-        if style not in patterns:
-            raise ValueError(f"Unknown style '{style}'. Available: {', '.join(patterns.keys())}")
+        note_map = DRUM_PATTERNS["_note_map"]
+        available_styles = [k for k in DRUM_PATTERNS if not k.startswith("_")]
+        if style not in available_styles:
+            raise ValueError(f"Unknown style '{style}'. Available: {', '.join(available_styles)}")
 
         notes = []
         swing_offset = swing * 0.08  # max 80ms-ish swing
 
-        for pitch, positions, vel_ratio, duration in patterns[style]:
+        for layer in DRUM_PATTERNS[style]:
+            pitch = note_map[layer["note"]]
+            positions = layer["positions"]
+            vel_ratio = layer["velocity_ratio"]
+            duration = layer["duration"]
             for pos in positions:
                 if pos >= clip_length:
                     continue
@@ -1070,18 +1007,11 @@ def register_tools(mcp):
         _validate_range(velocity, "velocity", 1, 127)
         import random
 
-        scales = {
-            "major": [0, 2, 4, 5, 7, 9, 11],
-            "minor": [0, 2, 3, 5, 7, 8, 10],
-            "dorian": [0, 2, 3, 5, 7, 9, 10],
-            "mixolydian": [0, 2, 4, 5, 7, 9, 10],
-            "pentatonic": [0, 3, 5, 7, 10],
-            "blues": [0, 3, 5, 6, 7, 10],
-        }
-        if scale_name not in scales:
-            raise ValueError(f"Unknown scale '{scale_name}'. Available: {', '.join(scales.keys())}")
+        _BASS_SCALES = {"major", "minor", "dorian", "mixolydian", "pentatonic", "blues"}
+        if scale_name not in _BASS_SCALES:
+            raise ValueError(f"Unknown scale '{scale_name}'. Available: {', '.join(sorted(_BASS_SCALES))}")
 
-        intervals = scales[scale_name]
+        intervals = SCALES[scale_name]
         pitches = []
         for oct in range(octave_range + 1):
             for iv in intervals:
@@ -1168,17 +1098,11 @@ def register_tools(mcp):
         if interval not in interval_map:
             raise ValueError(f"Unknown interval '{interval}'. Available: {', '.join(interval_map.keys())}")
 
-        scales = {
-            "major": [0, 2, 4, 5, 7, 9, 11],
-            "minor": [0, 2, 3, 5, 7, 8, 10],
-            "dorian": [0, 2, 3, 5, 7, 9, 10],
-            "mixolydian": [0, 2, 4, 5, 7, 9, 10],
-            "harmonic_minor": [0, 2, 3, 5, 7, 8, 11],
-        }
-        if scale_name not in scales:
-            raise ValueError(f"Unknown scale '{scale_name}'. Available: {', '.join(scales.keys())}")
+        _HARMONY_SCALES = {"major", "minor", "dorian", "mixolydian", "harmonic_minor"}
+        if scale_name not in _HARMONY_SCALES:
+            raise ValueError(f"Unknown scale '{scale_name}'. Available: {', '.join(sorted(_HARMONY_SCALES))}")
 
-        intervals = scales[scale_name]
+        intervals = SCALES[scale_name]
         scale_degrees = interval_map[interval]
 
         # Build full pitch->scale_degree lookup
@@ -1248,20 +1172,10 @@ def register_tools(mcp):
         _validate_index(track_index, "track_index")
         _validate_index(clip_index, "clip_index")
 
-        scales = {
-            "major": [0, 2, 4, 5, 7, 9, 11],
-            "minor": [0, 2, 3, 5, 7, 8, 10],
-            "dorian": [0, 2, 3, 5, 7, 9, 10],
-            "mixolydian": [0, 2, 4, 5, 7, 9, 10],
-            "pentatonic": [0, 2, 4, 7, 9],
-            "blues": [0, 3, 5, 6, 7, 10],
-            "harmonic_minor": [0, 2, 3, 5, 7, 8, 11],
-            "chromatic": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
-        }
-        if scale_name not in scales:
-            raise ValueError(f"Unknown scale '{scale_name}'. Available: {', '.join(scales.keys())}")
+        if scale_name not in SCALES:
+            raise ValueError(f"Unknown scale '{scale_name}'. Available: {', '.join(SCALES.keys())}")
 
-        intervals = scales[scale_name]
+        intervals = SCALES[scale_name]
         root_pc = root % 12
 
         def snap_to_scale(pitch):
