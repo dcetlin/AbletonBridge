@@ -7,6 +7,15 @@ from mcp.server.fastmcp import Context
 from MCP_Server.tools._base import _tool_handler, _report_progress
 from MCP_Server.connections.ableton import get_ableton_connection
 from MCP_Server.validation import _validate_index, _validate_range
+from shared.commands import (
+    CreateArrangementAudioClipParams, CreateArrangementMidiClipParams,
+    DeleteArrangementClipParams, DeleteTimeParams, DuplicateTimeParams,
+    GetAllTracksInfoParams, GetArrangementClipInfoParams,
+    GetArrangementClipsParams, GetClipNotesParams, GetCuePointsParams,
+    GetSessionInfoParams, GetSongLengthParams, InsertSilenceParams,
+    MoveArrangementClipParams, SelectSceneParams,
+    SetArrangementClipPropertiesParams, SetDetailClipParams,
+)
 
 logger = logging.getLogger("AbletonBridge")
 

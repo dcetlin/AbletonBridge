@@ -11,6 +11,7 @@ from MCP_Server.connections.m4l import get_m4l_connection
 from MCP_Server.validation import _validate_index, _validate_range
 from MCP_Server.tools.devices import _m4l_batch_set_params
 import MCP_Server.state as state
+from shared.commands import GetTrackInfoParams
 
 logger = logging.getLogger("AbletonBridge")
 

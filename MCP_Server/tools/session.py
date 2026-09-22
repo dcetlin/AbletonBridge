@@ -7,6 +7,25 @@ from MCP_Server.connections.m4l import get_m4l_connection
 from MCP_Server.validation import _validate_index, _validate_index_allow_negative, _validate_range
 import MCP_Server.state as state
 from MCP_Server.dashboard.server import get_m4l_status
+from shared.commands import (
+    CaptureAndInsertSceneParams, ContinuePlayingParams, EndUndoStepParams,
+    GetAllScalesParams, GetBeatTimeParams, GetCountInDurationParams,
+    GetHighlightedClipSlotParams, GetLinkStatusParams, GetLoopInfoParams,
+    GetRecordingStatusParams, GetSelectionStateParams, GetSessionInfoParams,
+    GetSmpteTimeParams, GetSongDataParams, GetSongFilePathParams,
+    GetSongLengthParams, GetSongScaleParams, GetSongSettingsParams,
+    GetSongTransportParams, GetViewStateParams, JumpToCueParams,
+    NavigatePlaybackParams, NudgeTempoParams, ReEnableAutomationParams,
+    RedoParams, SetArrangementOverdubParams, SetDrawModeParams,
+    SetFollowSongParams, SetLinkEnabledParams, SetMetronomeParams,
+    SetOrDeleteCueParams, SetPlaybackPositionParams, SetPunchParams,
+    SetSessionRecordParams, SetSongDataParams, SetSongLoopParams,
+    SetSongScaleParams, SetSongSettingsParams, SetSongTimeParams,
+    SetTempoParams, SetViewParams, StartArrangementRecordingParams,
+    StartPlaybackParams, StopAllClipsParams, StopArrangementRecordingParams,
+    StopPlaybackParams, TapTempoParams, TriggerSessionRecordParams,
+    UndoParams, ZoomScrollViewParams,
+)
 
 
 def register_tools(mcp):

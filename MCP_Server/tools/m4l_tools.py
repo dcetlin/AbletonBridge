@@ -7,6 +7,10 @@ from MCP_Server.tools._base import _tool_handler, _m4l_result
 from MCP_Server.connections.m4l import get_m4l_connection
 from MCP_Server.connections.ableton import get_ableton_connection
 from MCP_Server.validation import _validate_index, _validate_range
+from shared.commands import (
+    CreateTakeLaneParams, GetCuePointsParams, GetGroovePoolParams,
+    GetTakeLanesParams, GetTrackInfoParams,
+)
 
 
 def register_tools(mcp):

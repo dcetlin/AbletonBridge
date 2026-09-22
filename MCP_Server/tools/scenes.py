@@ -5,6 +5,12 @@ from mcp.server.fastmcp import Context
 from MCP_Server.tools._base import _tool_handler
 from MCP_Server.connections.ableton import get_ableton_connection
 from MCP_Server.validation import _validate_index
+from shared.commands import (
+    CreateSceneParams, DeleteSceneParams, DuplicateSceneParams,
+    FireSceneParams, FireSceneAsSelectedParams, SetSceneNameParams,
+    SetSceneColorParams, SetSceneTempoParams, GetSceneFollowActionsParams,
+    SetSceneFollowActionsParams,
+)
 
 
 def register_tools(mcp):
@@ -18,7 +24,8 @@ def register_tools(mcp):
         - name: Optional name for the new scene
         """
         ableton = get_ableton_connection()
-        result = ableton.send_command("create_scene", {"index": index, "name": name})
+        cmd_params: CreateSceneParams = {"index": index, "name": name}
+        result = ableton.send_command("create_scene", cmd_params)
         scene_name = result.get("name", "")
         scene_idx = result.get("index", index)
         label = f" '{scene_name}'" if scene_name else ""
@@ -34,7 +41,8 @@ def register_tools(mcp):
         """
         _validate_index(scene_index, "scene_index")
         ableton = get_ableton_connection()
-        result = ableton.send_command("delete_scene", {"scene_index": scene_index})
+        cmd_params: DeleteSceneParams = {"scene_index": scene_index}
+        result = ableton.send_command("delete_scene", cmd_params)
         name = result.get("scene_name", "")
         return f"Deleted scene {scene_index}: '{name}'"
 
@@ -48,7 +56,8 @@ def register_tools(mcp):
         """
         _validate_index(scene_index, "scene_index")
         ableton = get_ableton_connection()
-        result = ableton.send_command("duplicate_scene", {"scene_index": scene_index})
+        cmd_params: DuplicateSceneParams = {"scene_index": scene_index}
+        result = ableton.send_command("duplicate_scene", cmd_params)
         new_idx = result.get("new_index", scene_index + 1)
         name = result.get("name", "")
         return f"Duplicated scene {scene_index} → new scene {new_idx}: '{name}'"
@@ -63,7 +72,8 @@ def register_tools(mcp):
         """
         _validate_index(scene_index, "scene_index")
         ableton = get_ableton_connection()
-        ableton.send_command("fire_scene", {"scene_index": scene_index})
+        cmd_params: FireSceneParams = {"scene_index": scene_index}
+        ableton.send_command("fire_scene", cmd_params)
         return f"Fired scene {scene_index}"
 
     @mcp.tool()
@@ -76,7 +86,8 @@ def register_tools(mcp):
         """
         _validate_index(scene_index, "scene_index")
         ableton = get_ableton_connection()
-        ableton.send_command("fire_scene_as_selected", {"scene_index": scene_index})
+        cmd_params: FireSceneAsSelectedParams = {"scene_index": scene_index}
+        ableton.send_command("fire_scene_as_selected", cmd_params)
         return f"Fired scene {scene_index} (selection unchanged)"
 
     @mcp.tool()
@@ -90,7 +101,8 @@ def register_tools(mcp):
         """
         _validate_index(scene_index, "scene_index")
         ableton = get_ableton_connection()
-        ableton.send_command("set_scene_name", {"scene_index": scene_index, "name": name})
+        cmd_params: SetSceneNameParams = {"scene_index": scene_index, "name": name}
+        ableton.send_command("set_scene_name", cmd_params)
         return f"Set scene {scene_index} name to '{name}'"
 
     @mcp.tool()
@@ -106,10 +118,11 @@ def register_tools(mcp):
         if color_index < 0 or color_index > 69:
             raise ValueError("color_index must be 0-69")
         ableton = get_ableton_connection()
-        result = ableton.send_command("set_scene_color", {
+        cmd_params: SetSceneColorParams = {
             "scene_index": scene_index,
             "color_index": color_index,
-        })
+        }
+        result = ableton.send_command("set_scene_color", cmd_params)
         return f"Set scene {scene_index} color to index {result.get('color_index', color_index)}"
 
     @mcp.tool()
@@ -128,10 +141,11 @@ def register_tools(mcp):
         if tempo != 0 and (tempo < 20 or tempo > 999):
             raise ValueError("Tempo must be 0 (clear) or 20-999 BPM")
         ableton = get_ableton_connection()
-        result = ableton.send_command("set_scene_tempo", {
+        cmd_params: SetSceneTempoParams = {
             "scene_index": scene_index,
             "tempo": tempo,
-        })
+        }
+        result = ableton.send_command("set_scene_tempo", cmd_params)
         if tempo == 0:
             return f"Cleared tempo override for scene {scene_index}"
         return f"Set scene {scene_index} tempo to {result.get('tempo', tempo)} BPM"
@@ -148,7 +162,8 @@ def register_tools(mcp):
         """
         _validate_index(scene_index, "scene_index")
         ableton = get_ableton_connection()
-        result = ableton.send_command("get_scene_follow_actions", {"scene_index": scene_index})
+        cmd_params: GetSceneFollowActionsParams = {"scene_index": scene_index}
+        result = ableton.send_command("get_scene_follow_actions", cmd_params)
         return json.dumps(result)
 
     @mcp.tool()
@@ -177,7 +192,7 @@ def register_tools(mcp):
         - follow_action_linked: Link follow action time to clip length
         """
         _validate_index(scene_index, "scene_index")
-        params = {"scene_index": scene_index}
+        params: SetSceneFollowActionsParams = {"scene_index": scene_index}
         for key, val in [
             ("follow_action_0", follow_action_0),
             ("follow_action_1", follow_action_1),
