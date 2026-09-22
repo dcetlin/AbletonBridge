@@ -10,7 +10,7 @@ Create tracks, write MIDI, design sounds, mix, automate, browse instruments, nav
 
 ## Architecture
 
-AbletonBridge is a 3-layer system with dual transport protocols:
+AbletonBridge is a 3-layer system:
 
 ```text
 Claude AI  <──MCP──>  MCP Server  <──TCP :9877──>  Remote Script (Control Surface)
@@ -64,6 +64,17 @@ MCP_Server/                          Remote Script/
 │                                        └── lom.py        (3 commands)
 └── prompts.py       (4 workflows)
 ```
+
+### Architecture diagrams
+
+Six Mermaid diagrams in [`diagrams/`](diagrams/) cover the system in detail:
+
+1. [Deployment topology](diagrams/1-deployment-topology.png) — layers, ports, protocols
+2. [Command dispatch flow](diagrams/2-command-dispatch-flow.png) — TCP dispatch through the `@command` registry
+3. [UDP real-time flow](diagrams/3-udp-realtime-flow.png) — fire-and-forget parameter path
+4. [Codegen pipeline](diagrams/4-codegen-pipeline.png) — `@command` → TypedDict → fingerprint test
+5. [M4L bridge flow](diagrams/5-m4l-bridge-flow.png) — OSC chunked protocol
+6. [Error boundary layers](diagrams/6-error-boundary-layers.png) — structured error classification
 
 ---
 
