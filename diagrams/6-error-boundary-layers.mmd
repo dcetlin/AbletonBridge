@@ -3,15 +3,19 @@ title: "Error Boundary Layers"
 ---
 flowchart TD
     subgraph "Layer 1: MCP Tool (MCP_Server/tools/)"
-        L1["@_tool_handler<br/>catches Exception → tool_error JSON<br/>catches ValueError → 'Invalid input'<br/>catches TimeoutError → 'Timed out'<br/>catches ConnectionError → 'M4L not available'"]
+        L1["@_tool_handler<br/>catches TimeoutError → 'Tool timed out'<br/>catches ValueError → 'Invalid input'<br/>catches ConnectionError → 'M4L not available'<br/>catches Exception → 'Error: ...'<br/>all → tool_error JSON string"]
     end
 
     subgraph "Layer 2: TCP Transport (connections/ableton.py)"
-        L2["AbletonConnection.send_command<br/>handles socket errors + reconnection<br/>parses JSON response<br/>raises on {status: error}"]
+        L2["AbletonConnection.send_command<br/>parses structured error response<br/>attaches .code · .may_have_landed · .ableton_command<br/>raises Exception with structured attrs<br/>handles socket errors + reconnection"]
     end
 
     subgraph "Layer 3: Remote Script (__init__.py)"
-        L3["_dispatch_on_main_thread_impl<br/>schedule_message → queue<br/>catches all handler exceptions<br/>_safe_error_message passes through:<br/>ValueError, IndexError, TypeError, KeyError<br/>generic message for all others"]
+        L3["_dispatch_on_main_thread_impl<br/>schedule_message → queue<br/>catches all handler exceptions<br/>_structured_error classifies by type →<br/>9 typed codes + may_have_landed"]
+    end
+
+    subgraph "Layer 3a: Structured Error Classification"
+        L3A["_structured_error(e, command_type, may_have_landed)<br/>ValueError → invalid_input<br/>IndexError → index_out_of_range<br/>KeyError → missing_parameter<br/>TypeError → type_error<br/>AttributeError → attribute_error<br/>NotImplementedError → not_implemented<br/>RuntimeError → runtime_error<br/>queue.Empty → timeout<br/>* → internal_error"]
     end
 
     subgraph "Layer 4: Registry (handlers/_registry.py)"
@@ -25,13 +29,15 @@ flowchart TD
     L1 -->|"send_command"| L2
     L2 -->|"TCP JSON"| L3
     L3 -->|"dispatch()"| L4
+    L3 -->|"on exception"| L3A
     L4 -->|"handler()"| L5
 
     L5 -.->|"exception bubbles up"| L4
     L4 -.->|"exception bubbles up"| L3
-    L3 -.->|"sanitized to JSON"| L2
-    L2 -.->|"parsed response"| L1
+    L3A -.->|"{status, code, message,<br/>command, may_have_landed}"| L2
+    L2 -.->|"Exception with .code,<br/>.may_have_landed attrs"| L1
     L1 -.->|"tool_error JSON"| CC["Claude Code"]
 
     style L1 fill:#c66,stroke:#333,color:#fff
     style L3 fill:#c66,stroke:#333,color:#fff
+    style L3A fill:#c96,stroke:#333,color:#fff

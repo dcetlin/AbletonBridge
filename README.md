@@ -2,7 +2,7 @@
 
 **AI-to-Ableton Live integration through the Model Context Protocol.**
 
-AbletonBridge gives Claude (or any MCP client) direct control over Ableton Live sessions — 351 MCP tools backed by 260+ handler commands via a `@command` registry, three transport layers (TCP, UDP/OSC, HTTP), TypedDict codegen, and structured error responses.
+AbletonBridge gives Claude (or any MCP client) direct control over Ableton Live sessions — 353 MCP tools backed by 262 handler commands via a `@command` registry, three transport layers (TCP, UDP/OSC, HTTP), TypedDict codegen, and structured error responses.
 
 Create tracks, write MIDI, design sounds, mix, automate, browse instruments, navigate deep into device chains and modulation matrices — all through natural language.
 
@@ -80,12 +80,12 @@ Six Mermaid diagrams in [`diagrams/`](diagrams/) cover the system in detail:
 
 ## Key Features
 
-- **260+ handler commands** via `@command` registry with introspected param specs, TypedDict codegen, and fingerprint-based staleness detection
-- **351 MCP tools** across 17 modules — session, tracks, clips, mixer, devices, browser, automation, arrangement, scenes, creative generation, M4L deep access, snapshots, audio, grid notation, MIDI CC, LOM, and compound workflows
+- **262 handler commands** via `@command` registry with introspected param specs, TypedDict codegen, and fingerprint-based staleness detection
+- **353 MCP tools** across 17 modules — session, tracks, clips, mixer, devices, browser, automation, arrangement, scenes, creative generation, M4L deep access, snapshots, audio, grid notation, MIDI CC, LOM, and compound workflows
 - **Generic LOM access** — `lom_get`, `lom_set`, `lom_describe` for arbitrary Live Object Model traversal with path resolution, depth-bounded introspection, and a write denylist
 - **Per-point interpolation** — automation commands accept per-point `interpolation` overrides (linear/hold/custom exponent) with configurable resolution
 - **Step-budgeted automation** — `_reduce_automation_points` with collinear-point elimination keeps large automation writes within Ableton's dispatch timeout
-- **Structured error responses** — Remote Script `_structured_error` classifies exceptions into 8 codes (`invalid_input`, `index_out_of_range`, `missing_parameter`, `type_error`, `attribute_error`, `not_implemented`, `timeout`, `internal_error`) with optional `may_have_landed` flag for non-idempotent failures
+- **Structured error responses** — Remote Script `_structured_error` classifies exceptions into 9 codes (`invalid_input`, `index_out_of_range`, `missing_parameter`, `type_error`, `attribute_error`, `not_implemented`, `runtime_error`, `timeout`, `internal_error`) with optional `may_have_landed` flag for non-idempotent failures
 - **3-layer transport** — TCP for commands + UDP for real-time parameters (Remote Script), UDP/OSC for M4L deep access, HTTP for dashboard
 - **MIDI CC control** — 100 built-in CC maps for Arturia V Collection and NI Komplete via virtual MIDI port
 - **Chunked async responses** — large payloads split, base64-encoded, reassembled with duplicate detection and missing-chunk reporting

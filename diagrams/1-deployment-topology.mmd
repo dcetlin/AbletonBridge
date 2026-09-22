@@ -9,10 +9,10 @@ graph TD
     subgraph "MCP Server Process — Python 3.14 (system)"
         FM["FastMCP Server<br/>stdio transport"]
         TH["_tool_handler<br/>semaphore · timeout · error wrap"]
-        TOOLS["16 tool modules<br/>359 @mcp.tool() functions"]
+        TOOLS["17 tool modules<br/>353 @mcp.tool() functions"]
         VAL["validation.py<br/>index · range · RDP reduction"]
         DATA["data/<br/>device_properties · scales · patterns"]
-        SHARED["shared/commands.py<br/>255 TypedDicts (codegen)"]
+        SHARED["shared/commands.py<br/>260 TypedDicts (codegen)"]
     end
 
     subgraph "Transport Layer"
@@ -24,8 +24,8 @@ graph TD
 
     subgraph "Ableton Live Process — Python 3.11 (embedded)"
         RS["Remote Script<br/>__init__.py<br/>TCP + UDP server"]
-        REG["_registry.py<br/>@command · dispatch()<br/>255 commands"]
-        HAND["11 handler modules<br/>255 @command functions"]
+        REG["_registry.py<br/>@command · dispatch()<br/>262 commands"]
+        HAND["12 handler modules<br/>262 @command functions"]
         LOM["Live Object Model<br/>Ableton C++ API"]
     end
 
