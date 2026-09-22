@@ -1,136 +1,131 @@
 # AbletonBridge
 
-**359 tools connecting Claude AI to Ableton Live** (340 core + 19 optional ElevenLabs voice/SFX tools)
+**AI-to-Ableton Live integration through the Model Context Protocol.**
 
-AbletonBridge gives Claude direct control over your Ableton Live session through the Model Context Protocol. Create tracks, write MIDI, design sounds, mix, automate, browse instruments, snapshot presets, and navigate deep into device chains and modulation matrices — all through natural language conversation.
+AbletonBridge gives Claude (or any MCP client) direct control over Ableton Live sessions — 351 MCP tools backed by 260+ handler commands via a `@command` registry, dual-protocol transport (TCP + M4L/OSC), TypedDict codegen, and structured error codes.
 
----
-
-## What It Can Do
-
-**Music Creation** — *"Create a MIDI track, load Operator, and write an 8-bar bass line in E minor"* · *"Build a Metro-Boomin-style 808 beat using grid notation"* · *"Make a 4-bar jazz chord progression — Cm7, Fm7, Dm7b5, G7 — with voice leading"*
-
-**Sound Design** — *"Load Wavetable and design a warm detuned supersaw pad"* · *"Snapshot the current preset, tweak it brighter, then morph back 50%"* · *"Set the Compressor side-chain input to the kick drum track"*
-
-**Deep Device Access** (M4L) — *"Show me what's inside the Drum Rack — all chains and nested devices"* · *"Set Wavetable's LFO1 modulation to filter cutoff at 0.6"* · *"Analyze the full spectrum of track 5 using cross-track routing"*
-
-**Mixing & Arrangement** — *"Create a filter sweep automation from 0.2 to 0.9 over 8 bars"* · *"Create a reverb return track and send drums to it at 30%"* · *"Get arrangement clips on all tracks and give me a structure overview"*
-
-**Creative Generation** — *"Generate a Euclidean rhythm with 16 steps and 5 pulses"* · *"Write a I-vi-IV-V chord progression with drop2 voicings"* · *"Create a trap drum pattern, 2 bars, with swing"*
-
-**Session Management** — *"Full overview of all tracks — names, devices, volumes"* · *"Search the browser for 'vocoder' and load it on the master track"* · *"Snapshot every device on tracks 0-3 as 'verse preset'"*
+Create tracks, write MIDI, design sounds, mix, automate, browse instruments, navigate deep into device chains and modulation matrices — all through natural language.
 
 ---
 
 ## Architecture
 
-```text
-Claude AI  <--MCP-->  MCP Server  <--TCP:9877-->  Ableton Remote Script
-                          |            <--UDP:9882-->  (real-time params)
-                          +---<--UDP/OSC:9878/9879-->  M4L Bridge (optional)
-                          +---<--HTTP:9880-->  Web Status Dashboard
+AbletonBridge is a 3-layer system with dual transport protocols:
 
-MCP Server (modular architecture):
-  server.py          — slim orchestrator (~300 lines)
-  state.py           — centralized global state + locks
-  constants.py       — command tiers, browser categories
-  validation.py      — input validation + size limits
-  connections/       — ableton.py (TCP), m4l.py (UDP/OSC)
-  cache/             — browser.py (cache + disk persistence)
-  dashboard/         — html.py, server.py (Starlette)
-  tools/             — 15 modules (340 tools)
-  prompts.py         — 4 MCP prompt templates
-  instructions.py    — server instructions (cross-tool guidance)
+```text
+Claude AI  <──MCP──>  MCP Server  <──TCP :9877──>  Remote Script (Control Surface)
+                          │         <──UDP :9882──>  (real-time parameter updates)
+                          ├──────<──UDP/OSC :9878/9879──>  M4L Bridge (optional)
+                          └──────<──HTTP :9880──>  Web Dashboard
 ```
 
-- **Remote Script** (TCP+UDP) — runs inside Ableton as a Control Surface. TCP:9877 for commands, UDP:9882 for real-time parameter updates at 50+ Hz.
-- **M4L Bridge** (UDP/OSC) — optional Audio Effect device for hidden parameters, rack chain internals, audio analysis, modulation matrices, event monitoring, and more.
-- **ElevenLabs Server** (optional) — 19 tools for AI voice generation, sound effects, voice cloning. Requires `ELEVENLABS_API_KEY`.
-- **MCP Server Instructions** — cross-tool guidance injected into the AI's context on every connection. Covers workflow sequencing, compound tool preferences, M4L fallback logic, and input constraints.
-- **MCP Resources** — `ableton://session`, `ableton://tracks`, `ableton://capabilities` for direct data access.
-- **MCP Prompts** — guided workflows: `create-beat`, `mix-track`, `sound-design`, `arrange-section`.
-- **Web Dashboard** — real-time status, tool metrics, and server logs at `http://127.0.0.1:9880`.
+### Transport tiers
+
+| Tier | Protocol | Latency | Use |
+|------|----------|---------|-----|
+| **TCP** | `:9877` | Command/response, newline-delimited JSON | All 260+ commands — session, tracks, clips, devices, automation |
+| **UDP real-time** | `:9882` | Fire-and-forget | Continuous parameter updates at 50+ Hz (knob sweeps, faders) |
+| **UDP/OSC (M4L)** | `:9878`/`:9879` | Chunked, base64-encoded | Hidden parameters, rack internals, audio analysis, modulation matrices |
+| **HTTP** | `:9880` | Polling (3s) | Web dashboard — tool metrics, server logs, connection status |
+
+### Command taxonomy
+
+The `@command` registry on the Remote Script classifies every handler:
+
+| Property | Values | Purpose |
+|----------|--------|---------|
+| `modifying` | `True`/`False` | Write vs. read — controls dispatch delay tier |
+| `destructive` | `True`/`False` | Irreversible (delete, remove) — affects retry policy |
+| `idempotent` | `True`/`False` | Safe to retry — non-idempotent commands get `max_attempts=1` |
+
+Modifying commands are further bucketed into delay tiers (0 ms / 10 ms / 20 ms) based on how much settling time Ableton needs after the operation.
+
+### Module structure
+
+```text
+MCP_Server/                          Remote Script/
+├── server.py        (orchestrator)  ├── __init__.py    (Control Surface + dispatch)
+├── state.py         (global state)  └── handlers/
+├── constants.py     (tiers, limits)     ├── _registry.py  (@command decorator)
+├── validation.py    (input guards)      ├── _helpers.py   (shared utilities)
+├── instructions.py  (server guidance)   ├── session.py    (65 commands)
+├── connections/     (TCP, M4L)          ├── clips.py      (47 commands)
+├── cache/           (browser, disk)     ├── devices.py    (35 commands)
+├── dashboard/       (Starlette)         ├── tracks.py     (29 commands)
+├── tools/           (17 modules)        ├── mixer.py      (23 commands)
+│   ├── session.py   (56 tools)          ├── automation.py (14 commands)
+│   ├── clips.py     (54 tools)          ├── browser.py    (12 commands)
+│   ├── devices.py   (44 tools)          ├── scenes.py     (10 commands)
+│   ├── m4l_tools.py (40 tools)          ├── midi.py       (9 commands)
+│   ├── ...          (17 total)          ├── audio.py      (7 commands)
+│   └── lom.py       (3 tools)          ├── arrangement.py(6 commands)
+│                                        └── lom.py        (3 commands)
+└── prompts.py       (4 workflows)
+```
 
 ---
 
-## Tool Overview (340 core + 19 optional = 359 total)
+## Key Features
 
-| Area | Examples | Count |
-|---|---|---|
-| Session & Transport | tempo, play/record, capture, Link, punch, playback position | ~53 |
-| Tracks & Mixing | create/rename tracks, routing, monitoring, groups, implicit arm | ~29 |
-| Clips & Scenes | create/edit clips, follow actions, warp markers | ~54 |
-| Scenes | create/delete/duplicate, fire, name, color, tempo, follow actions | ~10 |
-| Mixer | unified set_mixer, batch_set_mixer, sends, crossfader | ~13 |
-| Devices & Parameters | load/configure, rack chains, rack macros, sidechain, plugin info | ~45 |
-| Browser & Presets | search/load instruments, presets, device presets | ~12 |
-| Automation | clip/track automation, envelopes, curves | ~12 |
-| Arrangement | arrangement clips, time editing, composition analysis | ~17 |
-| Creative Generation | Euclidean rhythms, chords, drums, arpeggios, bass, transforms | ~17 |
-| Deep Access (M4L) | hidden params, chain internals, audio analysis, note surgery | ~40 |
-| Snapshots & Macros | snapshot/restore, morph, macros, parameter maps | ~18 |
-| Audio Analysis | audio clip info, track meters, input meters | ~3 |
-| Grid Notation | ASCII drum/melodic pattern I/O | ~2 |
-| Compound Workflows | create instrument/drum track, batch mixer, effect chains | ~11 |
-| **Core subtotal** | | **340** |
-| ElevenLabs (optional) | voice generation, SFX, cloning, transcription | 19 |
-| **Total** | | **359** |
-
-See [CHANGELOG.md](CHANGELOG.md) for the complete per-tool breakdown.
+- **260+ handler commands** via `@command` registry with introspected param specs, TypedDict codegen, and fingerprint-based staleness detection
+- **351 MCP tools** across 17 modules — session, tracks, clips, mixer, devices, browser, automation, arrangement, scenes, creative generation, M4L deep access, snapshots, audio, grid notation, MIDI CC, LOM, and compound workflows
+- **Generic LOM access** — `lom_get`, `lom_set`, `lom_describe` for arbitrary Live Object Model traversal with path resolution, depth-bounded introspection, and a write denylist
+- **Per-point interpolation** — automation commands accept per-point `interpolation` overrides (linear/hold/custom exponent) with configurable resolution
+- **Step-budgeted automation** — `_reduce_automation_points` with collinear-point elimination keeps large automation writes within Ableton's dispatch timeout
+- **Structured error codes** — `_structured_error` classifies exceptions (`invalid_input`, `not_found`, `timeout`, `internal_error`) with optional `may_have_landed` flag for non-idempotent failures
+- **Dual-protocol transport** — TCP for commands, UDP for real-time parameters, UDP/OSC for M4L deep access
+- **MIDI CC control** — 100 built-in CC maps for Arturia V Collection and NI Komplete via virtual MIDI port
+- **Chunked async responses** — large payloads split, base64-encoded, reassembled with duplicate detection and missing-chunk reporting
+- **Tiered command delays** — 3-tier system (0 / 10 / 20 ms) with `asyncio.Semaphore(1)` serialization replacing large defensive delays
+- **Disk-persisted browser cache** — 6,400+ items in gzip, ~50 ms startup
+- **CI via GitHub Actions** — pytest on Python 3.12 + 3.14, pyright type-checking with ratcheted error baseline
 
 ---
 
-## Stability & Reliability
+## Installation
 
-AbletonBridge is built to handle real-world sessions without crashing Ableton:
+### Prerequisites
 
-- **Chunked async LiveAPI** — large device discovery split into 4-param chunks with 50ms delays
-- **Chunked response protocol** — large responses split, base64-encoded, reassembled automatically
-- **URL-safe base64** — `A-Z a-z 0-9 - _` only; avoids Max OSC routing conflicts
-- **Deferred processing** — all M4L outlets use `Task.schedule()` to avoid blocking audio/UI thread
-- **LiveAPI cursor reuse** — `goto()` reuses 3 cursors instead of creating ~193 new instances
-- **Fire-and-forget writes** — no post-set readback (the #1 crash pattern)
-- **Command-specific timeouts** — per-command timeouts (e.g., freeze_track → 60s, load_instrument → 30s) instead of fixed 10s/15s
-- **Socket drain** — clears stale UDP responses before each command
-- **Singleton guard** — exclusive port lock prevents duplicate server instances
-- **Disk-persisted cache** — 6,400+ browser items in gzip; instant startup (~50ms)
-- **Auto-reconnect** — exponential backoff for TCP and UDP connections
-- **Tiered command delays** — 3-tier system (0ms/10ms/20ms) eliminates unnecessary waits for property setters
-- **Async tool handlers** — all tools run via `asyncio.to_thread()`, preventing sync I/O from blocking the event loop
-- **Concurrency control** — async semaphore serializes tool dispatch; threading locks protect TCP and UDP sockets from corruption
-- **Tool execution timeout** — 120s hard timeout prevents stuck tools from blocking the entire pipeline
-- **Bounded thread pool** — explicit 8-worker limit prevents resource exhaustion during rapid tool call bursts
-- **Standardized responses** — all 340 tools return consistent `tool_success()`/`tool_error()` JSON envelopes via decorator
-- **Chunk reassembly hardening** — duplicate detection, progress logging, missing chunk index reporting
-- **Parameter resolution cache** — 500-entry FIFO cache for brute-force display→value resolution (O(1) after first call)
-- **Effect chain persistence** — saved templates survive server restarts via `~/.ableton-bridge/chain_templates.json`
-- **214 tests** — 11 test files covering connections, M4L, cache, creative tools, workflows, and validation edge cases
+- Python 3.10+
+- Ableton Live 10, 11, or 12
+- Any MCP client (Claude Desktop, Cursor, Claude Code)
 
----
+### Setup
 
-## Flexibility
+1. **Install the MCP server:**
 
-- **Any MCP client** — Claude Desktop, Cursor, Claude Code, or any MCP-compatible tool
-- **300 tools without Max for Live** — full session control via TCP/UDP Remote Script; M4L is optional
-- **+40 deep-access tools with M4L** — hidden parameters, rack internals, audio analysis, event monitoring
-- **+19 optional ElevenLabs tools** — AI voice generation, sound effects, cloning, transcription
-- **Ableton Live 10, 11, and 12** — graceful API fallbacks for version-specific features
-- **Cross-platform** — Windows and macOS
-- **Quick setup** — `uv run` for server, one folder for Remote Script, one M4L device for bridge
+   ```bash
+   pip install -e .
+   ```
 
----
+2. **Install the Remote Script:**
 
-## Version
+   Copy `AbletonBridge_Remote_Script/` to your Ableton MIDI Remote Scripts folder:
+   - **macOS:** `~/Music/Ableton/User Library/Remote Scripts/`
+   - **Windows:** `~\Documents\Ableton\User Library\Remote Scripts\`
 
-**v4.0.0** — see [CHANGELOG.md](CHANGELOG.md) for full release history.
+   Enable it in Ableton → Preferences → Link, Tempo & MIDI → Control Surface.
 
----
+3. **Install the M4L Bridge (optional):**
 
-## Optional: ElevenLabs Voice & SFX Server
+   Drop `AbletonBridge_M4L/AbletonBridge.amxd` onto any track as an Audio Effect.
 
-19 tools for AI voice generation, sound effects, voice cloning, and transcription. Generated audio saves to your Ableton User Library.
+4. **Add to your MCP client config:**
 
-See [installation_process.txt](installation_process.txt) for setup instructions, or add to your MCP config:
+   ```json
+   {
+     "mcpServers": {
+       "ableton-bridge": {
+         "command": "uv",
+         "args": ["run", "--directory", "/path/to/AbletonBridge", "python", "-m", "MCP_Server"]
+       }
+     }
+   }
+   ```
+
+### Optional: ElevenLabs Voice & SFX
+
+19 additional tools for AI voice generation, sound effects, and cloning. Requires `ELEVENLABS_API_KEY`.
 
 ```json
 {
@@ -141,3 +136,96 @@ See [installation_process.txt](installation_process.txt) for setup instructions,
   }
 }
 ```
+
+### Optional: MIDI CC Plugin Control
+
+For direct CC control of plugin parameters (Arturia V Collection, NI Komplete):
+
+```bash
+pip install -e ".[midi_cc]"
+```
+
+---
+
+## Usage
+
+**Music creation** — *"Create a MIDI track, load Operator, and write an 8-bar bass line in E minor"*
+
+**Sound design** — *"Load Wavetable and design a warm detuned supersaw pad"*
+
+**Deep device access** — *"Show me what's inside the Drum Rack — all chains and nested devices"*
+
+**Mixing** — *"Create a filter sweep automation from 0.2 to 0.9 over 8 bars with linear interpolation"*
+
+**Generic LOM** — *"Use lom_describe on tracks[0].devices[0] at depth 2 to explore its properties"*
+
+**Creative generation** — *"Generate a Euclidean rhythm with 16 steps and 5 pulses"*
+
+### MCP Resources
+
+- `ableton://session` — current session state
+- `ableton://tracks` — all track information
+- `ableton://capabilities` — server version, connections, cache status
+
+### MCP Prompts
+
+Guided workflows: `create-beat`, `mix-track`, `sound-design`, `arrange-section`.
+
+---
+
+## Development
+
+### Running tests
+
+```bash
+pip install -e ".[dev]"
+python -m pytest tests/ -x -q
+```
+
+286 tests across 18 test files covering validation, connections, M4L, browser cache, creative tools, workflows, registry consistency, error codes, LOM, automation pipeline, and annotations.
+
+### Regenerating TypedDicts
+
+After changing handler function signatures:
+
+```bash
+python scripts/generate_command_types.py
+```
+
+This updates `shared/commands.py` (260 TypedDicts, ~2000 lines) from the `@command` registry. The registry fingerprint test (`test_registry.py`) will fail if the generated file is stale.
+
+### Type checking
+
+```bash
+pip install pyright==1.1.400
+pyright
+```
+
+CI enforces a ratcheted error baseline (currently 195).
+
+### Project structure
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full module dependency graph, communication protocols, and design decisions.
+
+---
+
+## Compatibility
+
+- **Ableton Live 10, 11, 12** — graceful API fallbacks for version-specific features
+- **macOS and Windows**
+- **Any MCP client** — Claude Desktop, Cursor, Claude Code, or any MCP-compatible tool
+- **Python 3.10+** — CI tests on 3.12 and 3.14
+
+---
+
+## Version
+
+**v4.0.0** — see [CHANGELOG.md](CHANGELOG.md) for full release history.
+
+---
+
+## Attribution
+
+Built on the original [AbletonBridge](https://github.com/hidingwill/AbletonBridge) by William De Simone ([@hidingwill](https://github.com/hidingwill)). Step-budgeted automation, per-point interpolation, and generic LOM access patterns adapted from [Live Maestro](https://github.com/romanstark/live-maestro) by Roman Stark.
+
+Licensed under MIT.
