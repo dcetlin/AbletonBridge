@@ -3,8 +3,10 @@
 from __future__ import absolute_import, print_function, unicode_literals
 
 from ._helpers import get_track, get_clip
+from ._registry import command
 
 
+@command("get_session_info")
 def get_session_info(song, ctrl=None):
     """Get information about the current session."""
     try:
@@ -27,6 +29,7 @@ def get_session_info(song, ctrl=None):
         raise
 
 
+@command("set_tempo", modifying=True)
 def set_tempo(song, tempo, ctrl=None):
     """Set the tempo of the session (20.0-999.0 BPM)."""
     try:
@@ -42,6 +45,7 @@ def set_tempo(song, tempo, ctrl=None):
         raise
 
 
+@command("start_playback", modifying=True)
 def start_playback(song, ctrl=None):
     """Start playing the session."""
     try:
@@ -53,6 +57,7 @@ def start_playback(song, ctrl=None):
         raise
 
 
+@command("stop_playback", modifying=True)
 def stop_playback(song, ctrl=None):
     """Stop playing the session."""
     try:
@@ -64,6 +69,7 @@ def stop_playback(song, ctrl=None):
         raise
 
 
+@command("get_song_transport")
 def get_song_transport(song, ctrl=None):
     """Get transport/arrangement state."""
     try:
@@ -105,6 +111,7 @@ def get_song_transport(song, ctrl=None):
         raise
 
 
+@command("set_song_time", modifying=True)
 def set_song_time(song, time, ctrl=None):
     """Set the arrangement playhead position."""
     try:
@@ -117,6 +124,7 @@ def set_song_time(song, time, ctrl=None):
         raise
 
 
+@command("set_song_loop", modifying=True)
 def set_song_loop(song, enabled, start, length, ctrl=None):
     """Control arrangement loop bracket."""
     try:
@@ -155,6 +163,7 @@ def set_song_loop(song, enabled, start, length, ctrl=None):
 # --- New commands from MacWhite ---
 
 
+@command("get_loop_info")
 def get_loop_info(song, ctrl=None):
     """Get loop information."""
     try:
@@ -171,6 +180,7 @@ def get_loop_info(song, ctrl=None):
         raise
 
 
+@command("set_loop_start", modifying=True)
 def set_loop_start(song, position, ctrl=None):
     """Set the loop start position."""
     try:
@@ -183,6 +193,7 @@ def set_loop_start(song, position, ctrl=None):
         raise
 
 
+@command("set_loop_end", modifying=True)
 def set_loop_end(song, position, ctrl=None):
     """Set the loop end position."""
     try:
@@ -199,6 +210,7 @@ def set_loop_end(song, position, ctrl=None):
         raise
 
 
+@command("set_loop_length", modifying=True)
 def set_loop_length(song, length, ctrl=None):
     """Set the loop length."""
     try:
@@ -217,6 +229,7 @@ def set_loop_length(song, length, ctrl=None):
         raise
 
 
+@command("set_playback_position", modifying=True)
 def set_playback_position(song, position, ctrl=None):
     """Set the playback position."""
     try:
@@ -228,6 +241,7 @@ def set_playback_position(song, position, ctrl=None):
         raise
 
 
+@command("set_arrangement_overdub", modifying=True)
 def set_arrangement_overdub(song, enabled, ctrl=None):
     """Enable or disable arrangement overdub mode."""
     try:
@@ -239,6 +253,7 @@ def set_arrangement_overdub(song, enabled, ctrl=None):
         raise
 
 
+@command("start_arrangement_recording", modifying=True)
 def start_arrangement_recording(song, ctrl=None):
     """Start recording into the arrangement view."""
     try:
@@ -256,6 +271,7 @@ def start_arrangement_recording(song, ctrl=None):
         raise
 
 
+@command("stop_arrangement_recording", modifying=True)
 def stop_arrangement_recording(song, stop_playback=True, ctrl=None):
     """Stop arrangement recording.
 
@@ -277,6 +293,7 @@ def stop_arrangement_recording(song, stop_playback=True, ctrl=None):
         raise
 
 
+@command("get_recording_status")
 def get_recording_status(song, ctrl=None):
     """Get the current recording status."""
     try:
@@ -306,6 +323,7 @@ def get_recording_status(song, ctrl=None):
         raise
 
 
+@command("set_metronome", modifying=True)
 def set_metronome(song, enabled, ctrl=None):
     """Enable or disable the metronome."""
     try:
@@ -317,6 +335,7 @@ def set_metronome(song, enabled, ctrl=None):
         raise
 
 
+@command("tap_tempo", modifying=True)
 def tap_tempo(song, ctrl=None):
     """Tap tempo to set BPM."""
     try:
@@ -331,6 +350,7 @@ def tap_tempo(song, ctrl=None):
 # --- Undo / Redo ---
 
 
+@command("undo", modifying=True)
 def undo(song, ctrl=None):
     """Undo the last action."""
     try:
@@ -344,6 +364,7 @@ def undo(song, ctrl=None):
         raise
 
 
+@command("redo", modifying=True)
 def redo(song, ctrl=None):
     """Redo the last undone action."""
     try:
@@ -360,6 +381,7 @@ def redo(song, ctrl=None):
 # --- Additional transport ---
 
 
+@command("continue_playing", modifying=True)
 def continue_playing(song, ctrl=None):
     """Continue playback from the current position (does not jump to start)."""
     try:
@@ -371,6 +393,7 @@ def continue_playing(song, ctrl=None):
         raise
 
 
+@command("re_enable_automation", modifying=True)
 def re_enable_automation(song, ctrl=None):
     """Re-enable all automation that has been manually overridden."""
     try:
@@ -385,6 +408,7 @@ def re_enable_automation(song, ctrl=None):
 # --- Cue points ---
 
 
+@command("get_cue_points")
 def get_cue_points(song, ctrl=None):
     """Get all cue points (markers) in the arrangement."""
     try:
@@ -402,6 +426,7 @@ def get_cue_points(song, ctrl=None):
         raise
 
 
+@command("set_or_delete_cue", modifying=True)
 def set_or_delete_cue(song, ctrl=None):
     """Toggle a cue point at the current playback position.
 
@@ -417,6 +442,7 @@ def set_or_delete_cue(song, ctrl=None):
         raise
 
 
+@command("jump_to_cue", modifying=True)
 def jump_to_cue(song, direction, ctrl=None):
     """Jump to the next or previous cue point.
 
@@ -441,6 +467,7 @@ def jump_to_cue(song, direction, ctrl=None):
         raise
 
 
+@command("get_groove_pool")
 def get_groove_pool(song, ctrl=None):
     """Read the groove pool: global groove amount and list of grooves with their params."""
     try:
@@ -471,6 +498,7 @@ def get_groove_pool(song, ctrl=None):
 # --- Song Settings ---
 
 
+@command("get_song_settings")
 def get_song_settings(song, ctrl=None):
     """Get global song settings: time signature, swing, quantization, overdub, etc."""
     try:
@@ -524,6 +552,7 @@ def get_song_settings(song, ctrl=None):
         raise
 
 
+@command("set_song_settings", modifying=True)
 def set_song_settings(song, signature_numerator=None, signature_denominator=None,
                        swing_amount=None, clip_trigger_quantization=None,
                        midi_recording_quantization=None, back_to_arranger=None,
@@ -608,6 +637,7 @@ def set_song_settings(song, signature_numerator=None, signature_denominator=None
 # --- Navigation / Transport actions ---
 
 
+@command("trigger_session_record", modifying=True)
 def trigger_session_record(song, record_length=None, ctrl=None):
     """Trigger a new session recording, optionally with a fixed bar length."""
     try:
@@ -622,6 +652,7 @@ def trigger_session_record(song, record_length=None, ctrl=None):
         raise
 
 
+@command("navigate_playback", modifying=True)
 def navigate_playback(song, action, beats=None, ctrl=None):
     """Navigate playback position: jump_by, scrub_by, or play_selection.
 
@@ -654,6 +685,7 @@ def navigate_playback(song, action, beats=None, ctrl=None):
 # --- View / Selection ---
 
 
+@command("select_scene", modifying=True)
 def select_scene(song, scene_index, ctrl=None):
     """Select a scene by index in Live's Session view."""
     try:
@@ -669,6 +701,7 @@ def select_scene(song, scene_index, ctrl=None):
         raise
 
 
+@command("select_track", modifying=True)
 def select_track(song, track_index, track_type="track", ctrl=None):
     """Select a track by index in Live's Session or Arrangement view.
 
@@ -686,6 +719,7 @@ def select_track(song, track_index, track_type="track", ctrl=None):
         raise
 
 
+@command("set_detail_clip", modifying=True)
 def set_detail_clip(song, track_index, clip_index, ctrl=None):
     """Show a clip in Live's Detail view.
 
@@ -707,6 +741,7 @@ def set_detail_clip(song, track_index, clip_index, ctrl=None):
         raise
 
 
+@command("set_groove_settings", modifying=True)
 def set_groove_settings(song, groove_amount=None, groove_index=None,
                          timing_amount=None, quantization_amount=None,
                          random_amount=None, velocity_amount=None, ctrl=None):
@@ -768,6 +803,7 @@ def set_groove_settings(song, groove_amount=None, groove_index=None,
 # --- Scale & Root Note ---
 
 
+@command("get_song_scale")
 def get_song_scale(song, ctrl=None):
     """Get the song's current scale settings (root note, scale name, mode, intervals)."""
     try:
@@ -787,6 +823,7 @@ def get_song_scale(song, ctrl=None):
         raise
 
 
+@command("set_song_scale", modifying=True)
 def set_song_scale(song, root_note=None, scale_name=None, scale_mode=None, ctrl=None):
     """Set the song's scale settings.
 
@@ -821,6 +858,7 @@ def set_song_scale(song, root_note=None, scale_name=None, scale_mode=None, ctrl=
 # --- Punch In/Out ---
 
 
+@command("set_punch", modifying=True)
 def set_punch(song, punch_in=None, punch_out=None, count_in_duration=None, ctrl=None):
     """Set punch in/out and count-in settings.
 
@@ -858,6 +896,7 @@ def set_punch(song, punch_in=None, punch_out=None, count_in_duration=None, ctrl=
 # --- Selection State ---
 
 
+@command("get_selection_state")
 def get_selection_state(song, ctrl=None):
     """Get what is currently selected in Live's UI."""
     try:
@@ -935,6 +974,7 @@ def get_selection_state(song, ctrl=None):
 # --- Link Sync ---
 
 
+@command("get_link_status")
 def get_link_status(song, ctrl=None):
     """Get Ableton Link sync status."""
     try:
@@ -952,6 +992,7 @@ def get_link_status(song, ctrl=None):
         raise
 
 
+@command("set_link_enabled", modifying=True)
 def set_link_enabled(song, enabled=None, start_stop_sync=None, ctrl=None):
     """Enable/disable Ableton Link and start/stop sync."""
     try:
@@ -974,6 +1015,7 @@ def set_link_enabled(song, enabled=None, start_stop_sync=None, ctrl=None):
 # --- Tuning System ---
 
 
+@command("get_tuning_system")
 def get_tuning_system(song, ctrl=None):
     """Get the current tuning system settings."""
     try:
@@ -1021,6 +1063,7 @@ def get_tuning_system(song, ctrl=None):
 # --- Application View ---
 
 
+@command("get_view_state")
 def get_view_state(song, ctrl=None):
     """Get the current state of Live's application views."""
     try:
@@ -1045,6 +1088,7 @@ def get_view_state(song, ctrl=None):
         raise
 
 
+@command("set_view", modifying=True)
 def set_view(song, action, view_name, ctrl=None):
     """Show, hide, or focus a view in Live's UI.
 
@@ -1075,6 +1119,7 @@ def set_view(song, action, view_name, ctrl=None):
         raise
 
 
+@command("zoom_scroll_view", modifying=True)
 def zoom_scroll_view(song, action, direction, view_name, modifier_pressed=False, ctrl=None):
     """Zoom or scroll a view in Live's UI.
 
@@ -1110,6 +1155,7 @@ def zoom_scroll_view(song, action, direction, view_name, modifier_pressed=False,
 # --- Stop All Clips ---
 
 
+@command("stop_all_clips", modifying=True)
 def stop_all_clips(song, ctrl=None):
     """Stop all playing clips in the Live Set."""
     try:
@@ -1121,6 +1167,7 @@ def stop_all_clips(song, ctrl=None):
         raise
 
 
+@command("capture_and_insert_scene", modifying=True)
 def capture_and_insert_scene(song, ctrl=None):
     """Capture currently playing clips into a new scene."""
     try:
@@ -1137,6 +1184,7 @@ def capture_and_insert_scene(song, ctrl=None):
         raise
 
 
+@command("get_song_file_path")
 def get_song_file_path(song, ctrl=None):
     """Get the file path of the current Live Set."""
     try:
@@ -1147,6 +1195,7 @@ def get_song_file_path(song, ctrl=None):
         raise
 
 
+@command("set_session_record", modifying=True)
 def set_session_record(song, enabled, ctrl=None):
     """Enable or disable session recording."""
     try:
@@ -1164,6 +1213,7 @@ def set_session_record(song, enabled, ctrl=None):
 # --- v4.0: Song-level features ---
 
 
+@command("get_song_data")
 def get_song_data(song, key, ctrl=None):
     """Get persistent data stored in the Live Set by key."""
     try:
@@ -1175,6 +1225,7 @@ def get_song_data(song, key, ctrl=None):
         raise
 
 
+@command("set_song_data", modifying=True)
 def set_song_data(song, key, value, ctrl=None):
     """Store persistent data in the Live Set (survives save/load)."""
     try:
@@ -1186,6 +1237,7 @@ def set_song_data(song, key, value, ctrl=None):
         raise
 
 
+@command("end_undo_step", modifying=True)
 def end_undo_step(song, ctrl=None):
     """End the current undo step, grouping preceding operations into one undo action."""
     try:
@@ -1197,6 +1249,7 @@ def end_undo_step(song, ctrl=None):
         raise
 
 
+@command("get_song_length")
 def get_song_length(song, ctrl=None):
     """Get the total song length and last event time in beats."""
     try:
@@ -1214,6 +1267,7 @@ def get_song_length(song, ctrl=None):
         raise
 
 
+@command("get_beat_time")
 def get_beat_time(song, ctrl=None):
     """Get current song time as structured bars:beats:sub_division:ticks."""
     try:
@@ -1244,6 +1298,7 @@ def get_beat_time(song, ctrl=None):
         raise
 
 
+@command("get_smpte_time")
 def get_smpte_time(song, time_format=0, ctrl=None):
     """Get current song time in SMPTE format.
 
@@ -1265,6 +1320,7 @@ def get_smpte_time(song, time_format=0, ctrl=None):
         raise
 
 
+@command("get_all_scales")
 def get_all_scales(song, ctrl=None):
     """Get all available scale names and intervals."""
     try:
@@ -1283,6 +1339,7 @@ def get_all_scales(song, ctrl=None):
         raise
 
 
+@command("nudge_tempo", modifying=True)
 def nudge_tempo(song, direction, ctrl=None):
     """Nudge the tempo up or down momentarily.
 
@@ -1306,6 +1363,7 @@ def nudge_tempo(song, direction, ctrl=None):
         raise
 
 
+@command("get_appointed_device")
 def get_appointed_device(song, ctrl=None):
     """Get the currently appointed (selected) device."""
     try:
@@ -1324,6 +1382,7 @@ def get_appointed_device(song, ctrl=None):
         raise
 
 
+@command("get_count_in_duration")
 def get_count_in_duration(song, ctrl=None):
     """Get the count-in duration setting (0=None, 1=1 Bar, 2=2 Bars, 3=4 Bars)."""
     try:
@@ -1340,6 +1399,7 @@ def get_count_in_duration(song, ctrl=None):
 # --- v4.0: View & UI Control ---
 
 
+@command("set_draw_mode", modifying=True)
 def set_draw_mode(song, enabled, ctrl=None):
     """Toggle envelope/note draw mode."""
     try:
@@ -1351,6 +1411,7 @@ def set_draw_mode(song, enabled, ctrl=None):
         raise
 
 
+@command("set_follow_song", modifying=True)
 def set_follow_song(song, enabled, ctrl=None):
     """Toggle follow song (auto-scroll arrangement to playback position)."""
     try:
@@ -1362,6 +1423,7 @@ def set_follow_song(song, enabled, ctrl=None):
         raise
 
 
+@command("get_highlighted_clip_slot")
 def get_highlighted_clip_slot(song, ctrl=None):
     """Get the currently highlighted clip slot in Session View."""
     try:
@@ -1378,6 +1440,7 @@ def get_highlighted_clip_slot(song, ctrl=None):
         raise
 
 
+@command("select_device", modifying=True)
 def select_device(song, track_index, device_index, track_type="track", ctrl=None):
     """Select a device in the detail view."""
     try:
@@ -1396,6 +1459,7 @@ def select_device(song, track_index, device_index, track_type="track", ctrl=None
         raise
 
 
+@command("get_selected_parameter")
 def get_selected_parameter(song, ctrl=None):
     """Get the currently selected device parameter."""
     try:
@@ -1415,6 +1479,7 @@ def get_selected_parameter(song, ctrl=None):
         raise
 
 
+@command("select_instrument", modifying=True)
 def select_instrument(song, track_index, ctrl=None):
     """Select the instrument on a track (if it has one)."""
     try:
@@ -1427,6 +1492,7 @@ def select_instrument(song, track_index, ctrl=None):
         raise
 
 
+@command("get_playing_clips")
 def get_playing_clips(song, ctrl=None):
     """Get all currently playing/triggered clips across all tracks."""
     try:

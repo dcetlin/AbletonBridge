@@ -3,8 +3,10 @@
 from __future__ import absolute_import, print_function, unicode_literals
 
 from ._helpers import get_track, get_clip
+from ._registry import command
 
 
+@command("get_track_info")
 def get_track_info(song, track_index, ctrl=None):
     """Get information about a track."""
     try:
@@ -140,6 +142,7 @@ def get_track_info(song, track_index, ctrl=None):
         raise
 
 
+@command("create_midi_track", modifying=True)
 def create_midi_track(song, index, ctrl=None):
     """Create a new MIDI track at the specified index."""
     try:
@@ -153,6 +156,7 @@ def create_midi_track(song, index, ctrl=None):
         raise
 
 
+@command("create_audio_track", modifying=True)
 def create_audio_track(song, index, ctrl=None):
     """Create a new audio track at the specified index."""
     try:
@@ -166,6 +170,7 @@ def create_audio_track(song, index, ctrl=None):
         raise
 
 
+@command("set_track_name", modifying=True)
 def set_track_name(song, track_index, name, ctrl=None):
     """Set the name of a track."""
     try:
@@ -178,6 +183,7 @@ def set_track_name(song, track_index, name, ctrl=None):
         raise
 
 
+@command("delete_track", modifying=True)
 def delete_track(song, track_index, ctrl=None):
     """Delete a track from the session."""
     try:
@@ -195,6 +201,7 @@ def delete_track(song, track_index, ctrl=None):
         raise
 
 
+@command("duplicate_track", modifying=True)
 def duplicate_track(song, track_index, ctrl=None):
     """Duplicate a track with all its devices and clips."""
     try:
@@ -219,6 +226,7 @@ def duplicate_track(song, track_index, ctrl=None):
 # --- New commands from MacWhite ---
 
 
+@command("create_return_track", modifying=True)
 def create_return_track(song, ctrl=None):
     """Create a new return track."""
     try:
@@ -232,6 +240,7 @@ def create_return_track(song, ctrl=None):
         raise
 
 
+@command("set_track_color", modifying=True)
 def set_track_color(song, track_index, color_index, ctrl=None):
     """Set track color."""
     try:
@@ -244,6 +253,7 @@ def set_track_color(song, track_index, color_index, ctrl=None):
         raise
 
 
+@command("arm_track", modifying=True)
 def arm_track(song, track_index, ctrl=None):
     """Arm a track for recording."""
     try:
@@ -262,6 +272,7 @@ def arm_track(song, track_index, ctrl=None):
         raise
 
 
+@command("disarm_track", modifying=True)
 def disarm_track(song, track_index, ctrl=None):
     """Disarm a track from recording."""
     try:
@@ -284,6 +295,7 @@ def disarm_track(song, track_index, ctrl=None):
         raise
 
 
+@command("group_tracks", modifying=True)
 def group_tracks(song, track_indices, name, ctrl=None):
     """Group tracks — not supported by Remote Script API. Selects first track and returns guidance."""
     if not track_indices or len(track_indices) == 0:
@@ -301,6 +313,7 @@ def group_tracks(song, track_indices, name, ctrl=None):
     raise NotImplementedError(msg)
 
 
+@command("get_all_tracks_info")
 def get_all_tracks_info(song, ctrl=None):
     """Get summary info for all tracks at once."""
     try:
@@ -337,6 +350,7 @@ def get_all_tracks_info(song, ctrl=None):
         raise
 
 
+@command("get_return_tracks_info")
 def get_return_tracks_info(song, ctrl=None):
     """Get info for all return tracks."""
     try:
@@ -360,6 +374,7 @@ def get_return_tracks_info(song, ctrl=None):
         raise
 
 
+@command("get_track_routing")
 def get_track_routing(song, track_index, ctrl=None):
     """Get current input/output routing and available options for a track."""
     try:
@@ -406,6 +421,7 @@ def get_track_routing(song, track_index, ctrl=None):
         raise
 
 
+@command("set_track_monitoring", modifying=True)
 def set_track_monitoring(song, track_index, state, ctrl=None):
     """Set the monitoring state of a track.
 
@@ -429,6 +445,7 @@ def set_track_monitoring(song, track_index, state, ctrl=None):
         raise
 
 
+@command("create_midi_track_with_simpler", modifying=True)
 def create_midi_track_with_simpler(song, track_index, clip_index, ctrl=None):
     """Create a new MIDI track with a Simpler containing an audio clip's sample."""
     try:
@@ -451,6 +468,7 @@ def create_midi_track_with_simpler(song, track_index, clip_index, ctrl=None):
         raise
 
 
+@command("get_track_meters")
 def get_track_meters(song, track_index=None, ctrl=None):
     """Get live output meter levels and playing slot info for one or all tracks."""
     try:
@@ -492,6 +510,7 @@ def get_track_meters(song, track_index=None, ctrl=None):
         raise
 
 
+@command("set_track_fold", modifying=True)
 def set_track_fold(song, track_index, fold_state, ctrl=None):
     """Collapse or expand a group track.
 
@@ -514,6 +533,7 @@ def set_track_fold(song, track_index, fold_state, ctrl=None):
         raise
 
 
+@command("set_track_routing", modifying=True)
 def set_track_routing(song, track_index, input_type=None, input_channel=None,
                       output_type=None, output_channel=None, ctrl=None):
     """Set track input/output routing by display name.
@@ -578,6 +598,7 @@ def set_track_routing(song, track_index, input_type=None, input_channel=None,
 # --- Take Lanes ---
 
 
+@command("get_take_lanes")
 def get_take_lanes(song, track_index, ctrl=None):
     """Get take lanes for a track (used for comping in Arrangement)."""
     try:
@@ -615,6 +636,7 @@ def get_take_lanes(song, track_index, ctrl=None):
         raise
 
 
+@command("create_take_lane", modifying=True)
 def create_take_lane(song, track_index, ctrl=None):
     """Create a new take lane for a track."""
     try:
@@ -635,6 +657,7 @@ def create_take_lane(song, track_index, ctrl=None):
 # --- Insert Device by Name (Live 12.3+) ---
 
 
+@command("insert_device", modifying=True)
 def insert_device(song, track_index, device_name, target_index=None, ctrl=None):
     """Insert a native Live device by name into a track's device chain.
 
@@ -681,6 +704,7 @@ def insert_device(song, track_index, device_name, target_index=None, ctrl=None):
 # --- Delete Return Track & Track Collapse ---
 
 
+@command("delete_return_track", modifying=True)
 def delete_return_track(song, return_index, ctrl=None):
     """Delete a return track by index."""
     try:
@@ -699,6 +723,7 @@ def delete_return_track(song, return_index, ctrl=None):
         raise
 
 
+@command("set_track_collapse", modifying=True)
 def set_track_collapse(song, track_index, collapsed, ctrl=None):
     """Set the collapsed state of a track in Arrangement view."""
     try:
@@ -718,6 +743,7 @@ def set_track_collapse(song, track_index, collapsed, ctrl=None):
 # --- v4.0: Track-level missing features ---
 
 
+@command("jump_in_running_session_clip", modifying=True)
 def jump_in_running_session_clip(song, track_index, amount, ctrl=None):
     """Jump forward/backward in the currently playing session clip on a track.
 
@@ -740,6 +766,7 @@ def jump_in_running_session_clip(song, track_index, amount, ctrl=None):
         raise
 
 
+@command("get_track_data")
 def get_track_data(song, track_index, key, ctrl=None):
     """Get persistent data stored on a track (survives save/load)."""
     try:
@@ -758,6 +785,7 @@ def get_track_data(song, track_index, key, ctrl=None):
         raise
 
 
+@command("set_track_data", modifying=True)
 def set_track_data(song, track_index, key, value, ctrl=None):
     """Set persistent data on a track (survives save/load in .als file)."""
     try:
@@ -777,6 +805,7 @@ def set_track_data(song, track_index, key, value, ctrl=None):
         raise
 
 
+@command("set_implicit_arm", modifying=True)
 def set_implicit_arm(song, track_index, enabled, ctrl=None):
     """Set the implicit arm state of a track.
 
@@ -798,6 +827,7 @@ def set_implicit_arm(song, track_index, enabled, ctrl=None):
         raise
 
 
+@command("get_track_input_meters")
 def get_track_input_meters(song, track_index=None, ctrl=None):
     """Get input meter levels for one or all tracks."""
     try:

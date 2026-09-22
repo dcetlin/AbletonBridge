@@ -3,6 +3,7 @@
 from __future__ import absolute_import, print_function, unicode_literals
 
 from ._helpers import get_track
+from ._registry import command
 
 
 def resolve_track(song, track_index, track_type="track"):
@@ -160,6 +161,7 @@ def _resolve_display_value(param, display_string, ctrl=None):
     return _resolve_display_value_bruteforce(param, display_string, ctrl)
 
 
+@command("get_device_parameters")
 def get_device_parameters(song, track_index, device_index, track_type="track", ctrl=None):
     """Get all parameters for a device on any track type."""
     try:
@@ -203,6 +205,7 @@ def get_device_parameters(song, track_index, device_index, track_type="track", c
         raise
 
 
+@command("set_device_parameter", modifying=True)
 def set_device_parameter(
     song, track_index, device_index, parameter_name, value,
     track_type="track", value_display=None, ctrl=None
@@ -265,6 +268,7 @@ def set_device_parameter(
         raise
 
 
+@command("set_device_parameters_batch", modifying=True)
 def set_device_parameters_batch(
     song, track_index, device_index, parameters, track_type="track", ctrl=None
 ):
@@ -341,6 +345,7 @@ def _resolve_device(song, track_index, device_index, track_type="track"):
     return track, devices[device_index]
 
 
+@command("delete_device", modifying=True)
 def delete_device(song, track_index, device_index, track_type="track", ctrl=None):
     """Delete a device from a track."""
     try:
@@ -362,6 +367,7 @@ def delete_device(song, track_index, device_index, track_type="track", ctrl=None
 # --- Macro helpers (new from MacWhite) ---
 
 
+@command("get_macro_values")
 def get_macro_values(song, track_index, device_index, track_type="track", ctrl=None):
     """Get the values of all macro controls on a rack device."""
     try:
@@ -396,6 +402,7 @@ def get_macro_values(song, track_index, device_index, track_type="track", ctrl=N
         raise
 
 
+@command("set_macro_value", modifying=True)
 def set_macro_value(song, track_index, device_index, macro_index, value, track_type="track", ctrl=None):
     """Set the value of a specific macro control on a rack device."""
     try:
@@ -440,6 +447,7 @@ def _get_drum_rack(song, track_index, device_index, track_type="track"):
     return device
 
 
+@command("get_drum_pads")
 def get_drum_pads(song, track_index, device_index, track_type="track", ctrl=None):
     """Get drum pad info from a drum rack device."""
     try:
@@ -470,6 +478,7 @@ def get_drum_pads(song, track_index, device_index, track_type="track", ctrl=None
         raise
 
 
+@command("set_drum_pad", modifying=True)
 def set_drum_pad(song, track_index, device_index, note, mute=None, solo=None, track_type="track", ctrl=None):
     """Set mute/solo on a drum pad by MIDI note number."""
     try:
@@ -498,6 +507,7 @@ def set_drum_pad(song, track_index, device_index, note, mute=None, solo=None, tr
         raise
 
 
+@command("copy_drum_pad", modifying=True)
 def copy_drum_pad(song, track_index, device_index, source_note, dest_note, track_type="track", ctrl=None):
     """Copy drum pad contents from source to destination note."""
     try:
@@ -541,6 +551,7 @@ def _get_rack_device(song, track_index, device_index, track_type="track"):
     return device
 
 
+@command("get_rack_variations")
 def get_rack_variations(song, track_index, device_index, track_type="track", ctrl=None):
     """Read variation count, selected index, and macro mapping status."""
     try:
@@ -559,6 +570,7 @@ def get_rack_variations(song, track_index, device_index, track_type="track", ctr
         raise
 
 
+@command("rack_variation_action", modifying=True)
 def rack_variation_action(song, track_index, device_index, action, variation_index=None, track_type="track", ctrl=None):
     """Perform a variation action on a rack device.
 
@@ -600,6 +612,7 @@ def rack_variation_action(song, track_index, device_index, action, variation_ind
 # --- Simpler-to-Drum-Rack Conversion ---
 
 
+@command("sliced_simpler_to_drum_rack", modifying=True)
 def sliced_simpler_to_drum_rack(song, track_index, device_index, track_type="track", ctrl=None):
     """Convert a sliced Simpler device to a Drum Rack."""
     try:
@@ -654,6 +667,7 @@ def _get_sidechain_io(device):
     return None
 
 
+@command("get_compressor_sidechain")
 def get_compressor_sidechain(song, track_index, device_index, track_type="track", ctrl=None):
     """Get side-chain routing info from a Compressor device."""
     try:
@@ -717,6 +731,7 @@ def get_compressor_sidechain(song, track_index, device_index, track_type="track"
         raise
 
 
+@command("set_compressor_sidechain", modifying=True)
 def set_compressor_sidechain(song, track_index, device_index,
                               input_type=None, input_channel=None, track_type="track", ctrl=None):
     """Set side-chain routing on a Compressor device by display name.
@@ -776,6 +791,7 @@ def _get_eq8_device(song, track_index, device_index, track_type="track"):
     return device
 
 
+@command("get_eq8_properties")
 def get_eq8_properties(song, track_index, device_index, track_type="track", ctrl=None):
     """Get EQ8-specific properties: edit_mode, global_mode, oversample, selected_band."""
     try:
@@ -810,6 +826,7 @@ def get_eq8_properties(song, track_index, device_index, track_type="track", ctrl
         raise
 
 
+@command("set_eq8_properties", modifying=True)
 def set_eq8_properties(song, track_index, device_index,
                         edit_mode=None, global_mode=None,
                         oversample=None, selected_band=None, track_type="track", ctrl=None):
@@ -863,6 +880,7 @@ def _get_hybrid_reverb_device(song, track_index, device_index, track_type="track
     return device
 
 
+@command("get_hybrid_reverb_ir")
 def get_hybrid_reverb_ir(song, track_index, device_index, track_type="track", ctrl=None):
     """Get IR configuration from a Hybrid Reverb device."""
     try:
@@ -911,6 +929,7 @@ def get_hybrid_reverb_ir(song, track_index, device_index, track_type="track", ct
         raise
 
 
+@command("set_hybrid_reverb_ir", modifying=True)
 def set_hybrid_reverb_ir(song, track_index, device_index,
                           ir_category_index=None, ir_file_index=None,
                           ir_attack_time=None, ir_decay_time=None,
@@ -963,6 +982,7 @@ def _get_transmute_device(song, track_index, device_index, track_type="track"):
     return device
 
 
+@command("get_transmute_properties")
 def get_transmute_properties(song, track_index, device_index, track_type="track", ctrl=None):
     """Get Transmute-specific properties: mode indices, polyphony, pitch bend range."""
     try:
@@ -1003,6 +1023,7 @@ def get_transmute_properties(song, track_index, device_index, track_type="track"
         raise
 
 
+@command("set_transmute_properties", modifying=True)
 def set_transmute_properties(song, track_index, device_index,
                               frequency_dial_mode_index=None, pitch_mode_index=None,
                               mod_mode_index=None, mono_poly_index=None,
@@ -1058,6 +1079,7 @@ def _get_simpler_device(song, track_index, device_index, track_type="track"):
     return device
 
 
+@command("get_simpler_properties")
 def get_simpler_properties(song, track_index, device_index, track_type="track", ctrl=None):
     """Get Simpler device and its sample properties."""
     try:
@@ -1140,6 +1162,7 @@ def get_simpler_properties(song, track_index, device_index, track_type="track", 
         raise
 
 
+@command("set_simpler_properties", modifying=True)
 def set_simpler_properties(song, track_index, device_index,
                             playback_mode=None, voices=None, retrigger=None,
                             slicing_playback_mode=None,
@@ -1253,6 +1276,7 @@ def set_simpler_properties(song, track_index, device_index,
         raise
 
 
+@command("simpler_sample_action", modifying=True)
 def simpler_sample_action(song, track_index, device_index, action, beats=None, track_type="track", ctrl=None):
     """Perform an action on a Simpler device's sample.
 
@@ -1289,6 +1313,7 @@ def simpler_sample_action(song, track_index, device_index, action, beats=None, t
         raise
 
 
+@command("manage_sample_slices", modifying=True)
 def manage_sample_slices(song, track_index, device_index, action,
                           slice_time=None, new_time=None, track_type="track", ctrl=None):
     """Manage slice points on a Simpler device's sample.
@@ -1343,6 +1368,7 @@ def manage_sample_slices(song, track_index, device_index, action,
 # --- Looper Device ---
 
 
+@command("control_looper", modifying=True)
 def control_looper(song, track_index, device_index, action, clip_slot_index=None, track_type="track", ctrl=None):
     """Control a Looper device with specialized actions.
 
@@ -1416,6 +1442,7 @@ def control_looper(song, track_index, device_index, action, clip_slot_index=None
 # --- Chain Selector & Chain Operations ---
 
 
+@command("get_chain_selector")
 def get_chain_selector(song, track_index, device_index, track_type="track", ctrl=None):
     """Get the chain selector value for a rack device."""
     try:
@@ -1433,6 +1460,7 @@ def get_chain_selector(song, track_index, device_index, track_type="track", ctrl
         raise
 
 
+@command("set_chain_selector", modifying=True)
 def set_chain_selector(song, track_index, device_index, value, track_type="track", ctrl=None):
     """Set the chain selector value for a rack device."""
     try:
@@ -1450,6 +1478,7 @@ def set_chain_selector(song, track_index, device_index, value, track_type="track
         raise
 
 
+@command("insert_chain", modifying=True)
 def insert_chain(song, track_index, device_index, index=0, track_type="track", ctrl=None):
     """Insert a new chain into a rack device (Live 12.3+)."""
     try:
@@ -1468,6 +1497,7 @@ def insert_chain(song, track_index, device_index, index=0, track_type="track", c
         raise
 
 
+@command("chain_insert_device", modifying=True)
 def chain_insert_device(song, track_index, device_index, chain_index,
                          device_name, target_index=None, track_type="track", ctrl=None):
     """Insert a device into a chain within a rack (Live 12.3+)."""
@@ -1497,6 +1527,7 @@ def chain_insert_device(song, track_index, device_index, chain_index,
         raise
 
 
+@command("delete_chain_device", modifying=True)
 def delete_chain_device(song, track_index, device_index, chain_index,
                          chain_device_index, track_type="track", ctrl=None):
     """Delete a device from a chain within a rack."""
@@ -1523,6 +1554,7 @@ def delete_chain_device(song, track_index, device_index, chain_index,
         raise
 
 
+@command("set_chain_properties", modifying=True)
 def set_chain_properties(song, track_index, device_index, chain_index,
                           mute=None, solo=None, name=None, color_index=None,
                           volume=None, panning=None, track_type="track", ctrl=None):
@@ -1565,6 +1597,7 @@ def set_chain_properties(song, track_index, device_index, chain_index,
         raise
 
 
+@command("set_device_enabled", modifying=True)
 def set_device_enabled(song, track_index, device_index, enabled, track_type="track", ctrl=None):
     """Toggle a device on or off (bypass).
 
@@ -1588,6 +1621,7 @@ def set_device_enabled(song, track_index, device_index, enabled, track_type="tra
         raise
 
 
+@command("move_device", modifying=True)
 def move_device(song, track_index, device_index, dest_track_index, dest_position, track_type="track", ctrl=None):
     """Move a device to a different position or track."""
     try:
@@ -1615,6 +1649,7 @@ def move_device(song, track_index, device_index, dest_track_index, dest_position
 # --- Device Info ---
 
 
+@command("get_device_info")
 def get_device_info(song, track_index, device_index, track_type="track", ctrl=None):
     """Get detailed info about a specific device including type classification."""
     from ._helpers import get_track
@@ -1674,6 +1709,7 @@ def get_device_info(song, track_index, device_index, track_type="track", ctrl=No
 # --- Sidechain by Name ---
 
 
+@command("set_sidechain_by_name", modifying=True)
 def set_sidechain_by_name(song, track_index, device_index, source_track_name, track_type="track", ctrl=None):
     """Set sidechain input to a specific track by name."""
     from ._helpers import get_track

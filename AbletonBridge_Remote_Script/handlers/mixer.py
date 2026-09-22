@@ -3,8 +3,10 @@
 from __future__ import absolute_import, print_function, unicode_literals
 from ._helpers import get_track
 from . import devices as dev_mod
+from ._registry import command
 
 
+@command("set_track_volume", modifying=True)
 def set_track_volume(song, track_index, volume, ctrl=None):
     """Set track volume."""
     try:
@@ -19,6 +21,7 @@ def set_track_volume(song, track_index, volume, ctrl=None):
         raise
 
 
+@command("set_track_pan", modifying=True)
 def set_track_pan(song, track_index, pan, ctrl=None):
     """Set track panning."""
     try:
@@ -33,6 +36,7 @@ def set_track_pan(song, track_index, pan, ctrl=None):
         raise
 
 
+@command("set_track_mute", modifying=True)
 def set_track_mute(song, track_index, mute, ctrl=None):
     """Set track mute state."""
     try:
@@ -45,6 +49,7 @@ def set_track_mute(song, track_index, mute, ctrl=None):
         raise
 
 
+@command("set_track_solo", modifying=True)
 def set_track_solo(song, track_index, solo, ctrl=None):
     """Set track solo state."""
     try:
@@ -57,6 +62,7 @@ def set_track_solo(song, track_index, solo, ctrl=None):
         raise
 
 
+@command("set_track_arm", modifying=True)
 def set_track_arm(song, track_index, arm, ctrl=None):
     """Set the arm (record enable) state of a track."""
     try:
@@ -71,6 +77,7 @@ def set_track_arm(song, track_index, arm, ctrl=None):
         raise
 
 
+@command("set_track_send", modifying=True)
 def set_track_send(song, track_index, send_index, value, ctrl=None):
     """Set the send level from a track to a return track."""
     try:
@@ -96,6 +103,7 @@ def set_track_send(song, track_index, send_index, value, ctrl=None):
 # --- Return track mixer ---
 
 
+@command("set_return_track_volume", modifying=True)
 def set_return_track_volume(song, return_track_index, volume, ctrl=None):
     """Set the volume of a return track."""
     try:
@@ -113,6 +121,7 @@ def set_return_track_volume(song, return_track_index, volume, ctrl=None):
         raise
 
 
+@command("set_return_track_pan", modifying=True)
 def set_return_track_pan(song, return_track_index, pan, ctrl=None):
     """Set the panning of a return track."""
     try:
@@ -130,6 +139,7 @@ def set_return_track_pan(song, return_track_index, pan, ctrl=None):
         raise
 
 
+@command("set_return_track_mute", modifying=True)
 def set_return_track_mute(song, return_track_index, mute, ctrl=None):
     """Set the mute state of a return track."""
     try:
@@ -145,6 +155,7 @@ def set_return_track_mute(song, return_track_index, mute, ctrl=None):
         raise
 
 
+@command("set_return_track_solo", modifying=True)
 def set_return_track_solo(song, return_track_index, solo, ctrl=None):
     """Set the solo state of a return track."""
     try:
@@ -163,6 +174,7 @@ def set_return_track_solo(song, return_track_index, solo, ctrl=None):
 # --- Crossfade ---
 
 
+@command("set_crossfade_assign", modifying=True)
 def set_crossfade_assign(song, track_index, assign, ctrl=None):
     """Set A/B crossfade assignment for a track.
 
@@ -190,6 +202,7 @@ def set_crossfade_assign(song, track_index, assign, ctrl=None):
 # --- Crossfader & Track Delay ---
 
 
+@command("set_crossfader", modifying=True)
 def set_crossfader(song, value, ctrl=None):
     """Set the master crossfader position (0.0=A, 0.5=center, 1.0=B)."""
     try:
@@ -203,6 +216,7 @@ def set_crossfader(song, value, ctrl=None):
         raise
 
 
+@command("get_crossfader")
 def get_crossfader(song, ctrl=None):
     """Get the master crossfader position."""
     try:
@@ -214,6 +228,7 @@ def get_crossfader(song, ctrl=None):
         raise
 
 
+@command("set_cue_volume", modifying=True)
 def set_cue_volume(song, value, ctrl=None):
     """Set the cue/preview volume."""
     try:
@@ -227,6 +242,7 @@ def set_cue_volume(song, value, ctrl=None):
         raise
 
 
+@command("set_track_delay", modifying=True)
 def set_track_delay(song, track_index, delay, ctrl=None):
     """Set the track delay compensation in ms."""
     try:
@@ -241,6 +257,7 @@ def set_track_delay(song, track_index, delay, ctrl=None):
         raise
 
 
+@command("get_track_delay")
 def get_track_delay(song, track_index, ctrl=None):
     """Get the track delay compensation value."""
     try:
@@ -254,6 +271,7 @@ def get_track_delay(song, track_index, ctrl=None):
         raise
 
 
+@command("set_panning_mode", modifying=True)
 def set_panning_mode(song, track_index, mode, ctrl=None):
     """Set the panning mode for a track.
 
@@ -271,6 +289,7 @@ def set_panning_mode(song, track_index, mode, ctrl=None):
         raise
 
 
+@command("set_split_stereo_pan", modifying=True)
 def set_split_stereo_pan(song, track_index, left=None, right=None, ctrl=None):
     """Set split stereo pan values (when panning_mode is Split Stereo)."""
     try:
@@ -294,6 +313,7 @@ def set_split_stereo_pan(song, track_index, left=None, right=None, ctrl=None):
 # --- Master track ---
 
 
+@command("get_master_track_info")
 def get_master_track_info(song, ctrl=None):
     """Get detailed information about the master track."""
     try:
@@ -318,6 +338,7 @@ def get_master_track_info(song, ctrl=None):
         raise
 
 
+@command("set_master_volume", modifying=True)
 def set_master_volume(song, volume, ctrl=None):
     """Set the volume of the master track."""
     try:
@@ -338,6 +359,7 @@ def set_master_volume(song, volume, ctrl=None):
 # --- Read-only info ---
 
 
+@command("get_scenes")
 def get_scenes(song, ctrl=None):
     """Get information about all scenes."""
     try:
@@ -357,6 +379,7 @@ def get_scenes(song, ctrl=None):
         raise
 
 
+@command("get_return_tracks")
 def get_return_tracks(song, ctrl=None):
     """Get information about all return tracks."""
     try:
@@ -394,6 +417,7 @@ def get_return_tracks(song, ctrl=None):
         raise
 
 
+@command("get_return_track_info")
 def get_return_track_info(song, return_track_index, ctrl=None):
     """Get detailed information about a specific return track."""
     try:

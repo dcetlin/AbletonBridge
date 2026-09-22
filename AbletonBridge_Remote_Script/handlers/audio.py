@@ -5,6 +5,7 @@ from __future__ import absolute_import, print_function, unicode_literals
 import traceback
 
 from ._helpers import get_track, get_clip
+from ._registry import command
 
 
 def _get_audio_clip(song, track_index, clip_index):
@@ -15,6 +16,7 @@ def _get_audio_clip(song, track_index, clip_index):
     return clip
 
 
+@command("get_audio_clip_info")
 def get_audio_clip_info(song, track_index, clip_index, ctrl=None):
     """Get information about an audio clip."""
     try:
@@ -50,6 +52,7 @@ def get_audio_clip_info(song, track_index, clip_index, ctrl=None):
         raise
 
 
+@command("set_warp_mode", modifying=True)
 def set_warp_mode(song, track_index, clip_index, warp_mode, ctrl=None):
     """Set the warp mode for an audio clip."""
     try:
@@ -72,6 +75,7 @@ def set_warp_mode(song, track_index, clip_index, warp_mode, ctrl=None):
         raise
 
 
+@command("set_clip_warp", modifying=True)
 def set_clip_warp(song, track_index, clip_index, warping_enabled, ctrl=None):
     """Enable or disable warping for an audio clip."""
     try:
@@ -84,6 +88,7 @@ def set_clip_warp(song, track_index, clip_index, warping_enabled, ctrl=None):
         raise
 
 
+@command("reverse_clip", modifying=True)
 def reverse_clip(song, track_index, clip_index, ctrl=None):
     """Reverse an audio clip.
 
@@ -112,6 +117,7 @@ def reverse_clip(song, track_index, clip_index, ctrl=None):
         raise
 
 
+@command("analyze_audio_clip")
 def analyze_audio_clip(song, track_index, clip_index, ctrl=None):
     """Analyze an audio clip comprehensively."""
     try:
@@ -191,6 +197,7 @@ def analyze_audio_clip(song, track_index, clip_index, ctrl=None):
         raise
 
 
+@command("freeze_track", modifying=True)
 def freeze_track(song, track_index, ctrl=None):
     """Freeze a track."""
     try:
@@ -225,6 +232,7 @@ def freeze_track(song, track_index, ctrl=None):
         raise
 
 
+@command("unfreeze_track", modifying=True)
 def unfreeze_track(song, track_index, ctrl=None):
     """Unfreeze a track."""
     try:

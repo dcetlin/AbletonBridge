@@ -3,8 +3,10 @@
 from __future__ import absolute_import, print_function, unicode_literals
 
 from ._helpers import get_scene
+from ._registry import command
 
 
+@command("create_scene", modifying=True)
 def create_scene(song, index, name="", ctrl=None):
     """Create a new scene."""
     try:
@@ -21,6 +23,7 @@ def create_scene(song, index, name="", ctrl=None):
         raise
 
 
+@command("delete_scene", modifying=True)
 def delete_scene(song, scene_index, ctrl=None):
     """Delete a scene from the session."""
     try:
@@ -38,6 +41,7 @@ def delete_scene(song, scene_index, ctrl=None):
         raise
 
 
+@command("duplicate_scene", modifying=True)
 def duplicate_scene(song, scene_index, ctrl=None):
     """Duplicate a scene."""
     try:
@@ -51,6 +55,7 @@ def duplicate_scene(song, scene_index, ctrl=None):
         raise
 
 
+@command("fire_scene", modifying=True)
 def fire_scene(song, scene_index, ctrl=None):
     """Fire (launch) a scene."""
     try:
@@ -63,6 +68,7 @@ def fire_scene(song, scene_index, ctrl=None):
         raise
 
 
+@command("set_scene_name", modifying=True)
 def set_scene_name(song, scene_index, name, ctrl=None):
     """Set a scene's name."""
     try:
@@ -75,6 +81,7 @@ def set_scene_name(song, scene_index, name, ctrl=None):
         raise
 
 
+@command("get_scene_follow_actions")
 def get_scene_follow_actions(song, scene_index, ctrl=None):
     """Get follow action settings for a scene."""
     try:
@@ -102,6 +109,7 @@ def get_scene_follow_actions(song, scene_index, ctrl=None):
         raise
 
 
+@command("set_scene_follow_actions", modifying=True)
 def set_scene_follow_actions(song, scene_index,
                               follow_action_0=None, follow_action_1=None,
                               follow_action_probability=None,
@@ -142,6 +150,7 @@ def set_scene_follow_actions(song, scene_index,
         raise
 
 
+@command("fire_scene_as_selected", modifying=True)
 def fire_scene_as_selected(song, scene_index, ctrl=None):
     """Fire a scene without moving the selection highlight."""
     try:
@@ -154,6 +163,7 @@ def fire_scene_as_selected(song, scene_index, ctrl=None):
         raise
 
 
+@command("set_scene_color", modifying=True)
 def set_scene_color(song, scene_index, color_index, ctrl=None):
     """Set the color of a scene."""
     try:
@@ -169,6 +179,7 @@ def set_scene_color(song, scene_index, color_index, ctrl=None):
         raise
 
 
+@command("set_scene_tempo", modifying=True)
 def set_scene_tempo(song, scene_index, tempo, ctrl=None):
     """Set or clear a scene's tempo override.
 

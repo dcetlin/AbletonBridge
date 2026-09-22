@@ -6,6 +6,7 @@ import re
 import traceback
 
 from ._helpers import get_track, get_clip
+from ._registry import command
 
 _RE_SEND_NAME = re.compile(r'^send\s*([a-z])$')
 
@@ -51,6 +52,7 @@ def _find_parameter(song, track_index, parameter_name, device_index=None):
     raise ValueError("Parameter '{0}' not found".format(parameter_name))
 
 
+@command("create_clip_automation", modifying=True)
 def create_clip_automation(song, track_index, clip_index, parameter_name, automation_points,
                            device_index=None, append=False, ctrl=None):
     """Create automation for a parameter within a clip."""
@@ -100,6 +102,7 @@ def create_clip_automation(song, track_index, clip_index, parameter_name, automa
         raise
 
 
+@command("get_clip_automation")
 def get_clip_automation(song, track_index, clip_index, parameter_name, device_index=None, ctrl=None):
     """Read automation envelope from a clip."""
     try:
@@ -146,6 +149,7 @@ def get_clip_automation(song, track_index, clip_index, parameter_name, device_in
         raise
 
 
+@command("clear_clip_automation", modifying=True)
 def clear_clip_automation(song, track_index, clip_index, parameter_name, device_index=None, ctrl=None):
     """Clear automation for a specific parameter in a clip."""
     try:
@@ -171,6 +175,7 @@ def clear_clip_automation(song, track_index, clip_index, parameter_name, device_
         raise
 
 
+@command("list_clip_automated_params")
 def list_clip_automated_params(song, track_index, clip_index, ctrl=None):
     """List all parameters that have automation in a clip."""
     try:
@@ -223,6 +228,7 @@ def list_clip_automated_params(song, track_index, clip_index, ctrl=None):
 # --- New: Track-level automation and arrangement time editing (from MacWhite) ---
 
 
+@command("create_track_automation", modifying=True)
 def create_track_automation(song, track_index, parameter_name, automation_points,
                             device_index=None, append=False, ctrl=None):
     """Create automation for a track parameter (arrangement-level).
@@ -327,6 +333,7 @@ def create_track_automation(song, track_index, parameter_name, automation_points
         raise
 
 
+@command("clear_track_automation", modifying=True)
 def clear_track_automation(song, track_index, parameter_name, start_time, end_time, device_index=None, ctrl=None):
     """Clear automation for a parameter in an arrangement time range.
 
@@ -400,6 +407,7 @@ def clear_track_automation(song, track_index, parameter_name, start_time, end_ti
         raise
 
 
+@command("delete_time", modifying=True)
 def delete_time(song, start_time, end_time, ctrl=None):
     """Delete a section of time from the arrangement."""
     try:
@@ -423,6 +431,7 @@ def delete_time(song, start_time, end_time, ctrl=None):
         raise
 
 
+@command("duplicate_time", modifying=True)
 def duplicate_time(song, start_time, end_time, ctrl=None):
     """Duplicate a section of time in the arrangement."""
     try:
@@ -447,6 +456,7 @@ def duplicate_time(song, start_time, end_time, ctrl=None):
         raise
 
 
+@command("insert_silence", modifying=True)
 def insert_silence(song, position, length, ctrl=None):
     """Insert silence at a position in the arrangement."""
     try:
@@ -469,6 +479,7 @@ def insert_silence(song, position, length, ctrl=None):
 # --- v4.0: Enhanced automation ---
 
 
+@command("clear_clip_envelope", modifying=True)
 def clear_clip_envelope(song, track_index, clip_index, parameter_name, device_index=None, ctrl=None):
     """Clear automation envelope for a specific parameter using clip.clear_envelope()."""
     try:
@@ -486,6 +497,7 @@ def clear_clip_envelope(song, track_index, clip_index, parameter_name, device_in
         raise
 
 
+@command("clear_all_clip_envelopes", modifying=True)
 def clear_all_clip_envelopes(song, track_index, clip_index, ctrl=None):
     """Clear ALL automation envelopes from a clip."""
     try:
@@ -502,6 +514,7 @@ def clear_all_clip_envelopes(song, track_index, clip_index, ctrl=None):
         raise
 
 
+@command("get_clip_automation_value")
 def get_clip_automation_value(song, track_index, clip_index, parameter_name, time, device_index=None, ctrl=None):
     """Read the automation envelope value at a specific time."""
     try:
@@ -530,6 +543,7 @@ def get_clip_automation_value(song, track_index, clip_index, parameter_name, tim
         raise
 
 
+@command("get_clip_automation_hires")
 def get_clip_automation_hires(song, track_index, clip_index, parameter_name, sample_count=128, device_index=None, ctrl=None):
     """Read automation envelope with configurable sample resolution."""
     try:
@@ -575,6 +589,7 @@ def get_clip_automation_hires(song, track_index, clip_index, parameter_name, sam
         raise
 
 
+@command("create_step_automation", modifying=True)
 def create_step_automation(song, track_index, clip_index, parameter_name, steps, device_index=None, ctrl=None):
     """Create step (held-value) automation — each step holds its value for a duration.
 

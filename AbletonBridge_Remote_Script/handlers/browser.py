@@ -5,6 +5,7 @@ from __future__ import absolute_import, print_function, unicode_literals
 import traceback
 
 from ._helpers import get_track
+from ._registry import command
 
 
 _BROWSER_ROOTS = (
@@ -82,6 +83,7 @@ def find_browser_item_by_uri(browser_or_item, uri, max_depth=10, current_depth=0
         return None
 
 
+@command("get_browser_item")
 def get_browser_item(song, uri, path, ctrl=None):
     """Get a browser item by URI or path."""
     try:
@@ -162,6 +164,7 @@ def get_browser_item(song, uri, path, ctrl=None):
         raise
 
 
+@command("load_browser_item", modifying=True)
 def load_browser_item(song, track_index, item_uri, ctrl=None):
     """Load a browser item onto a track by URI."""
     try:
@@ -193,6 +196,7 @@ def load_browser_item(song, track_index, item_uri, ctrl=None):
         raise
 
 
+@command("load_instrument_or_effect", modifying=True)
 def load_instrument_or_effect(song, track_index, uri, ctrl=None):
     """Load an instrument or effect onto a track by URI (alias)."""
     return load_browser_item(song, track_index, uri, ctrl)
@@ -265,6 +269,7 @@ def _find_browser_item_by_name(browser, name, ctrl=None):
     return None
 
 
+@command("load_sample", modifying=True)
 def load_sample(song, track_index, sample_uri, ctrl=None):
     """Load a sample onto a track by URI or filename (with name-based fallback)."""
     try:
@@ -329,6 +334,7 @@ def _process_item(item):
     }
 
 
+@command("get_browser_tree")
 def get_browser_tree(song, category_type, ctrl=None):
     """Get a simplified tree of browser categories."""
     try:
@@ -395,6 +401,7 @@ def get_browser_tree(song, category_type, ctrl=None):
         raise
 
 
+@command("get_browser_items_at_path")
 def get_browser_items_at_path(song, path, ctrl=None):
     """Get browser items at a specific path."""
     try:
@@ -502,6 +509,7 @@ def get_browser_items_at_path(song, path, ctrl=None):
         raise
 
 
+@command("search_browser")
 def search_browser(song, query, category, ctrl=None):
     """Search the browser for items matching a query."""
     try:
@@ -594,6 +602,7 @@ def search_browser(song, query, category, ctrl=None):
         raise
 
 
+@command("get_user_library")
 def get_user_library(song, ctrl=None):
     """Get the user library browser tree."""
     try:
@@ -622,6 +631,7 @@ def get_user_library(song, ctrl=None):
         raise
 
 
+@command("get_user_folders")
 def get_user_folders(song, ctrl=None):
     """Get user-configured sample folders from Ableton's browser."""
     try:
@@ -655,6 +665,7 @@ def get_user_folders(song, ctrl=None):
         raise
 
 
+@command("get_device_presets")
 def get_device_presets(song, track_index, device_index, track_type="track", ctrl=None):
     """Get available presets for a device by navigating the browser."""
     track = get_track(song, track_index, track_type)
@@ -724,6 +735,7 @@ def get_device_presets(song, track_index, device_index, track_type="track", ctrl
     }
 
 
+@command("load_device_preset", modifying=True)
 def load_device_preset(song, track_index, device_index, preset_uri, track_type="track", ctrl=None):
     """Load a preset onto a device using hot-swap."""
     track = get_track(song, track_index, track_type)
@@ -771,6 +783,7 @@ def load_device_preset(song, track_index, device_index, preset_uri, track_type="
     }
 
 
+@command("preview_browser_item", modifying=True)
 def preview_browser_item(song, uri=None, action="preview", ctrl=None):
     """Preview (audition) a browser item, or stop the current preview.
 

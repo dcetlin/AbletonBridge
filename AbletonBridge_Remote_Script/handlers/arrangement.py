@@ -5,6 +5,7 @@ from __future__ import absolute_import, print_function, unicode_literals
 import traceback
 
 from ._helpers import get_track, get_clip
+from ._registry import command
 
 
 def _get_arrangement_clip(song, track_index, clip_index_in_arrangement, ctrl=None):
@@ -19,6 +20,7 @@ def _get_arrangement_clip(song, track_index, clip_index_in_arrangement, ctrl=Non
     return track, arr_clips[clip_index_in_arrangement]
 
 
+@command("duplicate_clip_to_arrangement", modifying=True)
 def duplicate_clip_to_arrangement(song, track_index, clip_index, time, ctrl=None):
     """Copy a session clip to the arrangement timeline."""
     try:
@@ -42,6 +44,7 @@ def duplicate_clip_to_arrangement(song, track_index, clip_index, time, ctrl=None
         raise
 
 
+@command("get_arrangement_clips")
 def get_arrangement_clips(song, track_index, ctrl=None):
     """Get all clips in arrangement view for a track."""
     try:
@@ -84,6 +87,7 @@ def get_arrangement_clips(song, track_index, ctrl=None):
 # --- v4.0: Arrangement clip manipulation ---
 
 
+@command("move_arrangement_clip", modifying=True)
 def move_arrangement_clip(song, track_index, clip_index_in_arrangement, new_start_time, ctrl=None):
     """Move an arrangement clip to a new start position (Live 12.2+)."""
     try:
@@ -106,6 +110,7 @@ def move_arrangement_clip(song, track_index, clip_index_in_arrangement, new_star
         raise
 
 
+@command("delete_arrangement_clip", modifying=True)
 def delete_arrangement_clip(song, track_index, clip_index_in_arrangement, ctrl=None):
     """Delete an arrangement clip by its index in the arrangement."""
     try:
@@ -126,6 +131,7 @@ def delete_arrangement_clip(song, track_index, clip_index_in_arrangement, ctrl=N
         raise
 
 
+@command("set_arrangement_clip_properties", modifying=True)
 def set_arrangement_clip_properties(song, track_index, clip_index_in_arrangement,
                                      muted=None, gain=None, name=None, color_index=None,
                                      loop_start=None, loop_end=None, looping=None,
@@ -181,6 +187,7 @@ def set_arrangement_clip_properties(song, track_index, clip_index_in_arrangement
         raise
 
 
+@command("get_arrangement_clip_info")
 def get_arrangement_clip_info(song, track_index, clip_index_in_arrangement, ctrl=None):
     """Get detailed info about a specific arrangement clip."""
     try:

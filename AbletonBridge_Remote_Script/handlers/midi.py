@@ -5,8 +5,10 @@ from __future__ import absolute_import, print_function, unicode_literals
 import traceback
 
 from ._helpers import get_clip
+from ._registry import command
 
 
+@command("get_clip_notes")
 def get_clip_notes(song, track_index, clip_index, start_time, time_span, start_pitch, pitch_span, ctrl=None):
     """Get MIDI notes from a clip."""
     try:
@@ -41,6 +43,7 @@ def get_clip_notes(song, track_index, clip_index, start_time, time_span, start_p
         raise
 
 
+@command("add_notes_extended", modifying=True)
 def add_notes_extended(song, track_index, clip_index, notes, ctrl=None):
     """Add MIDI notes with Live 11+ extended properties."""
     try:
@@ -141,6 +144,7 @@ def add_notes_extended(song, track_index, clip_index, notes, ctrl=None):
         raise
 
 
+@command("get_notes_extended")
 def get_notes_extended(song, track_index, clip_index, start_time, time_span, ctrl=None):
     """Get MIDI notes with Live 11+ extended properties."""
     try:
@@ -202,6 +206,7 @@ def get_notes_extended(song, track_index, clip_index, start_time, time_span, ctr
         raise
 
 
+@command("remove_notes_range", modifying=True)
 def remove_notes_range(song, track_index, clip_index, from_time, time_span, from_pitch, pitch_span, ctrl=None):
     """Remove notes within a specific time and pitch range."""
     try:
@@ -231,6 +236,7 @@ def remove_notes_range(song, track_index, clip_index, from_time, time_span, from
         raise
 
 
+@command("clear_clip_notes", modifying=True)
 def clear_clip_notes(song, track_index, clip_index, ctrl=None):
     """Remove all MIDI notes from a clip."""
     try:
@@ -258,6 +264,7 @@ def clear_clip_notes(song, track_index, clip_index, ctrl=None):
         raise
 
 
+@command("quantize_clip_notes", modifying=True)
 def quantize_clip_notes(song, track_index, clip_index, grid_size, ctrl=None):
     """Quantize MIDI notes in a clip to a grid."""
     try:
@@ -338,6 +345,7 @@ def quantize_clip_notes(song, track_index, clip_index, grid_size, ctrl=None):
         raise
 
 
+@command("transpose_clip_notes", modifying=True)
 def transpose_clip_notes(song, track_index, clip_index, semitones, ctrl=None):
     """Transpose MIDI notes in a clip by a number of semitones."""
     try:
@@ -403,6 +411,7 @@ def transpose_clip_notes(song, track_index, clip_index, semitones, ctrl=None):
 # --- New commands from MacWhite ---
 
 
+@command("capture_midi", modifying=True)
 def capture_midi(song, ctrl=None):
     """Capture recently played MIDI."""
     try:
@@ -416,6 +425,7 @@ def capture_midi(song, ctrl=None):
         raise
 
 
+@command("apply_groove", modifying=True)
 def apply_groove(song, track_index, clip_index, groove_amount, ctrl=None):
     """Set global song.groove_amount. Validates clip exists but does NOT apply per-clip groove.
 
