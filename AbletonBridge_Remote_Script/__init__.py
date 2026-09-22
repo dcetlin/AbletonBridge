@@ -10,7 +10,6 @@ import traceback
 import queue
 
 # Force handler module imports so @command decorators execute and populate the registry.
-from . import handlers
 from .handlers import (
     session, tracks, clips, mixer, devices,
     browser, scenes, arrangement, audio, midi, automation,
@@ -193,7 +192,7 @@ class AbletonBridge(ControlSurface):
         if cmd == "set_device_parameter":
             def task():
                 try:
-                    handlers.devices.set_device_parameter(
+                    devices.set_device_parameter(
                         self._song,
                         params.get("track_index", 0),
                         params.get("device_index", 0),
@@ -212,7 +211,7 @@ class AbletonBridge(ControlSurface):
         elif cmd == "batch_set_device_parameters":
             def task():
                 try:
-                    handlers.devices.set_device_parameters_batch(
+                    devices.set_device_parameters_batch(
                         self._song,
                         params.get("track_index", 0),
                         params.get("device_index", 0),

@@ -65,14 +65,24 @@ def dispatch(name, song, params_dict, ctrl):
     return entry.func(song, ctrl=ctrl, **kwargs)
 
 
+_modifying_cache = None
+_readonly_cache = None
+
+
 def get_modifying_commands():
     """Return the set of command names that modify the Live set."""
-    return frozenset(name for name, entry in _REGISTRY.items() if entry.modifying)
+    global _modifying_cache
+    if _modifying_cache is None:
+        _modifying_cache = frozenset(name for name, entry in _REGISTRY.items() if entry.modifying)
+    return _modifying_cache
 
 
 def get_readonly_commands():
     """Return the set of command names that only read state."""
-    return frozenset(name for name, entry in _REGISTRY.items() if not entry.modifying)
+    global _readonly_cache
+    if _readonly_cache is None:
+        _readonly_cache = frozenset(name for name, entry in _REGISTRY.items() if not entry.modifying)
+    return _readonly_cache
 
 
 def get_registry():
