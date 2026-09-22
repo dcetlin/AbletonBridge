@@ -1,0 +1,33 @@
+---
+title: "Single Source of Truth — Codegen Pipeline"
+---
+flowchart LR
+    subgraph "Source of Truth"
+        SIG["Handler Function<br/>Signature + @command"]
+    end
+
+    subgraph "Import Time (Ableton)"
+        REG["_registry.py<br/>introspects signature →<br/>param names, types, defaults"]
+        DISP["dispatch()<br/>auto-unpacks params_dict<br/>via signature"]
+    end
+
+    subgraph "Build Time (developer)"
+        GEN["generate_command_types.py<br/>reads registry →<br/>emits TypedDicts"]
+    end
+
+    subgraph "Generated (shared/)"
+        TD["commands.py<br/>255 TypedDicts<br/>+ MODIFYING/READONLY sets"]
+    end
+
+    subgraph "MCP Server (static analysis)"
+        MCPT["MCP tool annotates:<br/>cmd_params: XxxParams = {...}<br/>mypy/pyright catches typos"]
+    end
+
+    SIG -->|"@command decorator"| REG
+    REG -->|"at dispatch time"| DISP
+    SIG -->|"python scripts/generate..."| GEN
+    GEN -->|"writes"| TD
+    TD -->|"imported by"| MCPT
+
+    style SIG fill:#4a9,stroke:#333,color:#fff
+    style TD fill:#69c,stroke:#333,color:#fff

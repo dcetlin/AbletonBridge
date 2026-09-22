@@ -1,0 +1,26 @@
+---
+title: "M4L Bridge Flow (deep LOM access)"
+---
+sequenceDiagram
+    participant MCP as MCP Server
+    participant M4L_CONN as M4LConnection<br/>(UDP 9878→send, 9879→recv)
+    participant DEVICE as M4L Device<br/>(Devicev2.amxd)
+    participant LOM as Live Object Model<br/>(deep access)
+
+    MCP->>M4L_CONN: send_command("discover_params", params)
+    activate M4L_CONN
+    M4L_CONN->>M4L_CONN: _build_osc_packet()<br/>elif chain → OSC message
+    M4L_CONN->>DEVICE: OSC /discover_params [track, device, req_id]
+    activate DEVICE
+    DEVICE->>LOM: enumerate hidden params
+    LOM-->>DEVICE: param list
+    DEVICE-->>M4L_CONN: base64(JSON) via UDP 9879
+    deactivate DEVICE
+
+    M4L_CONN->>M4L_CONN: _parse_m4l_response()<br/>base64 → JSON → dict
+    Note over M4L_CONN: Chunked responses reassembled<br/>Request ID verified
+
+    M4L_CONN-->>MCP: result dict
+    deactivate M4L_CONN
+
+    Note over MCP: M4L path is separate from<br/>TCP registry dispatch.<br/>Its own elif-chain dispatch<br/>(30 commands, not in registry).

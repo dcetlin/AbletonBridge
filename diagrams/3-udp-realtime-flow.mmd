@@ -1,0 +1,30 @@
+---
+title: "UDP Real-Time Parameter Flow (fire-and-forget)"
+---
+sequenceDiagram
+    participant MCP as MCP Server
+    participant UDP as UDP 9882
+    participant RS as Remote Script
+    participant REG as _registry
+    participant H as Handler
+    participant LOM as Live Object Model
+
+    MCP->>UDP: send_udp_command("set_device_parameter", params)
+    Note over MCP: No response expected<br/>(fire-and-forget)
+
+    UDP->>RS: JSON packet
+    activate RS
+    RS->>RS: _process_udp_command()<br/>cmd in _UDP_COMMANDS?
+
+    RS->>RS: schedule_message(0, task)<br/>→ queued for main thread
+    deactivate RS
+
+    Note over RS: Main thread picks up task
+
+    activate RS
+    RS->>REG: dispatch("set_device_parameter", song, params, ctrl)
+    REG->>H: set_device_parameter(song, ...)
+    H->>LOM: param.value = value
+    deactivate RS
+
+    Note over RS: Errors logged, not returned<br/>No response sent to caller

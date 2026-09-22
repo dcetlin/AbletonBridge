@@ -1,0 +1,37 @@
+---
+title: "Error Boundary Layers"
+---
+flowchart TD
+    subgraph "Layer 1: MCP Tool (MCP_Server/tools/)"
+        L1["@_tool_handler<br/>catches Exception → tool_error JSON<br/>catches ValueError → 'Invalid input'<br/>catches TimeoutError → 'Timed out'<br/>catches ConnectionError → 'M4L not available'"]
+    end
+
+    subgraph "Layer 2: TCP Transport (connections/ableton.py)"
+        L2["AbletonConnection.send_command<br/>handles socket errors + reconnection<br/>parses JSON response<br/>raises on {status: error}"]
+    end
+
+    subgraph "Layer 3: Remote Script (__init__.py)"
+        L3["_dispatch_on_main_thread_impl<br/>schedule_message → queue<br/>catches all handler exceptions<br/>_safe_error_message passes through:<br/>ValueError, IndexError, TypeError, KeyError<br/>generic message for all others"]
+    end
+
+    subgraph "Layer 4: Registry (handlers/_registry.py)"
+        L4["dispatch()<br/>raises ValueError for unknown commands<br/>passes through handler exceptions"]
+    end
+
+    subgraph "Layer 5: Handler (handlers/*.py)"
+        L5["Handler function<br/>raises ValueError for bad input<br/>raises IndexError for out-of-range<br/>LOM exceptions propagate naturally<br/>inner safe_getattr for optional props"]
+    end
+
+    L1 -->|"send_command"| L2
+    L2 -->|"TCP JSON"| L3
+    L3 -->|"dispatch()"| L4
+    L4 -->|"handler()"| L5
+
+    L5 -.->|"exception bubbles up"| L4
+    L4 -.->|"exception bubbles up"| L3
+    L3 -.->|"sanitized to JSON"| L2
+    L2 -.->|"parsed response"| L1
+    L1 -.->|"tool_error JSON"| CC["Claude Code"]
+
+    style L1 fill:#c66,stroke:#333,color:#fff
+    style L3 fill:#c66,stroke:#333,color:#fff
