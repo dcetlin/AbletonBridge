@@ -9,6 +9,12 @@ _RE_INDEX = re.compile(r'^([a-zA-Z_][a-zA-Z0-9_]*)\[(\d+)\]$')
 
 _SET_DENYLIST = frozenset(["delete", "remove", "disconnect", "dispose"])
 
+# Cap the total number of attributes visited by a single _describe() call so a
+# deep introspection of a large object (e.g. Song at depth 3) can never fan out
+# into thousands of getattr() calls on Ableton's main thread and blow the
+# 10s dispatch timeout / freeze the UI.
+_DESCRIBE_MAX_NODES = 1500
+
 
 def _resolve_path(root, path):
     """Resolve a dot-separated LOM path with optional [index] notation."""
@@ -53,13 +59,19 @@ def _serialize(obj):
     return result
 
 
-def _describe(obj, depth=1, _current_depth=0):
+def _describe(obj, depth=1, _current_depth=0, _budget=None):
+    if _budget is None:
+        _budget = [_DESCRIBE_MAX_NODES]
     info = {"_type": type(obj).__name__}
     properties = {}
     methods = []
     for attr in sorted(dir(obj)):
+        if _budget[0] <= 0:
+            info["_truncated"] = True
+            break
         if attr.startswith("_"):
             continue
+        _budget[0] -= 1
         try:
             val = getattr(obj, attr)
         except Exception:
@@ -80,7 +92,7 @@ def _describe(obj, depth=1, _current_depth=0):
         else:
             if _current_depth < depth:
                 try:
-                    properties[attr] = _describe(val, depth, _current_depth + 1)
+                    properties[attr] = _describe(val, depth, _current_depth + 1, _budget)
                 except Exception:
                     properties[attr] = {"_type": type(val).__name__}
             else:
@@ -99,8 +111,23 @@ def lom_get(song, path: str, ctrl=None) -> dict:
 
 @command("lom_set", modifying=True)
 def lom_set(song, path: str, value, ctrl=None) -> dict:
-    """Set a LOM property by path."""
+    """Set a LOM property by path.
+
+    This is a generic escape hatch: unlike the named setters (e.g.
+    set_device_parameter), it performs NO range clamping or type coercion —
+    the raw value is handed to the LOM, which enforces its own bounds/types
+    and raises on an invalid assignment. Prefer a named command when one
+    exists. The denylist below is a lightweight guard, not a full safety net;
+    the real hazard surface is "any writable LOM property".
+    """
     final_attr = path.rsplit(".", 1)[-1]
+    # An indexed final segment (e.g. "tracks[0]") targets a collection element,
+    # not a settable property — setattr would create a bogus attribute named
+    # "tracks[0]" or raise. Reject it with a clear message.
+    if _RE_INDEX.match(final_attr):
+        raise ValueError(
+            "Cannot set collection element '{0}'; lom_set targets a property "
+            "(e.g. 'tracks[0].name')".format(final_attr))
     if final_attr.lower() in _SET_DENYLIST:
         raise ValueError("Setting '{0}' is not allowed".format(final_attr))
     parent, attr = _resolve_parent(song, path)

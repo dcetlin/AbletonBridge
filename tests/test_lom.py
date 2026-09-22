@@ -94,6 +94,11 @@ class TestSetDenylist:
         with pytest.raises(ValueError, match="not allowed"):
             lom_set(_make_song(), "tracks[0].disconnect", True)
 
+    def test_indexed_final_segment_rejected(self):
+        # Setting a collection element by index is not a settable property.
+        with pytest.raises(ValueError, match="collection element"):
+            lom_set(_make_song(), "tracks[0]", None)
+
 
 class TestLomGet:
     def test_returns_value(self):
@@ -117,3 +122,17 @@ class TestLomDescribe:
     def test_path_scoped(self):
         r = lom_describe(_make_song(), "tracks[0]")
         assert "_type" in r and "properties" in r
+
+    def test_nested_value_via_get(self):
+        # Deep read-back through the mixer sub-object.
+        r = lom_get(_make_song(), "tracks[0].mixer_device.volume.value")
+        assert r["value"] == 0.85
+
+    def test_budget_truncates_wide_object(self):
+        # An object wider than the node budget must terminate and flag it,
+        # never fan out unbounded.
+        from handlers import lom as lom_mod
+        wide = _Obj(**{"attr{0}".format(i): i for i in range(lom_mod._DESCRIBE_MAX_NODES + 50)})
+        r = lom_mod._describe(wide, depth=1)
+        assert r.get("_truncated") is True
+        assert len(r["properties"]) <= lom_mod._DESCRIBE_MAX_NODES
