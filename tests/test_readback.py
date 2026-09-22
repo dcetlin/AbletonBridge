@@ -6,8 +6,10 @@ import cleanly off-host — see tests/conftest.py.
 import queue
 
 import pytest
+from unittest.mock import MagicMock
 
 from AbletonBridge_Remote_Script.handlers._helpers import verify_automation
+from AbletonBridge_Remote_Script.handlers.automation import create_clip_automation
 
 
 class _FakeEnvelope:
@@ -144,3 +146,66 @@ class TestDeferredReadBack:
         assert response["status"] == "success"
         assert response["result"] == {"points_added": 3}
         assert "_verified" not in response["result"]
+
+
+def _clip_song(clip_length, readback):
+    """Minimal mock song: track 0 / clip 0 with a Volume envelope whose
+    value_at_time is driven by ``readback`` (called with the beat time)."""
+    envelope = MagicMock()
+    envelope.value_at_time.side_effect = readback
+    clip = MagicMock()
+    clip.length = clip_length
+    clip.automation_envelope.return_value = envelope
+    slot = MagicMock()
+    slot.has_clip = True
+    slot.clip = clip
+    param = MagicMock()
+    param.min = 0.0
+    param.max = 1.0
+    track = MagicMock()
+    track.clip_slots = [slot]
+    track.mixer_device.volume = param
+    track.devices = []
+    song = MagicMock()
+    song.tracks = [track]
+    return song, envelope
+
+
+class TestVerifyWiredThroughHandler:
+    """Integration: verify=True on the real handler, proving it reads back the
+    *interpolated* points that were actually written — not the raw breakpoints."""
+
+    def test_hold_mode_verify_reports_match(self):
+        song, env = _clip_song(100.0, lambda t: {0.0: 0.2, 1.0: 0.8}[round(t, 6)])
+        res = create_clip_automation(
+            song, 0, 0, "Volume",
+            [{"time": 0.0, "value": 0.2}, {"time": 1.0, "value": 0.8}],
+            verify=True,
+        )
+        assert "verified" in res
+        assert res["verified"]["verdict"] == "match"
+        assert res["verified"]["samples"] == 2
+
+    def test_verify_absent_when_flag_off(self):
+        song, env = _clip_song(100.0, lambda t: 0.0)
+        res = create_clip_automation(
+            song, 0, 0, "Volume",
+            [{"time": 0.0, "value": 0.2}, {"time": 1.0, "value": 0.8}],
+        )
+        assert "verified" not in res
+        env.value_at_time.assert_not_called()
+
+    def test_linear_verify_reads_interpolated_points_not_breakpoints(self):
+        # Envelope reads back the ideal linear ramp value at any time.
+        song, env = _clip_song(100.0, lambda t: max(0.0, min(1.0, t / 4.0)))
+        res = create_clip_automation(
+            song, 0, 0, "Volume",
+            [{"time": 0.0, "value": 0.0}, {"time": 4.0, "value": 1.0}],
+            interpolation="linear", verify=True,
+        )
+        # More than the 2 breakpoints were verified -> verify used the
+        # interpolated expansion, matching what insert_step actually wrote.
+        assert res["verified"]["samples"] > 2
+        assert res["points_added"] == res["verified"]["samples"]
+        assert env.value_at_time.call_count == res["verified"]["samples"]
+        assert res["verified"]["verdict"] == "match"
