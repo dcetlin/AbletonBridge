@@ -8,6 +8,7 @@ Outputs shared/commands.py with a TypedDict for each registered command's
 params, plus lookup dicts for command metadata.
 """
 
+import hashlib
 import inspect
 import sys
 import os
@@ -48,6 +49,23 @@ def _python_type_to_str(annotation) -> str:
     return str(annotation)
 
 
+def _registry_fingerprint(registry) -> str:
+    """Compute a stable hash of the registry's param specs for staleness detection."""
+    parts = []
+    for name in sorted(registry.keys()):
+        entry = registry[name]
+        sig = inspect.signature(entry.func)
+        params = []
+        for pname, param in sig.parameters.items():
+            if pname in ("song", "ctrl"):
+                continue
+            ann = _python_type_to_str(param.annotation)
+            default = repr(param.default) if param.default is not inspect.Parameter.empty else "REQUIRED"
+            params.append(f"{pname}:{ann}={default}")
+        parts.append(f"{name}({'|'.join(params)}):{entry.modifying}")
+    return hashlib.sha256("\n".join(parts).encode()).hexdigest()[:16]
+
+
 def _to_class_name(command_name: str) -> str:
     """Convert command_name to PascalCase class name."""
     return "".join(word.capitalize() for word in command_name.split("_")) + "Params"
@@ -56,6 +74,7 @@ def _to_class_name(command_name: str) -> str:
 def generate() -> str:
     """Generate the shared/commands.py content."""
     registry = get_registry()
+    fingerprint = _registry_fingerprint(registry)
 
     lines = [
         '"""Auto-generated command type definitions.',
@@ -67,6 +86,8 @@ def generate() -> str:
         "from __future__ import annotations",
         "",
         "from typing import Any, TypedDict",
+        "",
+        f"REGISTRY_FINGERPRINT = \"{fingerprint}\"",
         "",
         "",
     ]

@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from typing import Any, TypedDict
 
+REGISTRY_FINGERPRINT = "5e2327273bdb4042"
+
 
 # ============================================================
 # arrangement

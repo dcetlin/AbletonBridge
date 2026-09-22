@@ -149,6 +149,13 @@ class AbletonConnection:
         Non-idempotent commands (create/delete operations) are NOT retried
         to prevent duplicate side-effects (Phase 4.5).
         """
+        if __debug__ and params is not None:
+            from shared.commands import COMMAND_TYPES
+            td = COMMAND_TYPES.get(command_type)
+            if td is not None:
+                valid_keys = set(td.__annotations__)
+                bad = set(params) - valid_keys
+                assert not bad, f"Unknown params for '{command_type}': {bad}. Valid: {valid_keys}"
         # Phase 4.5: non-idempotent commands get a single attempt
         max_attempts = 1 if command_type in NON_IDEMPOTENT_COMMANDS else 2
         is_modifying = command_type in MODIFYING_COMMANDS

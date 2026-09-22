@@ -1,8 +1,9 @@
 """Shared type definitions for AbletonBridge.
 
-This package contains auto-generated TypedDict definitions for all 255
-command parameter schemas. Both the MCP server and the Remote Script
-can import from here for type-safe command construction.
+Auto-generated TypedDict definitions for all 255 command parameter schemas.
+The MCP server imports these for static analysis — a typo in a param dict
+key is caught by mypy/pyright. The Remote Script does not import from here;
+it uses the registry's runtime introspection instead.
 
 Regenerate after changing handler signatures:
     python scripts/generate_command_types.py

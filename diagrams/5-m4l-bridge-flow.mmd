@@ -1,26 +1,36 @@
 ---
-title: "M4L Bridge Flow (deep LOM access)"
+title: "Dual Protocol Architecture — TCP Registry vs M4L Deep Access"
 ---
-sequenceDiagram
-    participant MCP as MCP Server
-    participant M4L_CONN as M4LConnection<br/>(UDP 9878→send, 9879→recv)
-    participant DEVICE as M4L Device<br/>(Devicev2.amxd)
-    participant LOM as Live Object Model<br/>(deep access)
+graph LR
+    subgraph "MCP Tool Layer"
+        TOOL["@mcp.tool() function"]
+    end
 
-    MCP->>M4L_CONN: send_command("discover_params", params)
-    activate M4L_CONN
-    M4L_CONN->>M4L_CONN: _build_osc_packet()<br/>elif chain → OSC message
-    M4L_CONN->>DEVICE: OSC /discover_params [track, device, req_id]
-    activate DEVICE
-    DEVICE->>LOM: enumerate hidden params
-    LOM-->>DEVICE: param list
-    DEVICE-->>M4L_CONN: base64(JSON) via UDP 9879
-    deactivate DEVICE
+    subgraph "Authoring Protocol — TCP 9877"
+        direction TB
+        TCP_SEND["AbletonConnection<br/>send_command()"]
+        TCP_WIRE["JSON newline-delimited"]
+        TCP_RECV["Remote Script<br/>_process_command()"]
+        REG["_registry.py<br/>dispatch() · 255 commands"]
+        HAND["Handler functions<br/>@command decorated"]
+        LOM1["LOM — standard API<br/>tracks · clips · devices · mixer"]
 
-    M4L_CONN->>M4L_CONN: _parse_m4l_response()<br/>base64 → JSON → dict
-    Note over M4L_CONN: Chunked responses reassembled<br/>Request ID verified
+        TCP_SEND --> TCP_WIRE --> TCP_RECV --> REG --> HAND --> LOM1
+    end
 
-    M4L_CONN-->>MCP: result dict
-    deactivate M4L_CONN
+    subgraph "Deep Access Protocol — UDP 9878/9879"
+        direction TB
+        M4L_SEND["M4LConnection<br/>send_command()"]
+        M4L_WIRE["OSC + base64 JSON"]
+        M4L_RECV["Devicev2.amxd<br/>JS OSC parser"]
+        M4L_DISP["elif dispatch<br/>30 commands"]
+        LOM2["LOM — deep access<br/>hidden params · audio · chains"]
 
-    Note over MCP: M4L path is separate from<br/>TCP registry dispatch.<br/>Its own elif-chain dispatch<br/>(30 commands, not in registry).
+        M4L_SEND --> M4L_WIRE --> M4L_RECV --> M4L_DISP --> LOM2
+    end
+
+    TOOL -->|"structural control<br/>(tracks, clips, automation)"| TCP_SEND
+    TOOL -->|"deep introspection<br/>(hidden params, audio analysis)"| M4L_SEND
+
+    style REG fill:#4a9,stroke:#333,color:#fff
+    style M4L_DISP fill:#c96,stroke:#333,color:#fff
