@@ -67,9 +67,10 @@ def build_lfo_points(shape, beats, cycles=1.0, min_val=0.0, max_val=1.0,
     Returns a list of {time, value, interpolation?} dicts.
     Shapes: sine, triangle, saw, square, random.
 
-    Automatically coarsens resolution when the point count would exceed
-    MAX_AUTOMATION_POINTS, and ensures at least 8 samples per cycle to
-    avoid aliasing.
+    Raises ValueError if the cycle count requires more samples than
+    MAX_AUTOMATION_POINTS to avoid aliasing. When the resolution alone
+    would exceed the budget (but Nyquist is satisfied), resolution is
+    coarsened to fit.
     """
     valid_shapes = ("sine", "triangle", "saw", "square", "random")
     if shape not in valid_shapes:
@@ -79,12 +80,21 @@ def build_lfo_points(shape, beats, cycles=1.0, min_val=0.0, max_val=1.0,
 
     # Nyquist guard: ensure adequate sampling per cycle
     min_steps_for_cycles = int(math.ceil(cycles * _MIN_SAMPLES_PER_CYCLE))
+
+    # Reject if faithful sampling is impossible within the point budget
+    if min_steps_for_cycles + 1 > MAX_AUTOMATION_POINTS:
+        max_cycles = (MAX_AUTOMATION_POINTS - 1) // _MIN_SAMPLES_PER_CYCLE
+        raise ValueError(
+            f"Cannot render {cycles} cycles without aliasing "
+            f"(needs {min_steps_for_cycles + 1} points, max {MAX_AUTOMATION_POINTS}). "
+            f"Reduce cycles to <= {max_cycles} or increase resolution."
+        )
+
     num_steps = max(min_steps_for_cycles, int(beats / resolution))
 
     # Cap at MAX_AUTOMATION_POINTS, coarsening resolution if needed
     if num_steps + 1 > MAX_AUTOMATION_POINTS:
         num_steps = MAX_AUTOMATION_POINTS - 1
-        resolution = beats / num_steps
 
     if seed is not None:
         rng = _random_mod.Random(seed)
@@ -644,7 +654,9 @@ def register_tools(mcp):
         - max_val: Maximum output value (default: 1.0)
         - phase_offset: Phase offset as fraction of cycle, 0.0-1.0 (default: 0.0)
         - device_index: Optional device index to scope parameter lookup
-        - resolution: Beats between sample points (default: 0.0625)
+        - resolution: Target beats between sample points (default: 0.0625).
+          May be coarsened if the point count would exceed the automation limit,
+          or overridden upward for high cycle counts to prevent aliasing.
         - seed: Optional RNG seed for reproducible "random" shape output
         """
         _validate_index(track_index, "track_index")

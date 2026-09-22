@@ -240,6 +240,18 @@ class TestLFOPoints:
         v2 = [p["value"] for p in pts2]
         assert v1 != v2
 
+    def test_excessive_cycles_raises_not_aliases(self):
+        """When cycles * 8 > MAX_AUTOMATION_POINTS, reject instead of aliasing."""
+        with pytest.raises(ValueError, match="Cannot render .* cycles without aliasing"):
+            build_lfo_points("sine", beats=1, cycles=5000)
+
+    def test_cap_and_nyquist_boundary(self):
+        """At the cap boundary, Nyquist contract still holds."""
+        max_cycles = (MAX_AUTOMATION_POINTS - 1) // 8
+        pts = build_lfo_points("sine", beats=4, cycles=max_cycles, resolution=0.0625)
+        assert len(pts) >= max_cycles * 8
+        assert len(pts) <= MAX_AUTOMATION_POINTS
+
 
 # ---------------------------------------------------------------------------
 # Integration: verify tools send correct command
