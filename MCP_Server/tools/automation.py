@@ -6,7 +6,7 @@ from typing import Dict, List, Optional
 from mcp.server.fastmcp import Context
 from MCP_Server.tools._base import _tool_handler
 from MCP_Server.connections.ableton import get_ableton_connection
-from MCP_Server.validation import _validate_index, _validate_range, _validate_automation_points, _reduce_automation_points
+from MCP_Server.validation import _validate_index, _validate_range, _validate_automation_points, _reduce_automation_points, MAX_AUTOMATION_POINTS
 from shared.commands import (
     CreateClipAutomationParams, GetClipAutomationParams,
     ClearClipAutomationParams, ListClipAutomatedParamsParams,
@@ -24,7 +24,19 @@ def build_adsr_points(attack, decay, sustain_level, release,
 
     Returns a list of {time, value, interpolation?} dicts ready for
     create_clip_automation's per-point interpolation engine.
+
+    Stages: attack (ease_out), decay (exponential), optional sustain hold,
+    release (exponential). Without sustain_time, decay flows directly into release.
     """
+    for name, val in [("attack", attack), ("decay", decay), ("release", release)]:
+        if val < 0:
+            raise ValueError(f"{name} must be non-negative, got {val}")
+    if sustain_time is not None and sustain_time < 0:
+        raise ValueError(f"sustain_time must be non-negative, got {sustain_time}")
+    for name, val in [("peak", peak), ("floor", floor), ("sustain_level", sustain_level)]:
+        if not 0.0 <= val <= 1.0:
+            raise ValueError(f"{name} must be between 0.0 and 1.0, got {val}")
+
     points = []
     t = 0.0
 
@@ -45,12 +57,19 @@ def build_adsr_points(attack, decay, sustain_level, release,
     return points
 
 
+_MIN_SAMPLES_PER_CYCLE = 8
+
+
 def build_lfo_points(shape, beats, cycles=1.0, min_val=0.0, max_val=1.0,
-                     phase_offset=0.0, resolution=0.0625):
+                     phase_offset=0.0, resolution=0.0625, seed=None):
     """Build LFO waveform sample points with per-point interpolation modes.
 
     Returns a list of {time, value, interpolation?} dicts.
     Shapes: sine, triangle, saw, square, random.
+
+    Automatically coarsens resolution when the point count would exceed
+    MAX_AUTOMATION_POINTS, and ensures at least 8 samples per cycle to
+    avoid aliasing.
     """
     valid_shapes = ("sine", "triangle", "saw", "square", "random")
     if shape not in valid_shapes:
@@ -58,11 +77,23 @@ def build_lfo_points(shape, beats, cycles=1.0, min_val=0.0, max_val=1.0,
     if beats <= 0:
         raise ValueError("beats must be positive")
 
-    points = []
-    num_steps = max(1, int(beats / resolution))
+    # Nyquist guard: ensure adequate sampling per cycle
+    min_steps_for_cycles = int(math.ceil(cycles * _MIN_SAMPLES_PER_CYCLE))
+    num_steps = max(min_steps_for_cycles, int(beats / resolution))
 
+    # Cap at MAX_AUTOMATION_POINTS, coarsening resolution if needed
+    if num_steps + 1 > MAX_AUTOMATION_POINTS:
+        num_steps = MAX_AUTOMATION_POINTS - 1
+        resolution = beats / num_steps
+
+    if seed is not None:
+        rng = _random_mod.Random(seed)
+    else:
+        rng = _random_mod
+
+    points = []
     for i in range(num_steps + 1):
-        t = min(i * resolution, beats)
+        t = min(i * (beats / num_steps), beats)
         phase = (t / beats) * cycles + phase_offset
         p = phase % 1.0
 
@@ -79,7 +110,7 @@ def build_lfo_points(shape, beats, cycles=1.0, min_val=0.0, max_val=1.0,
             raw = 1.0 if p < 0.5 else 0.0
             interp = "hold"
         else:  # random
-            raw = _random_mod.random()
+            raw = rng.random()
             interp = "hold"
 
         value = min_val + (max_val - min_val) * raw
@@ -531,19 +562,21 @@ def register_tools(mcp):
     ) -> str:
         """Generate ADSR envelope automation for a clip parameter.
 
-        Builds breakpoints with per-point interpolation curves:
-        attack (ease_out), decay (exponential), sustain (hold), release (exponential).
+        Builds sparse breakpoints with per-point interpolation curves:
+        attack (ease_out), decay (exponential), release (exponential).
+        When sustain_time is set, a hold segment is inserted between decay and release;
+        otherwise decay flows directly into release.
 
         Parameters:
         - track_index: The track index
         - clip_index: The clip slot index
         - parameter_name: Name of the parameter to automate
-        - attack: Attack time in beats (floor to peak)
-        - decay: Decay time in beats (peak to sustain_level)
+        - attack: Attack time in beats (floor to peak), must be >= 0
+        - decay: Decay time in beats (peak to sustain_level), must be >= 0
         - sustain_level: Sustain value (0.0-1.0)
-        - release: Release time in beats (sustain_level to floor)
-        - peak: Peak value reached at end of attack (default: 1.0)
-        - floor: Floor value at start and end (default: 0.0)
+        - release: Release time in beats (sustain_level to floor), must be >= 0
+        - peak: Peak value reached at end of attack (0.0-1.0, default: 1.0)
+        - floor: Floor value at start and end (0.0-1.0, default: 0.0)
         - sustain_time: Duration of sustain hold in beats (None = no hold phase)
         - device_index: Optional device index to scope parameter lookup
         - resolution: Beats between interpolated points (default: 0.0625)
@@ -555,6 +588,7 @@ def register_tools(mcp):
             attack, decay, sustain_level, release,
             peak=peak, floor=floor, sustain_time=sustain_time,
         )
+        _validate_automation_points(points)
 
         ableton = get_ableton_connection()
         cmd_params = {
@@ -589,12 +623,15 @@ def register_tools(mcp):
         phase_offset: float = 0.0,
         device_index: Optional[int] = None,
         resolution: float = 0.0625,
+        seed: Optional[int] = None,
     ) -> str:
         """Generate LFO waveform automation for a clip parameter.
 
         Generates sampled waveform points with per-point interpolation.
         Smooth shapes (sine, triangle, saw) use linear interpolation;
-        square and random use hold.
+        square and random use hold. Automatically coarsens resolution if the
+        point count would exceed the automation limit, and ensures at least
+        8 samples per cycle to prevent aliasing.
 
         Parameters:
         - track_index: The track index
@@ -608,14 +645,16 @@ def register_tools(mcp):
         - phase_offset: Phase offset as fraction of cycle, 0.0-1.0 (default: 0.0)
         - device_index: Optional device index to scope parameter lookup
         - resolution: Beats between sample points (default: 0.0625)
+        - seed: Optional RNG seed for reproducible "random" shape output
         """
         _validate_index(track_index, "track_index")
         _validate_index(clip_index, "clip_index")
 
         points = build_lfo_points(
             shape, beats, cycles=cycles, min_val=min_val, max_val=max_val,
-            phase_offset=phase_offset, resolution=resolution,
+            phase_offset=phase_offset, resolution=resolution, seed=seed,
         )
+        _validate_automation_points(points)
 
         ableton = get_ableton_connection()
         cmd_params = {

@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from MCP_Server.tools.automation import build_adsr_points, build_lfo_points
+from MCP_Server.validation import MAX_AUTOMATION_POINTS
 
 
 # ---------------------------------------------------------------------------
@@ -81,6 +82,35 @@ class TestADSRPoints:
         )
         modes = [p.get("interpolation") for p in pts]
         assert "hold" not in modes
+
+    def test_negative_attack_raises(self):
+        with pytest.raises(ValueError, match="attack must be non-negative"):
+            build_adsr_points(attack=-1, decay=1, sustain_level=0.5, release=1)
+
+    def test_negative_decay_raises(self):
+        with pytest.raises(ValueError, match="decay must be non-negative"):
+            build_adsr_points(attack=1, decay=-2, sustain_level=0.5, release=1)
+
+    def test_negative_release_raises(self):
+        with pytest.raises(ValueError, match="release must be non-negative"):
+            build_adsr_points(attack=1, decay=1, sustain_level=0.5, release=-1)
+
+    def test_negative_sustain_time_raises(self):
+        with pytest.raises(ValueError, match="sustain_time must be non-negative"):
+            build_adsr_points(attack=1, decay=1, sustain_level=0.5, release=1,
+                              sustain_time=-1)
+
+    def test_peak_out_of_range_raises(self):
+        with pytest.raises(ValueError, match="peak must be between"):
+            build_adsr_points(attack=1, decay=1, sustain_level=0.5, release=1, peak=99)
+
+    def test_floor_out_of_range_raises(self):
+        with pytest.raises(ValueError, match="floor must be between"):
+            build_adsr_points(attack=1, decay=1, sustain_level=0.5, release=1, floor=-0.1)
+
+    def test_sustain_level_out_of_range_raises(self):
+        with pytest.raises(ValueError, match="sustain_level must be between"):
+            build_adsr_points(attack=1, decay=1, sustain_level=5.0, release=1)
 
 
 # ---------------------------------------------------------------------------
@@ -186,6 +216,29 @@ class TestLFOPoints:
     def test_negative_beats_raises(self):
         with pytest.raises(ValueError, match="beats must be positive"):
             build_lfo_points("sine", beats=-1)
+
+    def test_point_count_capped_at_max(self):
+        pts = build_lfo_points("sine", beats=1000, resolution=0.0625)
+        assert len(pts) <= MAX_AUTOMATION_POINTS
+
+    def test_high_cycles_gets_adequate_sampling(self):
+        pts = build_lfo_points("sine", beats=1, cycles=30, resolution=0.0625)
+        # 30 cycles × 8 min samples/cycle = 240 minimum points
+        assert len(pts) >= 240
+
+    def test_seed_deterministic(self):
+        pts1 = build_lfo_points("random", beats=4, resolution=0.5, seed=42)
+        pts2 = build_lfo_points("random", beats=4, resolution=0.5, seed=42)
+        v1 = [p["value"] for p in pts1]
+        v2 = [p["value"] for p in pts2]
+        assert v1 == v2
+
+    def test_seed_different_values(self):
+        pts1 = build_lfo_points("random", beats=4, resolution=0.5, seed=1)
+        pts2 = build_lfo_points("random", beats=4, resolution=0.5, seed=2)
+        v1 = [p["value"] for p in pts1]
+        v2 = [p["value"] for p in pts2]
+        assert v1 != v2
 
 
 # ---------------------------------------------------------------------------
