@@ -655,10 +655,17 @@ def insert_device(song, track_index, device_name, target_index=None, ctrl=None):
                 "reason": msg,
                 "track_index": track_index,
             }
+        device_count_before = len(list(track.devices))
         if target_index is not None:
             track.insert_device(str(device_name), int(target_index))
         else:
             track.insert_device(str(device_name))
+        device_count_after = len(list(track.devices))
+        if device_count_after <= device_count_before:
+            raise RuntimeError(
+                "Device '{0}' could not be inserted on track {1} "
+                "(track type may be incompatible)".format(device_name, track_index)
+            )
         return {
             "inserted": True,
             "device_name": device_name,
