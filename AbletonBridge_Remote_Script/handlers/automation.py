@@ -3,7 +3,7 @@
 from __future__ import absolute_import, print_function, unicode_literals
 
 import re
-from ._helpers import get_track, get_clip
+from ._helpers import get_track, get_clip, interpolate_automation
 from ._registry import command
 
 _RE_SEND_NAME = re.compile(r'^send\s*([a-z])$')
@@ -52,7 +52,8 @@ def _find_parameter(song, track_index, parameter_name, device_index=None):
 
 @command("create_clip_automation", modifying=True)
 def create_clip_automation(song, track_index: int, clip_index: int, parameter_name: str, automation_points: list,
-                           device_index: int | None = None, append: bool = False, ctrl=None) -> dict:
+                           device_index: int | None = None, append: bool = False,
+                           interpolation: str = "hold", resolution: float = 0.0625, ctrl=None) -> dict:
     """Create automation for a parameter within a clip."""
     track, clip = get_clip(song, track_index, clip_index)
 
@@ -77,6 +78,9 @@ def create_clip_automation(song, track_index: int, clip_index: int, parameter_na
             envelope.clear()
         except Exception:
             pass
+
+    if interpolation != "hold":
+        automation_points = interpolate_automation(automation_points, resolution, interpolation)
 
     clip_length = clip.length
     for point in automation_points:
@@ -208,7 +212,8 @@ def list_clip_automated_params(song, track_index: int, clip_index: int, ctrl=Non
 
 @command("create_track_automation", modifying=True)
 def create_track_automation(song, track_index: int, parameter_name: str, automation_points: list,
-                            device_index: int | None = None, append: bool = False, ctrl=None) -> dict:
+                            device_index: int | None = None, append: bool = False,
+                            interpolation: str = "hold", resolution: float = 0.0625, ctrl=None) -> dict:
     """Create automation for a track parameter (arrangement-level).
 
     Uses arrangement clips to access the automation envelope for the given
@@ -303,6 +308,9 @@ def create_track_automation(song, track_index: int, parameter_name: str, automat
             envelope.clear()
         except Exception:
             pass
+
+    if interpolation != "hold":
+        automation_points = interpolate_automation(automation_points, resolution, interpolation)
 
     for point in automation_points:
         time_val = max(clip_start, min(clip_end - 0.001, float(point.get("time", 0.0))))

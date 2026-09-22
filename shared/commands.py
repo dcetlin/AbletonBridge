@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any, TypedDict
 
-REGISTRY_FINGERPRINT = "5e2327273bdb4042"
+REGISTRY_FINGERPRINT = "400b04b65bc96590"
 
 
 # ============================================================
@@ -134,6 +134,8 @@ class CreateClipAutomationParams(TypedDict, total=False):
     automation_points: list
     device_index: int | None
     append: bool
+    interpolation: str
+    resolution: float
 
 
 class CreateStepAutomationParams(TypedDict, total=False):
@@ -150,6 +152,8 @@ class CreateTrackAutomationParams(TypedDict, total=False):
     automation_points: list
     device_index: int | None
     append: bool
+    interpolation: str
+    resolution: float
 
 
 class DeleteTimeParams(TypedDict, total=False):
@@ -396,6 +400,18 @@ class GetSelectedNotesParams(TypedDict, total=False):
 class GetWarpMarkersParams(TypedDict, total=False):
     track_index: int
     clip_index: int
+
+
+class LoadAudioToArrangementParams(TypedDict, total=False):
+    track_index: int
+    file_path: str
+    position: float
+
+
+class LoadAudioToSessionParams(TypedDict, total=False):
+    track_index: int
+    clip_index: int
+    file_path: str
 
 
 class MoveClipPlayingPosParams(TypedDict, total=False):
@@ -1629,6 +1645,8 @@ COMMAND_TYPES: dict[str, type] = {
     "jump_in_running_session_clip": JumpInRunningSessionClipParams,
     "jump_to_cue": JumpToCueParams,
     "list_clip_automated_params": ListClipAutomatedParamsParams,
+    "load_audio_to_arrangement": LoadAudioToArrangementParams,
+    "load_audio_to_session": LoadAudioToSessionParams,
     "load_browser_item": LoadBrowserItemParams,
     "load_device_preset": LoadDevicePresetParams,
     "load_instrument_or_effect": LoadInstrumentOrEffectParams,
@@ -1814,6 +1832,8 @@ MODIFYING_COMMANDS: frozenset[str] = frozenset({
     "insert_silence",
     "jump_in_running_session_clip",
     "jump_to_cue",
+    "load_audio_to_arrangement",
+    "load_audio_to_session",
     "load_browser_item",
     "load_device_preset",
     "load_instrument_or_effect",

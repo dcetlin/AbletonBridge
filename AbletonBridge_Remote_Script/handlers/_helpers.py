@@ -81,3 +81,54 @@ def safe_getattr(obj, attr, default=None):
         return getattr(obj, attr)
     except Exception:
         return default
+
+
+import math
+
+
+def interpolate_automation(points, resolution=0.0625, mode="hold"):
+    """Interpolate between automation breakpoints at the given resolution.
+
+    Args:
+        points: List of {"time": float, "value": float} dicts, sorted by time.
+        resolution: Beats between interpolated points (default 0.0625 = 64th note).
+        mode: "hold" (staircase, no interpolation), "linear", "exponential".
+
+    Returns:
+        List of {"time": float, "value": float} dicts — the dense output points.
+    """
+    if mode == "hold" or len(points) < 2:
+        return points
+
+    sorted_pts = sorted(points, key=lambda p: float(p.get("time", 0.0)))
+    result = []
+
+    for i in range(len(sorted_pts) - 1):
+        t0 = float(sorted_pts[i]["time"])
+        v0 = float(sorted_pts[i]["value"])
+        t1 = float(sorted_pts[i + 1]["time"])
+        v1 = float(sorted_pts[i + 1]["value"])
+
+        dt = t1 - t0
+        if dt <= 0:
+            result.append({"time": t0, "value": v0})
+            continue
+
+        steps = max(1, int(dt / resolution))
+        for s in range(steps):
+            frac = s / steps
+            t = t0 + frac * dt
+
+            if mode == "linear":
+                v = v0 + frac * (v1 - v0)
+            elif mode == "exponential":
+                v = v0 + (v1 - v0) * (math.exp(frac * 3) - 1) / (math.exp(3) - 1)
+            else:
+                v = v0
+
+            result.append({"time": round(t, 6), "value": round(v, 6)})
+
+    # Add the final point
+    last = sorted_pts[-1]
+    result.append({"time": round(float(last["time"]), 6), "value": round(float(last["value"]), 6)})
+    return result

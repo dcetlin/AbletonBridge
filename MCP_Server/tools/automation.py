@@ -23,7 +23,9 @@ def register_tools(mcp):
     def create_clip_automation(ctx: Context, track_index: int, clip_index: int,
                                 parameter_name: str, automation_points: List[Dict[str, float]],
                                 device_index: Optional[int] = None,
-                                reduce: bool = False, append: bool = False) -> str:
+                                reduce: bool = False, append: bool = False,
+                                interpolation: str = "hold",
+                                resolution: float = 0.0625) -> str:
         """Create automation for a parameter within a session clip.
 
         For automation inside a session clip's envelope. For arrangement-level track
@@ -33,10 +35,14 @@ def register_tools(mcp):
         - track_index: The index of the track
         - clip_index: The index of the clip slot
         - parameter_name: Name of the parameter to automate (e.g., "Osc 1 Pos", "Filter 1 Freq")
-        - automation_points: List of {time: float, value: float} dictionaries
-        - device_index: Optional device index to scope parameter lookup (avoids ambiguity when multiple devices share a parameter name)
-        - reduce: If True, apply RDP point reduction to simplify the automation curve (default: False)
+        - automation_points: List of {time: float, value: float} dictionaries (breakpoints)
+        - device_index: Optional device index to scope parameter lookup
+        - reduce: If True, apply RDP point reduction to simplify the curve (default: False)
         - append: If True, add points to existing automation instead of clearing first (default: False)
+        - interpolation: Curve shape between breakpoints: "hold" (staircase, default),
+          "linear" (smooth ramps), "exponential" (exponential curve)
+        - resolution: Beats between interpolated points (default: 0.0625 = 64th note).
+          Lower = smoother but more points. Only used when interpolation != "hold".
 
         Values are in the parameter's native range (usually 0.0–1.0).
         Time is in beats from clip start.
@@ -53,12 +59,15 @@ def register_tools(mcp):
             "parameter_name": parameter_name,
             "automation_points": automation_points,
             "append": append,
+            "interpolation": interpolation,
+            "resolution": resolution,
         }
         if device_index is not None:
             cmd_params["device_index"] = device_index
         result = ableton.send_command("create_clip_automation", cmd_params)
         pts = result.get("points_added", len(automation_points))
-        return f"Created automation with {pts} points for parameter '{parameter_name}'"
+        mode_label = f" ({interpolation}, res={resolution})" if interpolation != "hold" else ""
+        return f"Created automation with {pts} points{mode_label} for parameter '{parameter_name}'"
 
     @mcp.tool()
     @_tool_handler("getting clip automation")
@@ -155,6 +164,8 @@ def register_tools(mcp):
         device_index: Optional[int] = None,
         reduce: bool = False,
         append: bool = False,
+        interpolation: str = "hold",
+        resolution: float = 0.0625,
     ) -> str:
         """Create automation for a track parameter (arrangement-level).
 
@@ -164,26 +175,34 @@ def register_tools(mcp):
         Parameters:
         - track_index: The index of the track
         - parameter_name: Name of the parameter to automate (e.g., "Volume", "Pan")
-        - automation_points: List of {time: float, value: float} dictionaries
-        - device_index: Optional device index to scope parameter lookup (avoids ambiguity when multiple devices share a parameter name)
-        - reduce: If True, apply RDP point reduction to simplify the automation curve (default: False)
+        - automation_points: List of {time: float, value: float} dictionaries (breakpoints)
+        - device_index: Optional device index to scope parameter lookup
+        - reduce: If True, apply RDP point reduction to simplify the curve (default: False)
         - append: If True, add points to existing automation instead of clearing first (default: False)
+        - interpolation: Curve shape between breakpoints: "hold" (staircase, default),
+          "linear" (smooth ramps), "exponential" (exponential curve)
+        - resolution: Beats between interpolated points (default: 0.0625 = 64th note).
+          Only used when interpolation != "hold".
         """
         _validate_index(track_index, "track_index")
         _validate_automation_points(automation_points)
         if reduce:
             automation_points = _reduce_automation_points(automation_points, max_points=20)
         ableton = get_ableton_connection()
-        cmd_params = {
+        cmd_params: CreateTrackAutomationParams = {
             "track_index": track_index,
             "parameter_name": parameter_name,
             "automation_points": automation_points,
             "append": append,
+            "interpolation": interpolation,
+            "resolution": resolution,
         }
         if device_index is not None:
             cmd_params["device_index"] = device_index
         result = ableton.send_command("create_track_automation", cmd_params)
-        return f"Created track automation for '{parameter_name}' with {result.get('points_added', len(automation_points))} points"
+        pts = result.get("points_added", len(automation_points))
+        mode_label = f" ({interpolation}, res={resolution})" if interpolation != "hold" else ""
+        return f"Created track automation for '{parameter_name}' with {pts} points{mode_label}"
 
     @mcp.tool()
     @_tool_handler("clearing track automation")
