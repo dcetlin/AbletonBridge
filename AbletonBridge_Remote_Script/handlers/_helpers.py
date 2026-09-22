@@ -131,6 +131,13 @@ def interpolate_automation(points, resolution=0.0625, mode="hold"):
         seg_mode = sorted_pts[i].get("interpolation", mode)
         seg_exp = float(sorted_pts[i].get("exponent", 3.0))
 
+        # Exponent-driven curves are only defined for a positive exponent. A zero
+        # or negative exponent is degenerate: "exponential" divides by zero, and
+        # the easings hit 0**0 / 0**-1 anomalies (ease_in crashes at frac=0). Fall
+        # back to linear across all three so a bad exponent can never crash.
+        if seg_mode in ("exponential", "ease_in", "ease_out") and seg_exp <= 1e-9:
+            seg_mode = "linear"
+
         dt = t1 - t0
         if dt <= 0 or seg_mode == "hold":
             result.append({"time": t0, "value": v0})
@@ -144,13 +151,8 @@ def interpolate_automation(points, resolution=0.0625, mode="hold"):
             if seg_mode == "linear":
                 v = v0 + frac * (v1 - v0)
             elif seg_mode == "exponential":
-                denom = math.exp(seg_exp) - 1
-                if abs(denom) < 1e-12:
-                    # As exponent -> 0 the curve degenerates to linear; the
-                    # closed form divides by zero at exactly 0, so use the limit.
-                    v = v0 + frac * (v1 - v0)
-                else:
-                    v = v0 + (v1 - v0) * (math.exp(frac * seg_exp) - 1) / denom
+                # seg_exp > 1e-9 here (degenerate exponents degraded to linear above).
+                v = v0 + (v1 - v0) * (math.exp(frac * seg_exp) - 1) / (math.exp(seg_exp) - 1)
             elif seg_mode == "ease_in":
                 v = v0 + (v1 - v0) * (frac ** seg_exp)
             elif seg_mode == "ease_out":

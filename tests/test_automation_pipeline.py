@@ -112,6 +112,30 @@ class TestPerPointInterpolation:
         t1 = next(p for p in result if abs(p["time"] - 1.0) < 0.01)
         assert abs(t1["value"] - 0.25) < 1e-6
 
+    @pytest.mark.parametrize("mode", ["exponential", "ease_in", "ease_out"])
+    def test_zero_exponent_degrades_to_linear(self, mode):
+        # Regression: exponent=0 must not crash or produce degenerate output in
+        # ANY exponent-driven mode; all degrade to linear.
+        points = [
+            {"time": 0, "value": 0, "exponent": 0.0},
+            {"time": 4, "value": 1},
+        ]
+        result = interpolate_automation(points, resolution=1.0, mode=mode)
+        t1 = next(p for p in result if abs(p["time"] - 1.0) < 0.01)
+        assert abs(t1["value"] - 0.25) < 1e-6  # linear at frac=0.25
+
+    @pytest.mark.parametrize("mode", ["exponential", "ease_in", "ease_out"])
+    def test_negative_exponent_no_crash(self, mode):
+        # Regression: ease_in crashed at frac=0 with a negative exponent
+        # (0.0 ** -1 -> ZeroDivisionError). All modes must survive.
+        points = [
+            {"time": 0, "value": 0, "exponent": -1.0},
+            {"time": 4, "value": 1},
+        ]
+        result = interpolate_automation(points, resolution=1.0, mode=mode)
+        t1 = next(p for p in result if abs(p["time"] - 1.0) < 0.01)
+        assert abs(t1["value"] - 0.25) < 1e-6  # degraded to linear
+
     def test_hold_global_with_per_point_override(self):
         # Regression: a per-point override must interpolate even when the
         # curve-global mode is the default "hold".
@@ -151,6 +175,8 @@ class TestHandlerWiring:
         assert envelope.insert_step.call_count == 2
         assert result["points_added"] == 2
         assert result["partial"] is False
+        # Full (non-partial) write: last_written_time is the final point's time.
+        assert result["last_written_time"] == 2.0
 
 
 class TestHzConversion:

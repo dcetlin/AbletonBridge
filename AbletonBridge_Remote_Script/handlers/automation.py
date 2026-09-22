@@ -93,6 +93,7 @@ def create_clip_automation(song, track_index: int, clip_index: int, parameter_na
     clip_length = clip.length
     deadline = _time.time() + AUTOMATION_WRITE_BUDGET_SECONDS
     written = 0
+    last_written_time = None
     for point in automation_points:
         if _time.time() > deadline:
             break
@@ -103,6 +104,7 @@ def create_clip_automation(song, track_index: int, clip_index: int, parameter_na
         # Duration must be > 0 or Ableton's LOM silently discards the step.
         envelope.insert_step(time_val, 0.001, clamped)
         written += 1
+        last_written_time = time_val
 
     return {
         "parameter": parameter_name,
@@ -112,6 +114,9 @@ def create_clip_automation(song, track_index: int, clip_index: int, parameter_na
         "points_planned": len(automation_points),
         "partial": written < len(automation_points),
         "resolution_used": resolution,
+        # On a partial write, the covered range is [start, last_written_time];
+        # points are time-sorted, so a caller can resume past this boundary.
+        "last_written_time": last_written_time,
     }
 
 
@@ -253,6 +258,7 @@ def create_track_automation(song, track_index: int, parameter_name: str, automat
             "points_planned": 0,
             "partial": False,
             "resolution_used": resolution,
+            "last_written_time": None,
         }
     t_min = min(times)
     t_max = max(times)
@@ -337,6 +343,7 @@ def create_track_automation(song, track_index: int, parameter_name: str, automat
 
     deadline = _time.time() + AUTOMATION_WRITE_BUDGET_SECONDS
     written = 0
+    last_written_time = None
     for point in automation_points:
         if _time.time() > deadline:
             break
@@ -344,6 +351,7 @@ def create_track_automation(song, track_index: int, parameter_name: str, automat
         value = max(parameter.min, min(parameter.max, float(point.get("value", 0.0))))
         envelope.insert_step(time_val, 0.001, value)
         written += 1
+        last_written_time = time_val
 
     return {
         "parameter": parameter_name,
@@ -352,6 +360,9 @@ def create_track_automation(song, track_index: int, parameter_name: str, automat
         "points_planned": len(automation_points),
         "partial": written < len(automation_points),
         "resolution_used": resolution,
+        # On a partial write, the covered range is [clip_start, last_written_time];
+        # points are time-sorted, so a caller can resume past this boundary.
+        "last_written_time": last_written_time,
     }
 
 
