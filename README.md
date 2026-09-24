@@ -2,7 +2,7 @@
 
 **AI-to-Ableton Live integration through the Model Context Protocol.**
 
-AbletonBridge gives Claude (or any MCP client) direct control over Ableton Live sessions — 353 MCP tools backed by 262 handler commands via a `@command` registry, three transport layers (TCP, UDP/OSC, HTTP), TypedDict codegen, and structured error responses.
+AbletonBridge gives Claude (or any MCP client) direct control over Ableton Live sessions — 353 MCP tools backed by 260 handler commands via a `@command` registry, three transport layers (TCP, UDP/OSC, HTTP), TypedDict codegen, and structured error responses.
 
 Create tracks, write MIDI, design sounds, mix, automate, browse instruments, navigate deep into device chains and modulation matrices — all through natural language.
 
@@ -80,7 +80,7 @@ Six Mermaid diagrams in [`diagrams/`](diagrams/) cover the system in detail:
 
 ## Key Features
 
-- **262 handler commands** via `@command` registry with introspected param specs, TypedDict codegen, and fingerprint-based staleness detection
+- **260 handler commands** via `@command` registry with introspected param specs, TypedDict codegen, and fingerprint-based staleness detection
 - **353 MCP tools** across 17 modules — session, tracks, clips, mixer, devices, browser, automation, arrangement, scenes, creative generation, M4L deep access, snapshots, audio, grid notation, MIDI CC, LOM, and compound workflows
 - **Generic LOM access** — `lom_get`, `lom_set`, `lom_describe` for arbitrary Live Object Model traversal with path resolution, depth-bounded introspection, and a write denylist
 - **Per-point interpolation** — automation commands accept per-point `interpolation` overrides (linear/hold/custom exponent) with configurable resolution

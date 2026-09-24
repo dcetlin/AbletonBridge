@@ -321,7 +321,7 @@ def register_tools(mcp):
             return json.dumps(result)
         return f"Created track automation for '{parameter_name}' with {pts} points{mode_label}"
 
-    @mcp.tool()
+    @mcp.tool(annotations=_get_tool_annotations("clear_track_automation"))
     @_tool_handler("clearing track automation")
     def clear_track_automation(
         ctx: Context,
