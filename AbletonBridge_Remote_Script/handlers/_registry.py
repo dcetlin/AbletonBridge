@@ -12,6 +12,7 @@ import inspect
 _SENTINEL = object()
 
 _REGISTRY = {}
+_RELOADING = False
 
 
 class _CommandEntry(object):
@@ -46,7 +47,7 @@ def command(name, modifying=False, destructive=False, idempotent=True):
                 continue
             default = param.default if param.default is not inspect.Parameter.empty else _SENTINEL
             params.append((pname, default))
-        if name in _REGISTRY:
+        if name in _REGISTRY and not _RELOADING:
             raise ValueError("Duplicate command registration: {0}".format(name))
         _REGISTRY[name] = _CommandEntry(func=func, modifying=modifying, destructive=destructive, idempotent=idempotent, params=params)
         return func
@@ -93,9 +94,20 @@ def get_registry():
 
 
 def clear():
-    """Clear the registry for hot-reload. Called before reimporting handlers."""
-    global _modifying_cache, _readonly_cache
-    _REGISTRY.clear()
+    """Prepare the registry for hot-reload.
+
+    Sets _RELOADING so @command overwrites existing entries instead of raising.
+    Does NOT clear _REGISTRY — commands stay available during reload.
+    Call finish_reload() after reimporting to rebuild caches.
+    """
+    global _RELOADING
+    _RELOADING = True
+
+
+def finish_reload():
+    """End the reload phase — rebuild caches from the updated registry."""
+    global _RELOADING, _modifying_cache, _readonly_cache
+    _RELOADING = False
     _modifying_cache = None
     _readonly_cache = None
 

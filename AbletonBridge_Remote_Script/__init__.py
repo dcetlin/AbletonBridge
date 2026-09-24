@@ -35,13 +35,10 @@ def _reload_handlers():
     and rebuilds the modifying/readonly caches. Safe to call from
     create_instance() or via the _reload_handlers TCP command.
     """
-    import sys
-    from .handlers._registry import clear as registry_clear
+    from .handlers._registry import clear as registry_clear, finish_reload
 
-    registry_clear()
+    registry_clear()  # sets _RELOADING=True — existing commands stay available
 
-    # Reload the actual module objects — don't rely on sys.modules key names,
-    # since Ableton's embedded Python may load them under a different package path.
     handler_modules = [
         _helpers, _registry_mod,
         session, tracks, clips, mixer, devices,
@@ -56,6 +53,8 @@ def _reload_handlers():
             reloaded.append(mod.__name__.split(".")[-1])
         except Exception as e:
             reloaded.append("{0}(FAILED:{1})".format(mod.__name__.split(".")[-1], e))
+
+    finish_reload()  # rebuild caches, clear _RELOADING flag
 
     # Re-import dispatch functions from the reloaded registry
     global dispatch, get_modifying_commands, get_readonly_commands
