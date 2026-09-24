@@ -230,6 +230,9 @@ def start_dashboard_server():
     thread.start()
     logger.info("Dashboard started at http://127.0.0.1:%d", state.DASHBOARD_PORT)
 
+    import webbrowser
+    webbrowser.open(f"http://127.0.0.1:{state.DASHBOARD_PORT}")
+
 
 def stop_dashboard_server():
     """Signal the dashboard server to shut down."""
