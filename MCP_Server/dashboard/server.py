@@ -145,6 +145,48 @@ def build_status_json() -> dict:
 # Dashboard HTTP server lifecycle
 # ---------------------------------------------------------------------------
 
+def _do_reload_remote_script() -> dict:
+    """Run deploy + send _reload_handlers to the Remote Script (sync)."""
+    import subprocess
+    import os
+
+    script_path = os.path.join(
+        os.path.dirname(__file__), "..", "..", "scripts", "deploy-remote-script.sh"
+    )
+    script_path = os.path.normpath(script_path)
+
+    # Step 1: Deploy
+    try:
+        deploy_result = subprocess.run(
+            ["bash", script_path],
+            capture_output=True, text=True, timeout=10,
+        )
+        if deploy_result.returncode != 0:
+            return {"status": "error", "message": f"Deploy failed: {deploy_result.stderr.strip()}"}
+        deploy_msg = deploy_result.stdout.strip()
+    except Exception as e:
+        return {"status": "error", "message": f"Deploy error: {e}"}
+
+    # Step 2: Send _reload_handlers over TCP
+    try:
+        from MCP_Server.connections.ableton import get_ableton_connection
+        ableton = get_ableton_connection()
+        result = ableton.send_command("_reload_handlers", timeout=5.0)
+        count = result.get("command_count", "?")
+        return {
+            "status": "ok",
+            "message": f"Deployed and reloaded: {count} commands registered",
+            "command_count": count,
+            "deploy_output": deploy_msg,
+        }
+    except Exception as e:
+        return {
+            "status": "partial",
+            "message": f"Deployed but reload failed (toggle off/on instead): {e}",
+            "deploy_output": deploy_msg,
+        }
+
+
 def start_dashboard_server():
     """Start the dashboard HTTP server on a background thread."""
     from starlette.applications import Starlette
@@ -158,9 +200,15 @@ def start_dashboard_server():
     async def api_status(request):
         return JSONResponse(build_status_json())
 
+    async def api_reload_remote_script(request):
+        import asyncio
+        result = await asyncio.to_thread(_do_reload_remote_script)
+        return JSONResponse(result)
+
     app = Starlette(routes=[
         Route("/", dashboard_page),
         Route("/api/status", api_status),
+        Route("/api/reload-remote-script", api_reload_remote_script, methods=["POST"]),
     ])
 
     config = uvicorn.Config(

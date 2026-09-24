@@ -92,6 +92,14 @@ def get_registry():
     return _REGISTRY
 
 
+def clear():
+    """Clear the registry for hot-reload. Called before reimporting handlers."""
+    global _modifying_cache, _readonly_cache
+    _REGISTRY.clear()
+    _modifying_cache = None
+    _readonly_cache = None
+
+
 def get_command_annotations():
     """Return {name: {modifying, destructive, idempotent}} for all commands."""
     return {

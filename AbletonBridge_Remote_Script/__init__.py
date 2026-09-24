@@ -2,6 +2,7 @@
 from __future__ import absolute_import, print_function, unicode_literals
 
 from _Framework.ControlSurface import ControlSurface
+import importlib
 import socket
 import json
 import threading
@@ -22,9 +23,74 @@ DEFAULT_PORT = 9877
 UDP_REALTIME_PORT = 9882
 HOST = "localhost"
 
+_COLD_START_DONE = False
+
+_HANDLER_MODULES = [
+    "AbletonBridge_Remote_Script.handlers._helpers",
+    "AbletonBridge_Remote_Script.handlers._registry",
+    "AbletonBridge_Remote_Script.handlers.session",
+    "AbletonBridge_Remote_Script.handlers.tracks",
+    "AbletonBridge_Remote_Script.handlers.clips",
+    "AbletonBridge_Remote_Script.handlers.mixer",
+    "AbletonBridge_Remote_Script.handlers.devices",
+    "AbletonBridge_Remote_Script.handlers.browser",
+    "AbletonBridge_Remote_Script.handlers.scenes",
+    "AbletonBridge_Remote_Script.handlers.arrangement",
+    "AbletonBridge_Remote_Script.handlers.audio",
+    "AbletonBridge_Remote_Script.handlers.midi",
+    "AbletonBridge_Remote_Script.handlers.automation",
+    "AbletonBridge_Remote_Script.handlers.lom",
+    "AbletonBridge_Remote_Script.handlers",
+]
+
+
+def _reload_handlers():
+    """Hot-reload all handler modules from disk.
+
+    Clears the command registry, reloads every handler module via importlib,
+    and rebuilds the modifying/readonly caches. Safe to call from
+    create_instance() or via the _reload_handlers TCP command.
+    """
+    import sys
+    from .handlers._registry import clear as registry_clear
+
+    registry_clear()
+
+    reloaded = []
+    for mod_name in _HANDLER_MODULES:
+        mod = sys.modules.get(mod_name)
+        if mod is not None:
+            importlib.reload(mod)
+            reloaded.append(mod_name.split(".")[-1])
+
+    # Re-import dispatch functions from the reloaded registry
+    global dispatch, get_modifying_commands, get_readonly_commands
+    from .handlers._registry import (
+        dispatch as _d,
+        get_modifying_commands as _gm,
+        get_readonly_commands as _gr,
+    )
+    dispatch = _d
+    get_modifying_commands = _gm
+    get_readonly_commands = _gr
+
+    from .handlers._registry import get_registry
+    count = len(get_registry())
+    return count, reloaded
+
 
 def create_instance(c_instance):
     """Create and return the AbletonBridge script instance"""
+    global _COLD_START_DONE
+    if _COLD_START_DONE:
+        try:
+            count, reloaded = _reload_handlers()
+            # Log happens inside AbletonBridge.__init__ via log_message,
+            # but create_instance runs before __init__. Use print as fallback.
+            print("AbletonBridge: Hot-reloaded handlers ({0} commands registered)".format(count))
+        except Exception as e:
+            print("AbletonBridge: Hot-reload failed: {0}".format(e))
+    _COLD_START_DONE = True
     return AbletonBridge(c_instance)
 
 
@@ -390,7 +456,11 @@ class AbletonBridge(ControlSurface):
         response = {"status": "success", "result": {}}
 
         try:
-            if command_type in get_modifying_commands():
+            if command_type == "_reload_handlers":
+                count, reloaded = _reload_handlers()
+                self.log_message("AbletonBridge: Hot-reloaded handlers ({0} commands registered)".format(count))
+                response["result"] = {"reloaded": True, "command_count": count, "modules": reloaded}
+            elif command_type in get_modifying_commands():
                 response = self._dispatch_on_main_thread(command_type, params)
             elif command_type in get_readonly_commands():
                 response = self._dispatch_on_main_thread_readonly(command_type, params)

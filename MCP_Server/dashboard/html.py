@@ -69,6 +69,30 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   .banner-warn .dot { background: #d29922; }
   .banner-err { background: #2d0a0a; border: 1px solid #da3633; color: #f85149; }
   .banner-err .dot { background: #f85149; }
+  .reload-btn {
+    background: #21262d; color: #c9d1d9; border: 1px solid #30363d;
+    border-radius: 6px; padding: 8px 16px; cursor: pointer; font-size: 0.85rem;
+    font-family: inherit; transition: background 0.15s, border-color 0.15s;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .reload-btn:hover { background: #30363d; border-color: #8b949e; }
+  .reload-btn:active { background: #388bfd26; border-color: #58a6ff; }
+  .reload-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .reload-btn .spinner {
+    display: none; width: 14px; height: 14px; border: 2px solid #484f58;
+    border-top-color: #58a6ff; border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+  }
+  .reload-btn.loading .spinner { display: inline-block; }
+  .reload-btn.loading .icon { display: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .reload-result {
+    font-size: 0.8rem; margin-top: 8px; padding: 8px 12px;
+    border-radius: 6px; display: none;
+  }
+  .reload-result.ok { display: block; background: #0d2818; border: 1px solid #238636; color: #3fb950; }
+  .reload-result.err { display: block; background: #2d0a0a; border: 1px solid #da3633; color: #f85149; }
+  .reload-result.partial { display: block; background: #2a1f00; border: 1px solid #9e6a03; color: #d29922; }
 </style>
 </head>
 <body>
@@ -78,6 +102,13 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     <span>Refresh in <span id="countdown">3</span>s</span>
   </div>
   <div id="status-banner"></div>
+  <div style="margin-bottom:16px;display:flex;align-items:center;gap:12px">
+    <button class="reload-btn" id="reload-btn" onclick="reloadRemoteScript()">
+      <span class="icon">&#x1f504;</span><span class="spinner"></span>
+      Reload Remote Script
+    </button>
+    <div class="reload-result" id="reload-result"></div>
+  </div>
   <div class="grid" id="cards"></div>
   <div class="section" id="top-tools-section"></div>
   <div class="section">
@@ -168,6 +199,26 @@ function card(label, value, cls) {
 }
 function escHtml(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+async function reloadRemoteScript() {
+  const btn = document.getElementById('reload-btn');
+  const res = document.getElementById('reload-result');
+  btn.classList.add('loading');
+  btn.disabled = true;
+  res.className = 'reload-result';
+  res.style.display = 'none';
+  try {
+    const r = await fetch('/api/reload-remote-script', {method:'POST'});
+    const d = await r.json();
+    res.textContent = d.message || 'Done';
+    res.className = 'reload-result ' + (d.status === 'ok' ? 'ok' : d.status === 'partial' ? 'partial' : 'err');
+  } catch(e) {
+    res.textContent = 'Request failed: ' + e.message;
+    res.className = 'reload-result err';
+  }
+  btn.classList.remove('loading');
+  btn.disabled = false;
+  setTimeout(() => { res.style.display = 'none'; }, 8000);
 }
 refresh();
 setInterval(refresh, REFRESH_MS);

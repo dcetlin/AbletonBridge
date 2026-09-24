@@ -281,13 +281,14 @@ register_all_tools(mcp)
 # ===================================================================
 
 @mcp.tool()
-async def reload_tools() -> str:
+async def reload_tools(ctx: Any = None) -> str:
     """Hot-reload all tool modules without restarting the MCP server.
 
     Use after editing tool handler code to pick up changes in the running
     session. The stdio connection to Claude Code stays alive — no session
     restart needed. Does NOT reload the Remote Script inside Ableton
-    (that requires toggling the control surface in Preferences).
+    (that requires toggling the control surface in Preferences, or calling
+    reload_remote_script).
     """
     import importlib
     import MCP_Server.tools as tools_pkg
@@ -295,7 +296,7 @@ async def reload_tools() -> str:
     module_names = [
         "session", "tracks", "clips", "devices", "browser", "mixer",
         "automation", "arrangement", "scenes", "creative", "m4l_tools",
-        "snapshots", "audio", "grid", "workflows", "midi_cc",
+        "snapshots", "audio", "grid", "workflows", "midi_cc", "lom",
     ]
 
     reloaded = []
@@ -319,10 +320,61 @@ async def reload_tools() -> str:
     # Re-register all tools (FastMCP overwrites by name)
     register_all_tools(mcp)
 
+    # Notify the MCP client to re-fetch the tool list
+    notified = False
+    if ctx is not None:
+        try:
+            await ctx.session.send_tool_list_changed()
+            notified = True
+        except Exception as e:
+            errors.append(f"tool_list_changed notification: {e}")
+
     result = f"Reloaded {len(reloaded)} modules"
+    if notified:
+        result += ", notified client of tool list change"
     if errors:
         result += f", {len(errors)} errors: {'; '.join(errors)}"
     return result
+
+
+# ===================================================================
+# Remote Script reload — deploy + hot-reload without restarting Ableton
+# ===================================================================
+
+@mcp.tool()
+async def reload_remote_script() -> str:
+    """Deploy the latest Remote Script files and hot-reload handlers inside Ableton.
+
+    Runs the deploy script to copy files to Ableton's install locations, then
+    sends a _reload_handlers command over TCP to the running Remote Script so
+    it picks up the new code without an Ableton restart.
+    """
+    import subprocess
+
+    script_path = os.path.join(os.path.dirname(__file__), "..", "scripts", "deploy-remote-script.sh")
+    script_path = os.path.normpath(script_path)
+
+    # Step 1: Deploy files
+    try:
+        deploy_result = await asyncio.to_thread(
+            subprocess.run,
+            ["bash", script_path],
+            capture_output=True, text=True, timeout=10,
+        )
+        if deploy_result.returncode != 0:
+            return f"Deploy failed: {deploy_result.stderr.strip()}"
+        deploy_msg = deploy_result.stdout.strip()
+    except Exception as e:
+        return f"Deploy error: {e}"
+
+    # Step 2: Send _reload_handlers command to the Remote Script over TCP
+    try:
+        ableton = get_ableton_connection()
+        result = ableton.send_command("_reload_handlers", timeout=5.0)
+        count = result.get("command_count", "?")
+        return f"Deployed and reloaded: {count} commands registered. {deploy_msg}"
+    except Exception as e:
+        return f"Deployed but reload command failed (toggle off/on in Preferences instead): {e}. {deploy_msg}"
 
 
 # ===================================================================
