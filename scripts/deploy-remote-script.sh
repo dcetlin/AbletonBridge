@@ -18,6 +18,7 @@ fi
 deployed=0
 for DEST in "$DEST1" "$DEST2"; do
     if [ -d "$DEST" ]; then
+        find "$DEST" -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
         rsync -av --exclude='__pycache__' "$SRC/" "$DEST/"
         echo "✓ Deployed to $DEST"
         deployed=$((deployed + 1))
