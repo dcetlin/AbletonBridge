@@ -16,7 +16,9 @@ from .handlers import (
     browser, scenes, arrangement, audio, midi, automation,
     lom,
 )
+from .handlers import _helpers, _registry as _registry_mod
 from .handlers._registry import dispatch, get_modifying_commands, get_readonly_commands
+from . import handlers as handlers_pkg
 
 # Constants for socket communication
 DEFAULT_PORT = 9877
@@ -24,24 +26,6 @@ UDP_REALTIME_PORT = 9882
 HOST = "localhost"
 
 _COLD_START_DONE = False
-
-_HANDLER_MODULES = [
-    "AbletonBridge_Remote_Script.handlers._helpers",
-    "AbletonBridge_Remote_Script.handlers._registry",
-    "AbletonBridge_Remote_Script.handlers.session",
-    "AbletonBridge_Remote_Script.handlers.tracks",
-    "AbletonBridge_Remote_Script.handlers.clips",
-    "AbletonBridge_Remote_Script.handlers.mixer",
-    "AbletonBridge_Remote_Script.handlers.devices",
-    "AbletonBridge_Remote_Script.handlers.browser",
-    "AbletonBridge_Remote_Script.handlers.scenes",
-    "AbletonBridge_Remote_Script.handlers.arrangement",
-    "AbletonBridge_Remote_Script.handlers.audio",
-    "AbletonBridge_Remote_Script.handlers.midi",
-    "AbletonBridge_Remote_Script.handlers.automation",
-    "AbletonBridge_Remote_Script.handlers.lom",
-    "AbletonBridge_Remote_Script.handlers",
-]
 
 
 def _reload_handlers():
@@ -56,12 +40,22 @@ def _reload_handlers():
 
     registry_clear()
 
+    # Reload the actual module objects — don't rely on sys.modules key names,
+    # since Ableton's embedded Python may load them under a different package path.
+    handler_modules = [
+        _helpers, _registry_mod,
+        session, tracks, clips, mixer, devices,
+        browser, scenes, arrangement, audio, midi, automation, lom,
+        handlers_pkg,
+    ]
+
     reloaded = []
-    for mod_name in _HANDLER_MODULES:
-        mod = sys.modules.get(mod_name)
-        if mod is not None:
+    for mod in handler_modules:
+        try:
             importlib.reload(mod)
-            reloaded.append(mod_name.split(".")[-1])
+            reloaded.append(mod.__name__.split(".")[-1])
+        except Exception as e:
+            reloaded.append("{0}(FAILED:{1})".format(mod.__name__.split(".")[-1], e))
 
     # Re-import dispatch functions from the reloaded registry
     global dispatch, get_modifying_commands, get_readonly_commands
@@ -119,7 +113,11 @@ class AbletonBridge(ControlSurface):
         self.start_server()
         self.start_udp_server()
 
-        self.log_message("AbletonBridge initialized")
+        from .handlers._registry import get_registry
+        reg = get_registry()
+        self.log_message("AbletonBridge initialized — {0} commands in registry".format(len(reg)))
+        if len(reg) < 10:
+            self.log_message("WARNING: Registry nearly empty! Keys: {0}".format(list(reg.keys())[:20]))
 
         # Show a message in Ableton
         self.show_message("AbletonBridge: TCP " + str(DEFAULT_PORT) + " / UDP " + str(UDP_REALTIME_PORT))
