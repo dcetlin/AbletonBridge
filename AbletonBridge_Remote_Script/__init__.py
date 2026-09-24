@@ -455,9 +455,15 @@ class AbletonBridge(ControlSurface):
 
         try:
             if command_type == "_reload_handlers":
-                count, reloaded = _reload_handlers()
-                self.log_message("AbletonBridge: Hot-reloaded handlers ({0} commands registered)".format(count))
-                response["result"] = {"reloaded": True, "command_count": count, "modules": reloaded}
+                def _do_reload():
+                    try:
+                        count, reloaded = _reload_handlers()
+                        self.log_message("AbletonBridge: Hot-reloaded handlers ({0} commands registered)".format(count))
+                    except Exception as e:
+                        self.log_message("AbletonBridge: Hot-reload failed: {0}".format(e))
+                t = threading.Thread(target=_do_reload, daemon=True)
+                t.start()
+                response["result"] = {"reloaded": "started", "message": "Reload dispatched — check Ableton log for result"}
             elif command_type in get_modifying_commands():
                 response = self._dispatch_on_main_thread(command_type, params)
             elif command_type in get_readonly_commands():

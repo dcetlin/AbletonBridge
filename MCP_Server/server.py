@@ -367,12 +367,13 @@ async def reload_remote_script() -> str:
     except Exception as e:
         return f"Deploy error: {e}"
 
-    # Step 2: Send _reload_handlers command to the Remote Script over TCP
+    # Step 2: Send _reload_handlers command to the Remote Script over TCP.
+    # The reload runs asynchronously in Ableton — the response confirms dispatch,
+    # not completion. Check the Ableton log for the actual command count.
     try:
         ableton = get_ableton_connection()
-        result = ableton.send_command("_reload_handlers", timeout=5.0)
-        count = result.get("command_count", "?")
-        return f"Deployed and reloaded: {count} commands registered. {deploy_msg}"
+        result = ableton.send_command("_reload_handlers", timeout=10.0)
+        return f"Deployed and reload dispatched. {deploy_msg}"
     except Exception as e:
         return f"Deployed but reload command failed (toggle off/on in Preferences instead): {e}. {deploy_msg}"
 
