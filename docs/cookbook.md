@@ -70,7 +70,7 @@ For signal export (WAV rendering, TouchDesigner input):
 | `Connection validation failed` / `Could not connect to Ableton` | MCP server can't reach the Remote Script, or MCP server started before Ableton | Ensure AbletonBridge is selected in Preferences → Link/Tempo & MIDI. Restart the Claude session if the MCP server started before Ableton |
 | `Hot-reloaded handlers (0 commands registered)` | Registry cleared but handler modules weren't reimported (pre-fix: string-based sys.modules lookup) | Fixed in `416a34a`. If seen: Cmd+Q Ableton, relaunch to load the fixed hot-reload code |
 | TCP timeout on `_reload_handlers` | 18s reload blocking the TCP socket | Fixed in `2fd5c99` (async background thread). If seen: the reload completed but the response timed out — check Ableton log for "commands registered" |
-| None of the above | Unknown or complex issue | Read this cookbook. If still stuck, ask the advisor: `send_to_thread(target="ableton-advisor", type="question", text="...")` or `hydra deliver ableton-advisor "your question"` |
+| None of the above | Unknown or complex issue | Read this cookbook. If still stuck, ask the advisor: `send_to_thread(target="ableton-advisor", type="question", text="...")` |
 
 ---
 
@@ -93,7 +93,14 @@ Both are MCP tools callable by Claude. The dashboard at `localhost:9880` also ha
 
 If you're stuck on an AbletonBridge issue and this cookbook doesn't cover it, ask the advisor:
 
-- **Visible (Discord thread):** `send_to_thread(target="ableton-advisor", type="question", text="...")`
-- **Private (whisper):** `hydra deliver ableton-advisor "your question"`
+- **Visible (thread):** `send_to_thread(target="ableton-advisor", type="question", text="...")`
+- **Private (whisper):** via Bash: `hydra deliver --session ableton-advisor --message "your question"`
 
 The advisor reads the codebase, checks the Ableton log, and gives concrete answers with file paths and tool call sequences.
+
+**What to ask the advisor:**
+- How to do something the best way (not just any way)
+- Error diagnosis when the error table above doesn't match
+- Feature requests — "I need a tool that does X"
+- Whether something is possible with the current LOM/MCP/M4L surface
+- Workflow design — weighing approaches for a specific use case
