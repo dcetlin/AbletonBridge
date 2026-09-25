@@ -430,6 +430,18 @@ def resource_capabilities() -> str:
     return json.dumps(result)
 
 
+@mcp.resource("ableton://cookbook")
+def resource_cookbook() -> str:
+    """Agent cookbook: tool selection, patterns, known limitations, error diagnosis."""
+    cookbook_path = os.path.join(os.path.dirname(__file__), "..", "docs", "cookbook.md")
+    cookbook_path = os.path.normpath(cookbook_path)
+    try:
+        with open(cookbook_path, "r") as f:
+            return f.read()
+    except FileNotFoundError:
+        return "Cookbook not found at " + cookbook_path
+
+
 # ===================================================================
 # Tool call instrumentation — captures every tool call for the dashboard
 # ===================================================================
