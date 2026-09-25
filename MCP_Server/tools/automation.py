@@ -531,6 +531,37 @@ def register_tools(mcp):
         return json.dumps(result)
 
     @mcp.tool()
+    @_tool_handler("getting arrangement automation")
+    def get_arrangement_automation_hires(ctx: Context, track_index: int,
+                                           parameter_name: str, sample_count: int = 128,
+                                           device_index: Optional[int] = None,
+                                           clip_index_in_arrangement: int = 0) -> str:
+        """Read arrangement automation envelope with configurable sample resolution.
+
+        For automation on the arrangement timeline (Volume, Pan, device params).
+        Use get_clip_automation_hires for session clip automation instead.
+
+        Parameters:
+        - track_index: The track index
+        - parameter_name: Name of the parameter (e.g. "Bilat Freq", "Volume")
+        - sample_count: Number of sample points (2-512, default: 128)
+        - device_index: Optional device index to scope parameter lookup
+        - clip_index_in_arrangement: Which arrangement clip to read (default: 0)
+        """
+        _validate_index(track_index, "track_index")
+        ableton = get_ableton_connection()
+        cmd_params: dict[str, Any] = {
+            "track_index": track_index,
+            "parameter_name": parameter_name,
+            "sample_count": sample_count,
+            "clip_index_in_arrangement": clip_index_in_arrangement,
+        }
+        if device_index is not None:
+            cmd_params["device_index"] = device_index
+        result = ableton.send_command("get_arrangement_automation_hires", cmd_params)
+        return json.dumps(result)
+
+    @mcp.tool()
     @_tool_handler("creating step automation")
     def create_step_automation(ctx: Context, track_index: int, clip_index: int,
                                  parameter_name: str, steps: list,

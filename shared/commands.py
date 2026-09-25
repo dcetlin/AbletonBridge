@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any, TypedDict
 
-REGISTRY_FINGERPRINT = "bc7305ca2939cd9e"
+REGISTRY_FINGERPRINT = "eee12604c4212867"
 
 
 # ============================================================
@@ -166,6 +166,14 @@ class DeleteTimeParams(TypedDict, total=False):
 class DuplicateTimeParams(TypedDict, total=False):
     start_time: float
     end_time: float
+
+
+class GetArrangementAutomationHiresParams(TypedDict, total=False):
+    track_index: int
+    parameter_name: str
+    sample_count: int
+    device_index: int | None
+    clip_index_in_arrangement: int
 
 
 class GetClipAutomationParams(TypedDict, total=False):
@@ -1592,6 +1600,7 @@ COMMAND_TYPES: dict[str, type] = {
     "get_all_scales": GetAllScalesParams,
     "get_all_tracks_info": GetAllTracksInfoParams,
     "get_appointed_device": GetAppointedDeviceParams,
+    "get_arrangement_automation_hires": GetArrangementAutomationHiresParams,
     "get_arrangement_clip_info": GetArrangementClipInfoParams,
     "get_arrangement_clips": GetArrangementClipsParams,
     "get_audio_clip_info": GetAudioClipInfoParams,
@@ -1987,6 +1996,7 @@ READONLY_COMMANDS: frozenset[str] = frozenset({
     "get_all_scales",
     "get_all_tracks_info",
     "get_appointed_device",
+    "get_arrangement_automation_hires",
     "get_arrangement_clip_info",
     "get_arrangement_clips",
     "get_audio_clip_info",

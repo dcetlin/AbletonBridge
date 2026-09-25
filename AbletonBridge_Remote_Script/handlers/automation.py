@@ -616,6 +616,50 @@ def get_clip_automation_hires(song, track_index: int, clip_index: int, parameter
     }
 
 
+@command("get_arrangement_automation_hires")
+def get_arrangement_automation_hires(song, track_index: int, parameter_name: str, sample_count: int = 128, device_index: int | None = None, clip_index_in_arrangement: int = 0, ctrl=None) -> dict:
+    """Read arrangement automation with configurable sample resolution."""
+    from .arrangement import _get_arrangement_clip
+    track, clip = _get_arrangement_clip(song, track_index, clip_index_in_arrangement, ctrl)
+    param = _find_parameter(song, track_index, parameter_name, device_index=device_index)
+
+    if not hasattr(clip, 'automation_envelope'):
+        return {"has_automation": False, "parameter": parameter_name, "reason": "Arrangement clip does not support automation envelopes"}
+
+    envelope = clip.automation_envelope(param)
+    if envelope is None:
+        return {"has_automation": False, "parameter": parameter_name}
+
+    sample_count = max(2, min(512, int(sample_count)))
+    clip_len = clip.length
+    if clip_len <= 0:
+        return {"has_automation": False, "parameter": parameter_name, "reason": "Arrangement clip has zero length"}
+
+    clip_start = clip.start_time if hasattr(clip, 'start_time') else 0.0
+    points = []
+    step = clip_len / sample_count
+    for i in range(sample_count):
+        t = i * step
+        try:
+            val = envelope.value_at_time(t)
+            points.append({"beat": round(clip_start + t, 4), "value": round(val, 4)})
+        except Exception as e:
+            if ctrl:
+                ctrl.log_message("Arrangement automation sample at t={0} failed: {1}".format(round(t, 4), e))
+
+    return {
+        "has_automation": True,
+        "parameter": parameter_name,
+        "param_min": param.min,
+        "param_max": param.max,
+        "clip_start": clip_start,
+        "clip_length": clip_len,
+        "sample_count": sample_count,
+        "point_count": len(points),
+        "points": points,
+    }
+
+
 @command("create_step_automation", modifying=True)
 def create_step_automation(song, track_index: int, clip_index: int, parameter_name: str, steps: list, device_index: int | None = None, ctrl=None) -> dict:
     """Create step (held-value) automation — each step holds its value for a duration.
