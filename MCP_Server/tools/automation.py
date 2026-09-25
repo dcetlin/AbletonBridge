@@ -212,6 +212,41 @@ def register_tools(mcp):
             return f"No automation for '{parameter_name}': {reason}"
         return json.dumps(result)
 
+    @mcp.tool()
+    @_tool_handler("getting arrangement automation")
+    def get_arrangement_automation(ctx: Context, track_index: int,
+                                    parameter_name: str,
+                                    device_index: Optional[int] = None,
+                                    clip_index_in_arrangement: int = 0) -> str:
+        """
+        Read existing automation from an arrangement clip for a specific parameter.
+
+        Mirrors get_clip_automation but reads from the arrangement timeline instead
+        of a session clip slot. Samples the automation envelope at 64 evenly-spaced
+        points across the arrangement clip's length.
+
+        Parameters:
+        - track_index: The index of the track containing the arrangement clip
+        - parameter_name: Name of the parameter (e.g., "Volume", "Pan", or any device parameter name)
+        - device_index: Optional device index to scope parameter lookup
+        - clip_index_in_arrangement: Index of the clip in track.arrangement_clips (default: 0)
+        """
+        _validate_index(track_index, "track_index")
+        _validate_index(clip_index_in_arrangement, "clip_index_in_arrangement")
+        ableton = get_ableton_connection()
+        cmd_params: dict[str, Any] = {
+            "track_index": track_index,
+            "parameter_name": parameter_name,
+            "clip_index_in_arrangement": clip_index_in_arrangement,
+        }
+        if device_index is not None:
+            cmd_params["device_index"] = device_index
+        result = ableton.send_command("get_arrangement_automation", cmd_params)
+        if not result.get("has_automation"):
+            reason = result.get("reason", "No automation found")
+            return f"No automation for '{parameter_name}': {reason}"
+        return json.dumps(result)
+
     @mcp.tool(annotations=_get_tool_annotations("clear_clip_automation"))
     @_tool_handler("clearing clip automation")
     def clear_clip_automation(ctx: Context, track_index: int, clip_index: int,
@@ -528,6 +563,37 @@ def register_tools(mcp):
         if device_index is not None:
             cmd_params["device_index"] = device_index
         result = ableton.send_command("get_clip_automation_hires", cmd_params)
+        return json.dumps(result)
+
+    @mcp.tool()
+    @_tool_handler("getting hi-res arrangement automation")
+    def get_arrangement_automation_hires(ctx: Context, track_index: int,
+                                          parameter_name: str, sample_count: int = 128,
+                                          device_index: Optional[int] = None,
+                                          clip_index_in_arrangement: int = 0) -> str:
+        """Read arrangement automation envelope with configurable sample resolution.
+
+        Mirrors get_clip_automation_hires but reads from the arrangement timeline
+        instead of a session clip slot.
+
+        Parameters:
+        - track_index: The track index
+        - parameter_name: Name of the parameter
+        - sample_count: Number of sample points (2-512, default: 128)
+        - device_index: Optional device index to scope parameter lookup
+        - clip_index_in_arrangement: Index of the clip in track.arrangement_clips (default: 0)
+        """
+        _validate_index(track_index, "track_index")
+        _validate_index(clip_index_in_arrangement, "clip_index_in_arrangement")
+        ableton = get_ableton_connection()
+        cmd_params: dict[str, Any] = {
+            "track_index": track_index,
+            "parameter_name": parameter_name, "sample_count": sample_count,
+            "clip_index_in_arrangement": clip_index_in_arrangement,
+        }
+        if device_index is not None:
+            cmd_params["device_index"] = device_index
+        result = ableton.send_command("get_arrangement_automation_hires", cmd_params)
         return json.dumps(result)
 
     @mcp.tool()

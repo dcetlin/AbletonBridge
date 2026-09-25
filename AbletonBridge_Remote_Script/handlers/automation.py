@@ -10,6 +10,7 @@ from ._helpers import (
     verify_automation,
 )
 from ._registry import command
+from .arrangement import _get_arrangement_clip
 
 _RE_SEND_NAME = re.compile(r'^send\s*([a-z])$')
 
@@ -135,6 +136,54 @@ def create_clip_automation(song, track_index: int, clip_index: int, parameter_na
 def get_clip_automation(song, track_index: int, clip_index: int, parameter_name: str, device_index: int | None = None, ctrl=None) -> dict:
     """Read automation envelope from a clip."""
     track, clip = get_clip(song, track_index, clip_index)
+
+    param = _find_parameter(song, track_index, parameter_name, device_index=device_index)
+
+    if not hasattr(clip, 'automation_envelope'):
+        return {"has_automation": False, "parameter": parameter_name, "reason": "Clip does not support automation envelopes"}
+
+    envelope = clip.automation_envelope(param)
+    if envelope is None:
+        return {"has_automation": False, "parameter": parameter_name}
+
+    # Sample the envelope at evenly-spaced points
+    num_samples = 64
+    clip_len = clip.length
+    if clip_len <= 0:
+        return {"has_automation": False, "parameter": parameter_name, "reason": "Clip has zero length"}
+
+    points = []
+    step = clip_len / num_samples
+    for i in range(num_samples):
+        t = i * step
+        try:
+            val = envelope.value_at_time(t)
+            points.append({"time": round(t, 4), "value": round(val, 4)})
+        except Exception as e:
+            if ctrl:
+                ctrl.log_message("Automation sample at t={0} failed: {1}".format(round(t, 4), e))
+
+    return {
+        "has_automation": True,
+        "parameter": parameter_name,
+        "param_min": param.min,
+        "param_max": param.max,
+        "clip_length": clip_len,
+        "point_count": len(points),
+        "points": points,
+    }
+
+
+@command("get_arrangement_automation")
+def get_arrangement_automation(song, track_index: int, parameter_name: str,
+                                device_index: int | None = None,
+                                clip_index_in_arrangement: int = 0, ctrl=None) -> dict:
+    """Read automation envelope from an arrangement clip.
+
+    Mirrors get_clip_automation but navigates via track.arrangement_clips
+    instead of a session clip slot.
+    """
+    track, clip = _get_arrangement_clip(song, track_index, clip_index_in_arrangement, ctrl)
 
     param = _find_parameter(song, track_index, parameter_name, device_index=device_index)
 
@@ -579,6 +628,54 @@ def get_clip_automation_value(song, track_index: int, clip_index: int, parameter
 def get_clip_automation_hires(song, track_index: int, clip_index: int, parameter_name: str, sample_count: int = 128, device_index: int | None = None, ctrl=None) -> dict:
     """Read automation envelope with configurable sample resolution."""
     track, clip = get_clip(song, track_index, clip_index)
+    param = _find_parameter(song, track_index, parameter_name, device_index=device_index)
+
+    if not hasattr(clip, 'automation_envelope'):
+        return {"has_automation": False, "parameter": parameter_name, "reason": "Clip does not support automation envelopes"}
+
+    envelope = clip.automation_envelope(param)
+    if envelope is None:
+        return {"has_automation": False, "parameter": parameter_name}
+
+    sample_count = max(2, min(512, int(sample_count)))
+    clip_len = clip.length
+    if clip_len <= 0:
+        return {"has_automation": False, "parameter": parameter_name, "reason": "Clip has zero length"}
+
+    points = []
+    step = clip_len / sample_count
+    for i in range(sample_count):
+        t = i * step
+        try:
+            val = envelope.value_at_time(t)
+            points.append({"time": round(t, 4), "value": round(val, 4)})
+        except Exception as e:
+            if ctrl:
+                ctrl.log_message("Automation sample at t={0} failed: {1}".format(round(t, 4), e))
+
+    return {
+        "has_automation": True,
+        "parameter": parameter_name,
+        "param_min": param.min,
+        "param_max": param.max,
+        "clip_length": clip_len,
+        "sample_count": sample_count,
+        "point_count": len(points),
+        "points": points,
+    }
+
+
+@command("get_arrangement_automation_hires")
+def get_arrangement_automation_hires(song, track_index: int, parameter_name: str,
+                                      sample_count: int = 128,
+                                      device_index: int | None = None,
+                                      clip_index_in_arrangement: int = 0, ctrl=None) -> dict:
+    """Read arrangement automation envelope with configurable sample resolution.
+
+    Mirrors get_clip_automation_hires but navigates via track.arrangement_clips
+    instead of a session clip slot.
+    """
+    track, clip = _get_arrangement_clip(song, track_index, clip_index_in_arrangement, ctrl)
     param = _find_parameter(song, track_index, parameter_name, device_index=device_index)
 
     if not hasattr(clip, 'automation_envelope'):
