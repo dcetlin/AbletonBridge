@@ -1,48 +1,6 @@
 # AbletonBridge Cookbook
 
-Agent-facing reference for tool selection, patterns, limitations, and error diagnosis.
-Read this resource (`ableton://cookbook`) when you hit a wall or need to choose between tools.
-
----
-
-## Tool Selection
-
-### Automation: reading
-
-| What you want | Tool | Notes |
-|---|---|---|
-| Read session clip automation | `get_clip_automation` | 64 fixed samples |
-| Read session clip automation (hi-res) | `get_clip_automation_hires` | 2-512 configurable samples |
-| Read arrangement automation | `get_arrangement_automation_hires` | 2-512 samples, returns `{beat, value}` with absolute beat positions |
-| Read automation states (is param automated?) | `get_automation_states` | M4L tool, returns `automation_state` per param |
-
-### Automation: writing
-
-| What you want | Tool | Notes |
-|---|---|---|
-| Write to session clip envelope | `create_clip_automation` | Supports `interpolation` (hold/linear/exponential) and per-point overrides |
-| Write to arrangement timeline | `create_track_automation` | Needs an arrangement clip covering the time range. See "Audio Track Arrangement Automation" pattern below |
-| Write step automation | `create_step_automation` | Held-value steps with explicit durations |
-| Generate ADSR envelope | `generate_adsr_automation` | One-call envelope with attack/decay/sustain/release |
-| Generate LFO waveform | `generate_lfo_automation` | sine/triangle/saw/square/random with configurable cycles |
-
-### Parameters: reading and writing
-
-| What you want | Tool | Notes |
-|---|---|---|
-| Get/set a known device parameter | Named commands (`get_device_parameters`, `set_device_parameter`) | Type-safe, validated |
-| Explore arbitrary LOM properties | `lom_get` / `lom_set` / `lom_describe` | Generic escape hatch. Path syntax: `tracks[0].devices[1].parameters[3].value` |
-| Get/set hidden params (non-automatable) | `discover_device_params` / `set_device_hidden_parameter` | M4L tools, requires M4L bridge device loaded |
-| Real-time parameter update (low latency) | UDP tools (`set_parameter_realtime`) | Fire-and-forget, no response |
-
-### Transport layers
-
-| Layer | Port | Use when |
-|---|---|---|
-| TCP (Remote Script) | 9877 | All standard commands — request/response, 260 commands |
-| UDP | 9882 | Real-time parameter updates — fire-and-forget, no confirmation |
-| M4L (OSC) | 9878/9879 | Hidden params, deep LOM, audio analysis, chain operations |
-| Extensions SDK | HTTP | Device parameter get/set (Apple Silicon only, Live 12.3+) |
+Escalation reference for when things go wrong or get complex. For basic tool usage and sequencing, read the server instructions (injected on session start). This cookbook covers LOM limitations, workarounds, error diagnosis, and multi-tool patterns for edge cases.
 
 ---
 
@@ -105,12 +63,14 @@ For signal export (WAV rendering, TouchDesigner input):
 | `parameter belongs to another track` | Arrangement clip's `automation_envelope()` rejects the parameter — ownership mismatch with rack macros | Use the session→arrangement pattern instead of writing directly to arrangement clips |
 | `No clip in slot` | Using a session clip tool (e.g. `get_clip_automation_hires`) but the session slot is empty — the automation is on the arrangement timeline | Use `get_arrangement_automation_hires` instead |
 | `create_arrangement_clip is not available` | Live version doesn't support `track.create_arrangement_clip` | Create the clip manually in Ableton, or use `load_audio_to_arrangement` |
-| `Clip does not support automation envelopes` | The clip object doesn't have `automation_envelope` — likely a bare audio clip or incompatible clip type | Try a different clip, or use the session→arrangement pattern |
 | `Could not get automation envelope` | `automation_envelope(param)` returned None and `create_automation_envelope` failed | Parameter has never been automated on this clip. Use session clip first (where envelope creation works), then duplicate to arrangement |
 | `Clip slot already has a clip` | `create_clip` called on a slot that's occupied | Delete the existing clip first, or use a different slot index |
 | `Track X is not an audio track` | `load_audio_to_arrangement`/`load_audio_to_session` called on a MIDI track | These tools require an audio track. Check track type with `get_track_info` |
 | `M4L bridge device is not responding` | M4L device not loaded, or UDP connection failed | Load the AbletonBridge M4L device on any track. Check that ports 9878/9879 are not blocked |
-| `Connection validation failed` / `Could not connect to Ableton` | MCP server can't reach the Remote Script | Ensure AbletonBridge is selected in Preferences → Link/Tempo & MIDI. Restart the Claude session if the MCP server started before Ableton |
+| `Connection validation failed` / `Could not connect to Ableton` | MCP server can't reach the Remote Script, or MCP server started before Ableton | Ensure AbletonBridge is selected in Preferences → Link/Tempo & MIDI. Restart the Claude session if the MCP server started before Ableton |
+| `Hot-reloaded handlers (0 commands registered)` | Registry cleared but handler modules weren't reimported (pre-fix: string-based sys.modules lookup) | Fixed in `416a34a`. If seen: Cmd+Q Ableton, relaunch to load the fixed hot-reload code |
+| TCP timeout on `_reload_handlers` | 18s reload blocking the TCP socket | Fixed in `2fd5c99` (async background thread). If seen: the reload completed but the response timed out — check Ableton log for "commands registered" |
+| None of the above | Unknown or complex issue | Read this cookbook. If still stuck, ask the advisor: `send_to_thread(target="ableton-advisor", type="question", text="...")` or `hydra deliver ableton-advisor "your question"` |
 
 ---
 
@@ -126,3 +86,14 @@ After changing handler code (Remote Script) or MCP tool code:
 Both are MCP tools callable by Claude. The dashboard at `localhost:9880` also has a "Reload Remote Script" button for step 1.
 
 **First time only:** If the hot-reload code itself has never been loaded (fresh Ableton install), one full Ableton restart is needed to load the hot-reload mechanism. After that, no restarts needed.
+
+---
+
+## Getting Help
+
+If you're stuck on an AbletonBridge issue and this cookbook doesn't cover it, ask the advisor:
+
+- **Visible (Discord thread):** `send_to_thread(target="ableton-advisor", type="question", text="...")`
+- **Private (whisper):** `hydra deliver ableton-advisor "your question"`
+
+The advisor reads the codebase, checks the Ableton log, and gives concrete answers with file paths and tool call sequences.

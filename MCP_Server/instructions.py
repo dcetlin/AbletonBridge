@@ -5,7 +5,7 @@ cross-tool usage patterns. See: https://blog.modelcontextprotocol.io/posts/2025-
 """
 
 SERVER_INSTRUCTIONS = """
-AbletonBridge provides 341 tools for controlling Ableton Live sessions. This guidance covers cross-tool relationships, sequencing, and constraints not documented on individual tools.
+AbletonBridge provides 354 tools for controlling Ableton Live sessions. This guidance covers cross-tool relationships, sequencing, and constraints not documented on individual tools.
 
 ## Startup
 
@@ -70,6 +70,8 @@ Use as few points as possible — Ableton interpolates linearly between breakpoi
 create_automation_curve generates shaped envelopes (sine, exponential, s_curve, triangle, sawtooth, etc.). The cycles parameter is cycles per clip length, not per beat. create_step_automation creates held-value steps.
 
 Automation values are in the parameter's native range (usually 0.0-1.0 normalized).
+
+Audio track arrangement automation: create_track_automation cannot create envelopes on audio tracks that haven't been automated before. Always use: load_audio_to_session (with any audio file as a container) → create_clip_automation → duplicate_clip_to_arrangement. The cookbook resource (ableton://cookbook) explains why and covers other LOM limitations.
 
 ## Browser & Loading
 
