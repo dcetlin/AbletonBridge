@@ -488,8 +488,20 @@ logging.getLogger().addHandler(DashboardLogHandler())
 # ===================================================================
 
 def main():
-    """Run the MCP server."""
-    mcp.run()
+    """Run the MCP server.
+
+    Transport is selected by the ABLETON_BRIDGE_TRANSPORT env var:
+      - "stdio" (default) — single-client, launched as a subprocess by Claude Code
+      - "sse" — multi-client HTTP server on ABLETON_BRIDGE_MCP_PORT (default 9883)
+    """
+    transport = os.environ.get("ABLETON_BRIDGE_TRANSPORT", "stdio")
+    if transport == "sse":
+        mcp_port = int(os.environ.get("ABLETON_BRIDGE_MCP_PORT", "9883"))
+        state.MCP_SSE_PORT = mcp_port
+        logger.info("Starting MCP server in SSE mode on port %d (multi-client)", mcp_port)
+        mcp.settings.port = mcp_port
+        mcp.settings.host = "127.0.0.1"
+    mcp.run(transport=transport)
 
 
 if __name__ == "__main__":

@@ -72,6 +72,7 @@ m4l_bridge_version: str = ""
 # ---------------------------------------------------------------------------
 DASHBOARD_PORT: int = int(os.environ.get("ABLETON_BRIDGE_DASHBOARD_PORT", "9880"))
 SINGLETON_LOCK_PORT: int = int(os.environ.get("ABLETON_BRIDGE_LOCK_PORT", "9881"))
+MCP_SSE_PORT: int = int(os.environ.get("ABLETON_BRIDGE_MCP_PORT", "9883"))
 
 # ---------------------------------------------------------------------------
 # Singleton lock

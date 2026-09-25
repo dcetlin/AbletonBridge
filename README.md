@@ -125,12 +125,31 @@ Six Mermaid diagrams in [`diagrams/`](diagrams/) cover the system in detail:
 
 4. **Add to your MCP client config:**
 
+   **Single session (stdio — default):**
    ```json
    {
      "mcpServers": {
        "ableton-bridge": {
          "command": "uv",
          "args": ["run", "--directory", "/path/to/AbletonBridge", "python", "-m", "MCP_Server"]
+       }
+     }
+   }
+   ```
+
+   **Multi-session (SSE — multiple Claude sessions share one server):**
+
+   First, start the server:
+   ```bash
+   ./scripts/start-mcp-server.sh   # runs on port 9883
+   ```
+
+   Then configure each Claude session:
+   ```json
+   {
+     "mcpServers": {
+       "ableton-bridge": {
+         "url": "http://localhost:9883/sse"
        }
      }
    }
