@@ -5,30 +5,49 @@ import pytest
 from unittest.mock import MagicMock, patch
 from mcp.server.fastmcp import FastMCP
 
-from MCP_Server.tools.workflows import register_tools
+from MCP_Server.tools.workflows import register_tools, SIGNAL_BRIDGE_EXPECTED_PARAMS
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 MAXPAT_PATH = ROOT / "M4L_Device" / "SignalBridge.maxpat"
 
-FULL_READBACK = {"parameters": [
-    {"name": "Param Name", "value": 0},
-    {"name": "Attack", "value": 5.0},
-    {"name": "Release", "value": 50.0},
-    {"name": "Gate", "value": 0.0},
-    {"name": "Invert", "value": 0},
-    {"name": "Active", "value": 1},
-    {"name": "Dest Port", "value": 3333.0},
-]}
+FULL_DEVICE_STATE = {
+    "Param Name": 0, "Attack": 5.0, "Release": 50.0,
+    "Gate": 0.0, "Invert": 0, "Active": 1, "Dest Port": 3333.0,
+}
+
+
+def _readback_from(state):
+    return {"parameters": [{"name": k, "value": v} for k, v in state.items()]}
+
+
+FULL_READBACK = _readback_from(FULL_DEVICE_STATE)
 
 
 @pytest.fixture
 def mcp_with_tools(patch_ableton):
-    """Register workflow tools on a fresh MCP instance, resolver patched."""
+    """Register workflow tools, resolver and time.sleep patched."""
     mcp = FastMCP("test")
-    with patch("MCP_Server.cache.browser.resolve_device_uri", return_value="query:SignalBridge") as mock_resolve:
-        with patch("MCP_Server.tools.workflows.resolve_device_uri", mock_resolve):
+    with patch("MCP_Server.tools.workflows.resolve_device_uri", return_value="query:SignalBridge"):
+        with patch("MCP_Server.tools.workflows.time.sleep"):
             register_tools(mcp)
             yield mcp, patch_ableton
+
+
+def _make_side_effects(track_idx=11):
+    """Standard happy-path: create → name → wav → 3×lom → load → wait_readback → batch → readback → mute."""
+    return [
+        {"index": track_idx},       # create_audio_track
+        {"name": "onset_signal"},    # set_track_name
+        {"created": True},           # load_audio_to_arrangement
+        {"status": "ok"},            # lom_set warping
+        {"status": "ok"},            # lom_set loop_start
+        {"status": "ok"},            # lom_set start_marker
+        {"status": "ok"},            # load_instrument_or_effect
+        FULL_READBACK,               # _wait_for_device_params (1st poll)
+        {"results": []},             # set_device_parameters_batch
+        FULL_READBACK,               # final readback
+        {"mute": True},              # set_track_mute
+    ]
 
 
 class TestAddSignalTrack:
@@ -38,26 +57,10 @@ class TestAddSignalTrack:
                 return tool
         raise AssertionError("add_signal_track tool not found")
 
-    def _make_side_effects(self, track_idx=11):
-        """Standard happy-path: create → name → wav → 3×lom → load → wait_readback → batch → readback → mute."""
-        return [
-            {"index": track_idx},       # create_audio_track
-            {"name": "onset_signal"},    # set_track_name
-            {"created": True},           # load_audio_to_arrangement
-            {"status": "ok"},            # lom_set warping
-            {"status": "ok"},            # lom_set loop_start
-            {"status": "ok"},            # lom_set start_marker
-            {"status": "ok"},            # load_instrument_or_effect
-            FULL_READBACK,               # _wait_for_device_params (1st poll)
-            {"results": []},             # set_device_parameters_batch
-            FULL_READBACK,               # final readback
-            {"mute": True},              # set_track_mute
-        ]
-
     @pytest.mark.asyncio
     async def test_creates_track_and_configures(self, mcp_with_tools):
         mcp, mock_conn = mcp_with_tools
-        mock_conn.send_command.side_effect = self._make_side_effects(11)
+        mock_conn.send_command.side_effect = _make_side_effects(11)
 
         tool = self._get_tool(mcp)
         result = await tool.run(
@@ -79,74 +82,55 @@ class TestAddSignalTrack:
 
     @pytest.mark.asyncio
     async def test_wait_then_batch_ordering(self, mcp_with_tools):
-        """The batch is sent AFTER params appear, not before."""
         mcp, mock_conn = mcp_with_tools
-        # First wait-poll returns empty, second returns params
-        effects = self._make_side_effects()
-        effects[7] = {"parameters": []}  # first poll: empty
         mock_conn.send_command.side_effect = [
-            *effects[:7],
-            effects[7],       # wait poll 1: empty
-            FULL_READBACK,    # wait poll 2: ready
-            {"results": []},  # batch
-            FULL_READBACK,    # final readback
+            *_make_side_effects()[:7],
+            {"parameters": []},   # wait poll 1: empty
+            FULL_READBACK,        # wait poll 2: ready
+            {"results": []},      # batch
+            FULL_READBACK,        # final readback
             {"mute": True},
         ]
 
         tool = self._get_tool(mcp)
-        result = await tool.run(
+        await tool.run(
             arguments={"name": "t", "wav_path": "/t.wav", "param_index": 0},
             context=MagicMock(),
         )
-        parsed = json.loads(result)
 
         commands = [c[0][0] for c in mock_conn.send_command.call_args_list]
         wait_indices = [i for i, c in enumerate(commands) if c == "get_device_parameters"]
         batch_index = commands.index("set_device_parameters_batch")
-        assert wait_indices[0] < batch_index, "wait poll must come before batch"
-        assert wait_indices[1] < batch_index, "second wait poll must come before batch"
-        assert "device_state" in parsed
-        assert parsed["device_state"].get("Attack") == 5.0
+        assert all(wi < batch_index for wi in wait_indices[:2])
 
     @pytest.mark.asyncio
     async def test_params_never_ready_warns_and_skips_batch(self, mcp_with_tools):
-        """If params never appear, warns and skips the batch entirely."""
         mcp, mock_conn = mcp_with_tools
-        effects = self._make_side_effects()
 
         def side_effect(cmd, params):
             if cmd == "create_audio_track":
                 return {"index": 5}
             if cmd == "get_device_parameters":
-                return {"parameters": []}  # always empty
+                return {"parameters": []}
             if cmd == "set_device_parameters_batch":
                 pytest.fail("batch should not be sent when params aren't ready")
             return {"status": "ok", "created": True, "mute": True}
 
         mock_conn.send_command.side_effect = side_effect
-
         tool = self._get_tool(mcp)
         result = await tool.run(
             arguments={"name": "t", "wav_path": "/t.wav", "param_index": 0},
             context=MagicMock(),
         )
         parsed = json.loads(result)
-        assert "warnings" in parsed
-        assert any("not ready" in w for w in parsed["warnings"])
+        assert any("not ready" in w for w in parsed.get("warnings", []))
 
     @pytest.mark.asyncio
     async def test_device_state_from_readback_not_inputs(self, mcp_with_tools):
         mcp, mock_conn = mcp_with_tools
-        effects = self._make_side_effects()
-        effects[9] = {"parameters": [
-            {"name": "Param Name", "value": 0},
-            {"name": "Attack", "value": 4.8},
-            {"name": "Release", "value": 51.2},
-            {"name": "Gate", "value": 0.0},
-            {"name": "Invert", "value": 0},
-            {"name": "Active", "value": 1},
-            {"name": "Dest Port", "value": 3333.0},
-        ]}
+        custom_state = {**FULL_DEVICE_STATE, "Attack": 4.8, "Release": 51.2}
+        effects = _make_side_effects()
+        effects[9] = _readback_from(custom_state)
         mock_conn.send_command.side_effect = effects
 
         tool = self._get_tool(mcp)
@@ -164,12 +148,8 @@ class TestAddSignalTrack:
         mcp, mock_conn = mcp_with_tools
         tool = self._get_tool(mcp)
         for kwargs in [
-            {"param_index": 9},
-            {"osc_port": 0},
-            {"osc_port": 70000},
-            {"attack_ms": 0},
-            {"release_ms": 5000},
-            {"gate": 1.5},
+            {"param_index": 9}, {"osc_port": 0}, {"osc_port": 70000},
+            {"attack_ms": 0}, {"release_ms": 5000}, {"gate": 1.5},
         ]:
             result = await tool.run(
                 arguments={"name": "t", "wav_path": "/t.wav", **kwargs},
@@ -220,9 +200,8 @@ class TestAddSignalTrack:
     @pytest.mark.asyncio
     async def test_batch_errors_and_clamps_surfaced(self, mcp_with_tools):
         mcp, mock_conn = mcp_with_tools
-        effects = self._make_side_effects()
+        effects = _make_side_effects()
         effects[8] = {"results": [
-            {"name": "Param Name", "value": 0},
             {"name": "Attack", "error": "parameter not found"},
             {"name": "Dest Port", "value": 3333, "clamped": True},
         ]}
@@ -240,7 +219,7 @@ class TestAddSignalTrack:
     @pytest.mark.asyncio
     async def test_dest_port_always_sent(self, mcp_with_tools):
         mcp, mock_conn = mcp_with_tools
-        mock_conn.send_command.side_effect = self._make_side_effects()
+        mock_conn.send_command.side_effect = _make_side_effects()
         tool = self._get_tool(mcp)
         await tool.run(
             arguments={"name": "t", "wav_path": "/t.wav", "param_index": 0},
@@ -249,8 +228,7 @@ class TestAddSignalTrack:
         batch_call = next(c for c in mock_conn.send_command.call_args_list
                           if c[0][0] == "set_device_parameters_batch")
         params = batch_call[0][1]["parameters"]
-        port_param = next(p for p in params if p["name"] == "Dest Port")
-        assert port_param["value"] == 3333.0
+        assert next(p for p in params if p["name"] == "Dest Port")["value"] == 3333.0
 
 
 class TestSignalBridgeMaxpat:
@@ -270,32 +248,32 @@ class TestSignalBridgeMaxpat:
                 if line["patchline"]["source"][0] == source_id]
 
     def test_valid_json(self, patch_data):
-        assert "patcher" in patch_data
         assert len(patch_data["patcher"]["boxes"]) > 0
 
-    def test_osc_message_boxes_no_prepend_in_set(self, patch_data):
-        for b in patch_data["patcher"]["boxes"]:
-            box = b["box"]
-            if box.get("maxclass") == "message":
-                text = box.get("text", "")
-                if text.startswith("set "):
-                    assert "set prepend" not in text, f"Box {box.get('id')}: '{text}'"
+    def test_osc_address_uses_sprintf(self, patch_data):
+        """E1: menu text → sprintf → prepend, not route → message boxes."""
+        sprintf_box = self._get_box(patch_data, "obj-sprintf")
+        assert sprintf_box is not None, "sprintf box must exist"
+        assert "sprintf" in sprintf_box.get("text", "")
+        assert "/Params/%s" in sprintf_box.get("text", "")
+        lines_from_menu = self._get_lines_from(patch_data, "obj-param-name")
+        sprintf_fed = any(pl["destination"][0] == "obj-sprintf" for pl in lines_from_menu)
+        assert sprintf_fed, "live.menu must feed sprintf"
+        lines_from_sprintf = self._get_lines_from(patch_data, "obj-sprintf")
+        prepend_fed = any(pl["destination"][0] == "obj-prepend-prefix" for pl in lines_from_sprintf)
+        assert prepend_fed, "sprintf must feed prepend"
 
-    def test_route_all_outlets_connected(self, patch_data):
-        route_box = self._get_box(patch_data, "obj-menu-to-prefix")
-        assert route_box is not None, "route box must exist"
-        num_outlets = route_box.get("numoutlets", 0)
-        lines = self._get_lines_from(patch_data, "obj-menu-to-prefix")
-        connected_outlets = {pl["source"][1] for pl in lines}
-        for i in range(num_outlets - 1):
-            assert i in connected_outlets, f"Route outlet {i} has no patchline"
+    def test_no_route_message_chain(self, patch_data):
+        """E1: the old route+message chain must be gone."""
+        for b in patch_data["patcher"]["boxes"]:
+            text = b["box"].get("text", "")
+            assert "route 0 1 2" not in text, f"Old route chain found: {text}"
 
     def test_dest_port_range(self, patch_data):
         port_box = self._get_box(patch_data, "obj-dest-port")
-        assert port_box is not None, "dest port box must exist"
-        attrs = port_box.get("saved_attribute_attributes", {})
-        vr = attrs.get("valueof", {})
-        assert vr.get("parameter_type") != 1, "parameter_type 1 can't hold port numbers"
+        assert port_box is not None
+        vr = port_box.get("saved_attribute_attributes", {}).get("valueof", {})
+        assert vr.get("parameter_type") != 1
         assert vr.get("parameter_mmax", 0) >= 65535
 
     def test_no_loadbang_to_active_toggle(self, patch_data):
@@ -314,15 +292,15 @@ class TestSignalBridgeMaxpat:
         for b in patch_data["patcher"]["boxes"]:
             text = b["box"].get("text", "")
             if "invert" in b["box"].get("id", "").lower() and "expr" in text:
-                assert "if(" not in text, f"Pd-only if() in: '{text}'"
+                assert "if(" not in text
 
     def test_parameter_names_match_tool(self, patch_data):
-        from MCP_Server.tools.workflows import register_tools as _reg
-        expected = {"Param Name", "Active", "Attack", "Release", "Gate", "Invert", "Dest Port"}
+        """C3: maxpat parameter_longname set must match the tool's expected set."""
         found = set()
         for b in patch_data["patcher"]["boxes"]:
             longname = b["box"].get("saved_attribute_attributes", {}).get(
                 "valueof", {}).get("parameter_longname", "")
             if longname:
                 found.add(longname)
-        assert expected.issubset(found), f"Missing: {expected - found}"
+        assert SIGNAL_BRIDGE_EXPECTED_PARAMS.issubset(found), \
+            f"Missing: {SIGNAL_BRIDGE_EXPECTED_PARAMS - found}"

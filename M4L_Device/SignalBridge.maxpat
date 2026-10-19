@@ -331,176 +331,6 @@
       },
       {
         "box": {
-          "id": "obj-menu-to-prefix",
-          "maxclass": "newobj",
-          "numinlets": 1,
-          "numoutlets": 9,
-          "outlettype": [
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            ""
-          ],
-          "patching_rect": [
-            500.0,
-            200.0,
-            260.0,
-            22.0
-          ],
-          "text": "route 0 1 2 3 4 5 6 7"
-        }
-      },
-      {
-        "box": {
-          "id": "obj-set-prefix-msg0",
-          "maxclass": "message",
-          "numinlets": 2,
-          "numoutlets": 1,
-          "outlettype": [
-            ""
-          ],
-          "patching_rect": [
-            500.0,
-            240.0,
-            150.0,
-            22.0
-          ],
-          "text": "set /Params/Param1"
-        }
-      },
-      {
-        "box": {
-          "id": "obj-set-prefix-msg1",
-          "maxclass": "message",
-          "numinlets": 2,
-          "numoutlets": 1,
-          "outlettype": [
-            ""
-          ],
-          "patching_rect": [
-            500.0,
-            265.0,
-            150.0,
-            22.0
-          ],
-          "text": "set /Params/Param2"
-        }
-      },
-      {
-        "box": {
-          "id": "obj-set-prefix-msg2",
-          "maxclass": "message",
-          "numinlets": 2,
-          "numoutlets": 1,
-          "outlettype": [
-            ""
-          ],
-          "patching_rect": [
-            500.0,
-            290.0,
-            150.0,
-            22.0
-          ],
-          "text": "set /Params/Param3"
-        }
-      },
-      {
-        "box": {
-          "id": "obj-set-prefix-msg3",
-          "maxclass": "message",
-          "numinlets": 2,
-          "numoutlets": 1,
-          "outlettype": [
-            ""
-          ],
-          "patching_rect": [
-            500.0,
-            315.0,
-            150.0,
-            22.0
-          ],
-          "text": "set /Params/Param4"
-        }
-      },
-      {
-        "box": {
-          "id": "obj-set-prefix-msg4",
-          "maxclass": "message",
-          "numinlets": 2,
-          "numoutlets": 1,
-          "outlettype": [
-            ""
-          ],
-          "patching_rect": [
-            500.0,
-            340.0,
-            150.0,
-            22.0
-          ],
-          "text": "set /Params/Param5"
-        }
-      },
-      {
-        "box": {
-          "id": "obj-set-prefix-msg5",
-          "maxclass": "message",
-          "numinlets": 2,
-          "numoutlets": 1,
-          "outlettype": [
-            ""
-          ],
-          "patching_rect": [
-            500.0,
-            365.0,
-            150.0,
-            22.0
-          ],
-          "text": "set /Params/Param6"
-        }
-      },
-      {
-        "box": {
-          "id": "obj-set-prefix-msg6",
-          "maxclass": "message",
-          "numinlets": 2,
-          "numoutlets": 1,
-          "outlettype": [
-            ""
-          ],
-          "patching_rect": [
-            500.0,
-            390.0,
-            150.0,
-            22.0
-          ],
-          "text": "set /Params/Param7"
-        }
-      },
-      {
-        "box": {
-          "id": "obj-set-prefix-msg7",
-          "maxclass": "message",
-          "numinlets": 2,
-          "numoutlets": 1,
-          "outlettype": [
-            ""
-          ],
-          "patching_rect": [
-            500.0,
-            415.0,
-            150.0,
-            22.0
-          ],
-          "text": "set /Params/Param8"
-        }
-      },
-      {
-        "box": {
           "id": "obj-port-msg",
           "maxclass": "newobj",
           "numinlets": 1,
@@ -940,6 +770,24 @@
           ],
           "text": "expr $f1 * ($f1 >= $f2)"
         }
+      },
+      {
+        "box": {
+          "id": "obj-sprintf",
+          "maxclass": "newobj",
+          "numinlets": 1,
+          "numoutlets": 1,
+          "outlettype": [
+            ""
+          ],
+          "patching_rect": [
+            500.0,
+            220.0,
+            150.0,
+            22.0
+          ],
+          "text": "sprintf set /Params/%s"
+        }
       }
     ],
     "lines": [
@@ -1162,186 +1010,6 @@
       {
         "patchline": {
           "source": [
-            "obj-param-name",
-            0
-          ],
-          "destination": [
-            "obj-menu-to-prefix",
-            0
-          ]
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-menu-to-prefix",
-            0
-          ],
-          "destination": [
-            "obj-set-prefix-msg0",
-            0
-          ]
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-menu-to-prefix",
-            1
-          ],
-          "destination": [
-            "obj-set-prefix-msg1",
-            0
-          ]
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-menu-to-prefix",
-            2
-          ],
-          "destination": [
-            "obj-set-prefix-msg2",
-            0
-          ]
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-menu-to-prefix",
-            3
-          ],
-          "destination": [
-            "obj-set-prefix-msg3",
-            0
-          ]
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-menu-to-prefix",
-            4
-          ],
-          "destination": [
-            "obj-set-prefix-msg4",
-            0
-          ]
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-menu-to-prefix",
-            5
-          ],
-          "destination": [
-            "obj-set-prefix-msg5",
-            0
-          ]
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-menu-to-prefix",
-            6
-          ],
-          "destination": [
-            "obj-set-prefix-msg6",
-            0
-          ]
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-set-prefix-msg0",
-            0
-          ],
-          "destination": [
-            "obj-prepend-prefix",
-            0
-          ]
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-set-prefix-msg1",
-            0
-          ],
-          "destination": [
-            "obj-prepend-prefix",
-            0
-          ]
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-set-prefix-msg2",
-            0
-          ],
-          "destination": [
-            "obj-prepend-prefix",
-            0
-          ]
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-set-prefix-msg3",
-            0
-          ],
-          "destination": [
-            "obj-prepend-prefix",
-            0
-          ]
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-set-prefix-msg4",
-            0
-          ],
-          "destination": [
-            "obj-prepend-prefix",
-            0
-          ]
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-set-prefix-msg5",
-            0
-          ],
-          "destination": [
-            "obj-prepend-prefix",
-            0
-          ]
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-set-prefix-msg6",
-            0
-          ],
-          "destination": [
-            "obj-prepend-prefix",
-            0
-          ]
-        }
-      },
-      {
-        "patchline": {
-          "source": [
             "obj-dest-port",
             0
           ],
@@ -1359,30 +1027,6 @@
           ],
           "destination": [
             "obj-udpsend",
-            0
-          ]
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-menu-to-prefix",
-            7
-          ],
-          "destination": [
-            "obj-set-prefix-msg7",
-            0
-          ]
-        }
-      },
-      {
-        "patchline": {
-          "source": [
-            "obj-set-prefix-msg7",
-            0
-          ],
-          "destination": [
-            "obj-prepend-prefix",
             0
           ]
         }
@@ -1419,6 +1063,30 @@
           ],
           "destination": [
             "obj-invert-expr",
+            0
+          ]
+        }
+      },
+      {
+        "patchline": {
+          "source": [
+            "obj-param-name",
+            1
+          ],
+          "destination": [
+            "obj-sprintf",
+            0
+          ]
+        }
+      },
+      {
+        "patchline": {
+          "source": [
+            "obj-sprintf",
+            0
+          ],
+          "destination": [
+            "obj-prepend-prefix",
             0
           ]
         }

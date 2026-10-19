@@ -31,6 +31,10 @@ from shared.commands import (
 
 logger = logging.getLogger("AbletonBridge")
 
+SIGNAL_BRIDGE_EXPECTED_PARAMS = {
+    "Param Name", "Active", "Attack", "Release", "Gate", "Invert", "Dest Port",
+}
+
 
 def _persist_chain_templates():
     """Save effect chain templates to disk (plain JSON)."""
@@ -705,22 +709,24 @@ def register_tools(mcp):
 
     # --- SignalBridge: audio-to-OSC signal routing ---
 
-    SIGNAL_BRIDGE_EXPECTED_PARAMS = {
-        "Param Name", "Active", "Attack", "Release", "Gate", "Invert", "Dest Port",
-    }
+    def _read_device_state(ableton, track_idx):
+        """Read device parameters and return as {name: value} dict."""
+        readback = ableton.send_command("get_device_parameters", {
+            "track_index": track_idx, "device_index": 0,
+        })
+        return {p["name"]: p.get("value") for p in readback.get("parameters", [])}
 
     def _wait_for_device_params(ableton, track_idx, expected, tries=4, delay=0.25):
         """Poll get_device_parameters until expected param names appear, or give up."""
+        found = set()
         for attempt in range(tries):
             if attempt > 0:
                 time.sleep(delay)
             try:
-                readback = ableton.send_command("get_device_parameters", {
-                    "track_index": track_idx, "device_index": 0,
-                })
-                found = {p["name"] for p in readback.get("parameters", [])}
+                state = _read_device_state(ableton, track_idx)
+                found = set(state.keys())
                 if expected.issubset(found):
-                    return readback, None
+                    return state, None
             except Exception as e:
                 if attempt == tries - 1:
                     return None, f"get_device_parameters failed: {e}"
@@ -743,25 +749,27 @@ def register_tools(mcp):
         """Create a signal track with SignalBridge M4L device routing audio to an external OSC receiver.
 
         Orchestrates: create audio track → load WAV → disable warp → load SignalBridge
-        → configure device parameters → mute track. One call replaces 6+ manual steps.
+        → wait for device params → configure → read back → mute track.
 
         The SignalBridge device reads audio amplitude, envelope-follows it, and sends
-        a normalized 0-1 float over OSC. The OSC address is determined by the device's
-        Param Name menu at the selected index.
+        a normalized 0-1 float over OSC. The address is /Params/<menu entry text> where
+        the menu entry is selected by param_index. Edit the menu entries in Max to set
+        the OSC addresses for your project.
 
         Parameters:
         - name: Track name suffix (track will be named "{name}_signal")
         - wav_path: Absolute path to the signal WAV file
-        - param_index: Index into the SignalBridge device's Param Name menu (0-7, default 0).
-                       The menu entries are user-configurable in the Max patch.
+        - param_index: Index into the SignalBridge device's Param Name menu (0-7, default 0)
         - osc_port: OSC destination port, 1-65535 (default 3333)
         - attack_ms: Envelope attack, 0.1-500 ms (default 5.0)
         - release_ms: Envelope release, 0.1-2000 ms (default 50.0)
-        - gate: Threshold below which output is zeroed, 0-1 (default 0.0).
-                 With invert=True, a gated (silent) input outputs 1 (invert applies after gate).
-        - invert: If true, output is 1-value (default false).
-                  Turning Active off on the device holds the last value (does not drop to 0).
-                  The envelope analyzes the left channel only.
+        - gate: Threshold below which output is zeroed, 0-1 (default 0.0)
+        - invert: If true, output is 1-value (default false)
+
+        Notes:
+        - With invert=True, a gated (silent) input outputs 1 (invert applies after gate).
+        - Turning Active off on the device holds the last sent value; it does not drop to 0.
+        - The envelope analyzes the left channel only; sum stereo to mono upstream.
         """
         _validate_range(param_index, "param_index", 0, 7)
         _validate_range(osc_port, "osc_port", 1, 65535)
@@ -867,12 +875,7 @@ def register_tools(mcp):
                 warnings.append(f"set_device_parameters_batch: {e}")
 
             try:
-                readback = ableton.send_command("get_device_parameters", {
-                    "track_index": track_idx,
-                    "device_index": 0,
-                })
-                for p in readback.get("parameters", []):
-                    device_state[p["name"]] = p.get("value")
+                device_state = _read_device_state(ableton, track_idx)
             except Exception as e:
                 warnings.append(f"get_device_parameters readback: {e}")
 
