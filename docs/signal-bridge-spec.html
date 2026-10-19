@@ -592,12 +592,21 @@ pre code {
   <li>Open <code>M4L_Device/SignalBridge.maxpat</code> in Max for Live (drag into an Ableton track, then click the wrench icon)</li>
   <li>Edit the Param Name <code>live.menu</code> entries to match your project's signal names</li>
   <li>File → Save As → save as <code>SignalBridge.amxd</code> (or File → Freeze Device, then save)</li>
-  <li>Move the <code>.amxd</code> to your User Library: <code>~/Music/Ableton/User Library/Presets/Audio Effects/Max Audio Effect/</code></li>
-  <li>The MCP tool resolves <code>SignalBridge.amxd</code> from Ableton's browser. If the device isn't found, the tool errors with setup instructions.</li>
+  <li>Save the <code>.amxd</code> to a <strong>shallow path</strong> in your User Library — e.g. <code>~/Music/Ableton/User Library/SignalBridge.amxd</code>. The browser cache indexes only 3 levels deep; the default M4L save path (<code>Presets/Audio Effects/Max Audio Effect/</code>) is too deep to be found.</li>
+  <li>The MCP tool resolves <code>SignalBridge.amxd</code> (or <code>SignalBridge</code>) from Ableton's browser. Verify the name in Live's browser matches. If the device isn't found, the tool errors with setup instructions.</li>
 </ol>
 
 <div class="note">
 <strong>The <code>.maxpat</code> is the source file.</strong> Ableton cannot load it directly — it must be saved/frozen as <code>.amxd</code> first. The repo ships the <code>.maxpat</code> because <code>.amxd</code> is a binary format that requires the Max editor to produce.
+</div>
+
+<div class="note">
+<strong>Behavioral notes:</strong>
+<ul style="margin: 0.5rem 0 0; font-size: 0.9rem;">
+  <li>With Invert on, a gated (silent) input outputs <strong>1</strong>, not 0 — invert applies after gate.</li>
+  <li>Turning Active off holds the last sent value; the receiver does not see a drop to 0.</li>
+  <li>The envelope analyzes the <strong>left channel only</strong>. Stereo signals should be summed to mono upstream.</li>
+</ul>
 </div>
 
 <h2>Acceptance Criteria</h2>

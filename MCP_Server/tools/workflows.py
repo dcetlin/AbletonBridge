@@ -734,8 +734,11 @@ def register_tools(mcp):
         - osc_port: OSC destination port (default 3333)
         - attack_ms: Envelope attack in milliseconds (default 5.0)
         - release_ms: Envelope release in milliseconds (default 50.0)
-        - gate: Threshold below which output is zeroed, 0-1 (default 0.0)
-        - invert: If true, output is 1-value (default false)
+        - gate: Threshold below which output is zeroed, 0-1 (default 0.0).
+                 Note: with invert=True, a gated (silent) input outputs 1 (invert applies after gate).
+        - invert: If true, output is 1-value (default false).
+                  Note: turning Active off on the device holds the last value (does not drop to 0).
+                  The envelope analyzes the left channel only.
         """
         ableton = get_ableton_connection()
         warnings = []
@@ -786,15 +789,19 @@ def register_tools(mcp):
         _report_progress(ctx, 5, total_steps, "Loading SignalBridge")
         try:
             uri = resolve_device_uri("SignalBridge.amxd")
+            if uri == "SignalBridge.amxd":
+                uri = resolve_device_uri("SignalBridge")
             ableton.send_command("load_instrument_or_effect", {
                 "track_index": track_idx, "uri": uri
             })
         except Exception as e:
             return json.dumps({
                 "error": f"Failed to load SignalBridge device: {e}. "
-                "Ensure SignalBridge.amxd is frozen and installed in your User Library "
-                "(see docs/signal-bridge-spec.html for setup instructions).",
+                "Ensure SignalBridge.amxd is frozen in Max and saved to a shallow path "
+                "in your User Library (e.g. User Library/SignalBridge.amxd — the browser "
+                "cache indexes only 3 levels deep). See docs/signal-bridge-spec.html.",
                 "track_index": track_idx,
+                "track_left_in_place": True,
             })
 
         # Step 6: Configure SignalBridge device parameters
