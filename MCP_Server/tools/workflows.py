@@ -20,7 +20,8 @@ from shared.commands import (
     CreateReturnTrackParams, GetAllTracksInfoParams, GetDeviceParametersParams,
     GetMasterTrackInfoParams, GetReturnTrackInfoParams, GetReturnTracksParams,
     GetScenesParams, GetSessionInfoParams, GetTrackInfoParams,
-    LoadInstrumentOrEffectParams, SetClipNameParams, SetMasterVolumeParams,
+    LoadInstrumentOrEffectParams, SetClipNameParams, SetDeviceParametersBatchParams,
+    SetMasterVolumeParams,
     SetReturnTrackMuteParams, SetReturnTrackPanParams, SetReturnTrackSoloParams,
     SetReturnTrackVolumeParams, SetTrackColorParams, SetTrackMuteParams,
     SetTrackNameParams, SetTrackPanParams, SetTrackSendParams,
@@ -709,10 +710,8 @@ def register_tools(mcp):
         ctx: Context,
         name: str,
         wav_path: str,
-        param_name: str,
-        param_index: int = -1,
+        param_index: int = 0,
         osc_port: int = 3333,
-        osc_prefix: str = "/Params",
         attack_ms: float = 5.0,
         release_ms: float = 50.0,
         gate: float = 0.0,
@@ -724,29 +723,35 @@ def register_tools(mcp):
         → configure device parameters → mute track. One call replaces 6+ manual steps.
 
         The SignalBridge device reads audio amplitude, envelope-follows it, and sends
-        a normalized 0-1 float over OSC. The OSC address is {osc_prefix}/{param_name}.
+        a normalized 0-1 float over OSC. The OSC address is determined by the device's
+        Param Name menu at the selected index.
 
         Parameters:
         - name: Track name suffix (track will be named "{name}_signal")
         - wav_path: Absolute path to the signal WAV file
-        - param_name: OSC parameter name — the OSC address becomes {osc_prefix}/{param_name}
-        - param_index: Index into the SignalBridge device's Param Name menu (-1 = skip, let device use its default or set manually)
+        - param_index: Index into the SignalBridge device's Param Name menu (0-7, default 0).
+                       The menu entries are user-configurable in the Max patch.
         - osc_port: OSC destination port (default 3333)
-        - osc_prefix: OSC address prefix (default "/Params")
         - attack_ms: Envelope attack in milliseconds (default 5.0)
         - release_ms: Envelope release in milliseconds (default 50.0)
         - gate: Threshold below which output is zeroed, 0-1 (default 0.0)
         - invert: If true, output is 1-value (default false)
         """
         ableton = get_ableton_connection()
+        warnings = []
 
-        total_steps = 7
+        if param_index < 0 or param_index > 7:
+            return json.dumps({"error": f"param_index must be 0-7, got {param_index}"})
+
+        total_steps = 8
         track_name = f"{name}_signal"
 
         # Step 1: Create audio track
         _report_progress(ctx, 1, total_steps, "Creating audio track")
         result = ableton.send_command("create_audio_track", {"index": -1})
-        track_idx = result.get("index", 0)
+        track_idx = result.get("index")
+        if track_idx is None:
+            return json.dumps({"error": "create_audio_track returned no index", "result": result})
 
         # Step 2: Set track name
         _report_progress(ctx, 2, total_steps, "Naming track")
@@ -755,7 +760,7 @@ def register_tools(mcp):
                 "track_index": track_idx, "name": track_name
             })
         except Exception as e:
-            logger.debug("set_track_name failed: %s", e)
+            warnings.append(f"set_track_name: {e}")
 
         # Step 3: Load WAV into arrangement at position 0
         _report_progress(ctx, 3, total_steps, "Loading WAV")
@@ -775,61 +780,75 @@ def register_tools(mcp):
                     "path": f"{lom_path}.{prop}", "value": val
                 })
             except Exception as e:
-                logger.debug("lom_set %s.%s failed: %s", lom_path, prop, e)
+                warnings.append(f"lom_set {prop}: {e}")
 
         # Step 5: Load SignalBridge M4L device
         _report_progress(ctx, 5, total_steps, "Loading SignalBridge")
-        device_loaded = False
         try:
-            uri = resolve_device_uri("SignalBridge")
+            uri = resolve_device_uri("SignalBridge.amxd")
             ableton.send_command("load_instrument_or_effect", {
                 "track_index": track_idx, "uri": uri
             })
-            device_loaded = True
         except Exception as e:
-            logger.warning("Failed to load SignalBridge: %s", e)
+            return json.dumps({
+                "error": f"Failed to load SignalBridge device: {e}. "
+                "Ensure SignalBridge.amxd is frozen and installed in your User Library "
+                "(see docs/signal-bridge-spec.html for setup instructions).",
+                "track_index": track_idx,
+            })
 
         # Step 6: Configure SignalBridge device parameters
         _report_progress(ctx, 6, total_steps, "Configuring SignalBridge")
-        if device_loaded:
-            device_params = [
-                {"name": "Attack", "value": attack_ms},
-                {"name": "Release", "value": release_ms},
-                {"name": "Gate", "value": gate},
-                {"name": "Invert", "value": 1 if invert else 0},
-                {"name": "Active", "value": 1},
-            ]
-            if param_index >= 0:
-                device_params.insert(0, {"name": "Param Name", "value": param_index})
-            if osc_port != 3333:
-                device_params.append({"name": "Dest Port", "value": osc_port})
-            try:
-                ableton.send_command("set_device_parameters_batch", {
-                    "track_index": track_idx,
-                    "device_index": 0,
-                    "parameters": device_params,
-                })
-            except Exception as e:
-                logger.warning("Failed to configure SignalBridge: %s", e)
+        device_params = [
+            {"name": "Param Name", "value": param_index},
+            {"name": "Attack", "value": attack_ms},
+            {"name": "Release", "value": release_ms},
+            {"name": "Gate", "value": gate},
+            {"name": "Invert", "value": 1 if invert else 0},
+            {"name": "Active", "value": 1},
+            {"name": "Dest Port", "value": osc_port},
+        ]
+        try:
+            batch_result = ableton.send_command("set_device_parameters_batch", {
+                "track_index": track_idx,
+                "device_index": 0,
+                "parameters": device_params,
+            })
+            for entry in batch_result.get("results", []):
+                if "error" in entry:
+                    warnings.append(f"set param '{entry.get('name', '?')}': {entry['error']}")
+        except Exception as e:
+            warnings.append(f"set_device_parameters_batch: {e}")
 
-        # Step 7: Mute track (signal tracks shouldn't be audible)
-        _report_progress(ctx, 7, total_steps, "Muting track")
+        # Step 7: Read back actual device state
+        _report_progress(ctx, 7, total_steps, "Verifying device state")
+        device_state = {}
+        try:
+            readback = ableton.send_command("get_device_parameters", {
+                "track_index": track_idx,
+                "device_index": 0,
+            })
+            for p in readback.get("parameters", []):
+                device_state[p["name"]] = p.get("value")
+        except Exception as e:
+            warnings.append(f"get_device_parameters readback: {e}")
+
+        # Step 8: Mute track (signal tracks shouldn't be audible)
+        _report_progress(ctx, 8, total_steps, "Muting track")
         try:
             ableton.send_command("set_track_mute", {
                 "track_index": track_idx, "mute": True
             })
         except Exception as e:
-            logger.debug("set_track_mute failed: %s", e)
+            warnings.append(f"set_track_mute: {e}")
 
-        return json.dumps({
+        response = {
             "track_index": track_idx,
             "track_name": track_name,
-            "param_name": param_name,
-            "osc_address": f"{osc_prefix}/{param_name}",
+            "param_index": param_index,
             "osc_port": osc_port,
-            "device_loaded": device_loaded,
-            "attack_ms": attack_ms,
-            "release_ms": release_ms,
-            "gate": gate,
-            "invert": invert,
-        })
+            "device_state": device_state,
+        }
+        if warnings:
+            response["warnings"] = warnings
+        return json.dumps(response)
