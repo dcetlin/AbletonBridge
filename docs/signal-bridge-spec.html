@@ -405,44 +405,44 @@ pre code {
 
 <div class="container">
 
-<div class="section-label">Soulrise / AbletonBridge</div>
+<div class="section-label">AbletonBridge</div>
 <h1>SignalBridge</h1>
-<p class="subtitle">M4L device that reads audio amplitude and sends it as a normalized OSC signal to TouchDesigner. Configurable by MCP — zero manual mapping.</p>
+<p class="subtitle">M4L device that reads audio amplitude and sends it as a normalized OSC signal to an external receiver. Configurable by MCP — zero manual mapping.</p>
 
 <h2>The Problem</h2>
-<p>Adding a new audio-derived signal (onset, articulation, pitch contour) from Ableton to TouchDesigner currently requires three manual mapping steps in the GUI. The LOM has no API for creating <code>live.remote~</code> connections or macro mappings — that wall is structural, not a missing feature.</p>
+<p>Routing audio-derived signals (onset detection, amplitude envelopes, pitch contours) from Ableton to an external system typically requires manual parameter mapping in the GUI. The LOM has no API for creating <code>live.remote~</code> connections or macro mappings — that wall is structural, not a missing feature.</p>
 
 <p>The fix: don't use the parameter mapping system. Audio → OSC is a straight line that M4L handles natively.</p>
 
 <h2>Signal Flow</h2>
 
-<h3>Current (5 components, 2 manual steps)</h3>
+<h3>Typical (5 components, 2 manual steps)</h3>
 <div class="signal-flow">
   <div class="flow-chain">
-    <span class="flow-node source">WAV on track</span>
+    <span class="flow-node source">Audio on track</span>
     <span class="flow-arrow">→</span>
     <span class="flow-node">Envelope Follower</span>
     <span class="flow-arrow">→</span>
     <span class="flow-node" style="border-style: dashed;">manual map</span>
     <span class="flow-arrow">→</span>
-    <span class="flow-node">NATIVIZE macro</span>
+    <span class="flow-node">Rack macro</span>
     <span class="flow-arrow">→</span>
     <span class="flow-node" style="border-style: dashed;">manual map</span>
     <span class="flow-arrow">→</span>
-    <span class="flow-node">Nativize 256</span>
+    <span class="flow-node">OSC plugin</span>
     <span class="flow-arrow">→</span>
-    <span class="flow-node output">TD :3333</span>
+    <span class="flow-node output">Receiver</span>
   </div>
 </div>
 
-<h3>Proposed (1 device, 0 manual steps)</h3>
+<h3>With SignalBridge (1 device, 0 manual steps)</h3>
 <div class="signal-flow">
   <div class="flow-chain">
-    <span class="flow-node source">WAV on track</span>
+    <span class="flow-node source">Audio on track</span>
     <span class="flow-arrow">→</span>
     <span class="flow-node" style="border-color: var(--accent);">SignalBridge</span>
     <span class="flow-arrow">→</span>
-    <span class="flow-node output">TD :3333</span>
+    <span class="flow-node output">Receiver</span>
   </div>
 </div>
 
@@ -453,12 +453,12 @@ pre code {
   <div class="mode-card">
     <div class="mode-name">Envelope</div>
     <div class="mode-tag">mode: "envelope"</div>
-    <p>Reads audio amplitude on the track. The Soulrise default — WAV signal → envelope follower → OSC.</p>
+    <p>Reads audio amplitude on the track. Audio signal → envelope follower → OSC.</p>
   </div>
   <div class="mode-card">
     <div class="mode-name">Observer</div>
     <div class="mode-tag">mode: "observer"</div>
-    <p>Watches any LOM parameter via <code>live.observer</code> and forwards changes as OSC. For parameter-derived signals without Nativize.</p>
+    <p>Watches any LOM parameter via <code>live.observer</code> and forwards changes as OSC. For parameter-derived signals.</p>
   </div>
   <div class="mode-card">
     <div class="mode-name">Passthrough</div>
@@ -479,7 +479,7 @@ pre code {
        └→ (if rms_out) average~ → snapshot~ 16 → pak /Params/[name]Rms f → udpsend</code></pre>
 
 <div class="note">
-<strong>Implementation notes:</strong> <code>slide~</code> takes sample counts, not milliseconds — convert via <code>mstosamps~</code> or <code>ms * sr / 1000</code>. <code>snapshot~ 16</code> downsamples from signal rate to ~60 Hz control rate before <code>udpsend</code> (which is control-rate only). Tap <code>live.meter~</code> before downsampling to display the smoothed audio signal natively. Smoothing stage is bypassed when set to <code>none</code> (TD owns the curve); <code>linear</code> uses <code>line</code>; <code>one-pole</code> uses <code>slide</code> (control rate).
+<strong>Implementation notes:</strong> <code>slide~</code> takes sample counts, not milliseconds — convert via <code>mstosamps~</code> or <code>ms * sr / 1000</code>. <code>snapshot~ 16</code> downsamples from signal rate to ~60 Hz control rate before <code>udpsend</code> (which is control-rate only). Tap <code>live.meter~</code> before downsampling to display the smoothed audio signal natively. Smoothing stage is bypassed when set to <code>none</code> (receiver owns the curve); <code>linear</code> uses <code>line</code>; <code>one-pole</code> uses <code>slide</code> (control rate).
 </div>
 
 <h3>Observer mode (deferred to v2)</h3>
@@ -503,22 +503,22 @@ pre code {
     <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
   </thead>
   <tbody>
-    <tr><td>param_name</td><td>menu</td><td>—</td><td>OSC address becomes <code>/Params/&lt;value&gt;</code>. Fixed list: Violin, Master, Bilatamount, Bilatfreq, Violinpitch, Pitchvibrato, Vibratointensity, Synths, Synthsthickness, Onset, Articulation, Notechange. MCP sets by index via <code>lom_set</code>.</td></tr>
+    <tr><td>param_name</td><td>menu</td><td>—</td><td>OSC address becomes <code>/Params/&lt;value&gt;</code>. User-configurable <code>live.menu</code> — populate with your project's signal names. MCP sets by index via <code>lom_set</code>.</td></tr>
     <tr><td>active</td><td>toggle</td><td>1</td><td>Enable / disable output</td></tr>
     <tr><td>attack</td><td>float ms</td><td>5.0</td><td>Envelope attack time</td></tr>
     <tr><td>release</td><td>float ms</td><td>50.0</td><td>Envelope release time</td></tr>
     <tr><td>min</td><td>float</td><td>0.0</td><td>Output range floor</td></tr>
     <tr><td>max</td><td>float</td><td>1.0</td><td>Output range ceiling</td></tr>
-    <tr><td>smoothing</td><td>menu</td><td>one-pole</td><td>none · linear · one-pole — controls whether SignalBridge or TD owns the curve. Use <code>none</code> for onset signals (TD's Rise/Fall handles it).</td></tr>
+    <tr><td>smoothing</td><td>menu</td><td>one-pole</td><td>none · linear · one-pole — controls whether SignalBridge or the receiver owns the curve. Use <code>none</code> when the receiver handles its own smoothing.</td></tr>
     <tr><td>gate</td><td>float</td><td>0.0</td><td>Zeros output below this threshold (0–1). Onset signals use ~0.3 to avoid false triggers in silence.</td></tr>
-    <tr><td>invert</td><td>toggle</td><td>0</td><td>Outputs <code>1 - value</code>. Makes inverted mappings visible in Ableton instead of hidden in TD expressions.</td></tr>
-    <tr><td>rms_out</td><td>toggle</td><td>0</td><td>Sends a second OSC output at <code>/Params/&lt;name&gt;Rms</code> with RMS value. One device → two signals, saves a track. <strong>Requires a matching <code>&lt;name&gt;Rms</code> param on the TD Params surface</strong> — AutoOSC silently drops unmatched addresses.</td></tr>
+    <tr><td>invert</td><td>toggle</td><td>0</td><td>Outputs <code>1 - value</code>. Makes inverted mappings visible in Ableton instead of hidden in receiver-side expressions.</td></tr>
+    <tr><td>rms_out</td><td>toggle</td><td>0</td><td>Sends a second OSC output at <code>/Params/&lt;name&gt;Rms</code> with RMS value. One device → two signals, saves a track. <strong>The receiver must be configured to accept the <code>&lt;name&gt;Rms</code> address</strong> — unmatched addresses are typically dropped silently.</td></tr>
     <tr><td>dest_port</td><td>int</td><td>3333</td><td>OSC destination port</td></tr>
   </tbody>
 </table>
 
 <div class="note">
-  <strong>Range is 0–1 by default.</strong> The ±50 mistake that caused the earlier flatline bug is structurally impossible — <code>clip~ 0. 1.</code> enforces the range at the signal level before OSC packing.
+  <strong>Range is 0–1 by default.</strong> Out-of-range values are structurally impossible — <code>clip 0. 1.</code> enforces the range at the output stage before OSC packing.
 </div>
 
 <h2>Device UI</h2>
@@ -544,19 +544,22 @@ pre code {
 
 <h2>AbletonBridge Integration</h2>
 
-<h3>New handler</h3>
-<pre><code>@command("add_signal_track", modifying=True)
+<h3>Workflow tool</h3>
+<pre><code>@mcp.tool()
+@_tool_handler("creating signal track")
 def add_signal_track(
-    song,
+    ctx: Context,
     name: str,
     wav_path: str,
-    *,
     param_name: str,
-    mode: str = "envelope",
+    param_index: int = -1,
+    osc_port: int = 3333,
+    osc_prefix: str = "/Params",
     attack_ms: float = 5.0,
     release_ms: float = 50.0,
-    ctrl: 'ControlSurface | None' = None,
-) -> dict:</code></pre>
+    gate: float = 0.0,
+    invert: bool = False,
+) -> str:</code></pre>
 
 <h3>What it does</h3>
 <ol class="step-list">
@@ -568,22 +571,7 @@ def add_signal_track(
   <li>Mute track (signal tracks shouldn't be audible)</li>
 </ol>
 
-<h3>MCP tool</h3>
-<pre><code>@mcp.tool()
-@_tool_handler
-async def add_signal_track(
-    name: str,
-    wav_path: str,
-    param_name: str,
-    mode: str = "envelope",
-    attack_ms: float = 5.0,
-    release_ms: float = 50.0,
-) -> str:
-    """Create a signal track with SignalBridge routing audio to TD via OSC."""
-    return await send_command("add_signal_track", {
-        "name": name, "wav_path": wav_path, "param_name": param_name,
-        "mode": mode, "attack_ms": attack_ms, "release_ms": release_ms,
-    })</code></pre>
+<p>Implemented as a compound workflow tool in <code>MCP_Server/tools/workflows.py</code> — orchestrates existing commands, no new Remote Script handler needed. Accepts any <code>param_name</code> string and configurable <code>osc_port</code> / <code>osc_prefix</code>.</p>
 
 <h3>Dashboard addition</h3>
 <p>New "Signals" panel on the existing <code>:9880</code> dashboard. The MCP server listens for status reports from SignalBridge devices over UDP.</p>
@@ -601,56 +589,53 @@ async def add_signal_track(
   </tbody>
 </table>
 
-<h2>TD Contract</h2>
-<p>No TD changes needed. SignalBridge speaks the same protocol TD already listens on.</p>
+<h2>OSC Output Contract</h2>
+<p>SignalBridge sends standard OSC messages. Configure the address prefix and port to match your receiver.</p>
 
 <table class="param-table">
   <thead>
-    <tr><th>Property</th><th>Value</th></tr>
+    <tr><th>Property</th><th>Default</th></tr>
   </thead>
   <tbody>
-    <tr><td>Target</td><td>UDP 127.0.0.1:3333</td></tr>
-    <tr><td>Address</td><td><code>/Params/&lt;Name&gt;</code> — case-sensitive, must match Params custom par label exactly</td></tr>
+    <tr><td>Transport</td><td>UDP to 127.0.0.1</td></tr>
+    <tr><td>Port</td><td>Configurable (default 3333)</td></tr>
+    <tr><td>Address</td><td><code>{osc_prefix}/{param_name}</code> (default prefix <code>/Params</code>)</td></tr>
     <tr><td>Value</td><td>Single float, 0–1 normalized</td></tr>
-    <tr><td>Unmatched</td><td>Silently dropped by TD</td></tr>
-    <tr><td>Reserved</td><td><code>/nativize/time</code> — don't reuse</td></tr>
   </tbody>
 </table>
 
 <div class="note">
-<strong>One-writer guard:</strong> TD's OSCManager ignores incoming OSC for params that are in non-CONSTANT mode (TD-computed) or are active SignalMapper route targets. If a signal appears dead, check whether TD has a route claiming that param — the device's output is silently dropped until the route is removed.
-</div>
-
-<div class="note">
-<strong>Param ordering:</strong> New params must be <strong>appended</strong> to the TD Params surface, never inserted. Inserting shifts Nativize indices and breaks existing macro mappings.
+<strong>One-writer guard:</strong> Some OSC receivers ignore incoming messages for parameters that are being computed internally. If a signal appears dead, check whether the receiver has claimed that parameter — the device's output may be silently dropped.
 </div>
 
 <h2>End-to-End Workflow</h2>
 <h3>Adding a new visual signal</h3>
 <pre><code>add_signal_track(
-    name="onset",
-    wav_path="/path/to/onset_signal.wav",
-    param_name="Onset"
+    name="kick",
+    wav_path="/path/to/kick_envelope.wav",
+    param_name="Kick",
+    param_index=0,
+    attack_ms=2.0,
+    release_ms=80.0
 )</code></pre>
-<p>One call. Track appears, WAV loads, SignalBridge configures, signal flows to TD.</p>
+<p>One call. Track appears, WAV loads, SignalBridge configures, signal flows to the receiver.</p>
 
 <h3>Debug flow</h3>
 <ol class="step-list">
-  <li>Something wrong in TD → open dashboard at <code>:9880</code></li>
+  <li>Something wrong at the receiver → open dashboard at <code>:9880</code></li>
   <li>Signals panel shows which signal is flat, missing, or out of range</li>
   <li>Look at the track in Ableton → device face shows real-time meter</li>
   <li>Tweak attack/release on the device, see results immediately</li>
 </ol>
 
 <h2>What Stays Unchanged</h2>
-<p><strong>Nativize 256</strong> keeps handling song position (<code>/nativize/time</code>) and any manually-mapped non-signal parameters. SignalBridge routes around it for audio-derived signals.</p>
-<p><strong>NATIVIZE rack</strong> stays for performance macros and anything that isn't an audio-derived signal.</p>
+<p><strong>Existing parameter mapping chains</strong> (rack macros, VST/AU plugins) continue to work for non-audio-derived signals. SignalBridge is additive — it handles the audio-to-OSC path and doesn't interfere with other routing.</p>
 <p><strong>All existing MCP tools</strong> — <code>add_signal_track</code> composes existing primitives internally.</p>
 
 <h2>Review Findings</h2>
 
 <h3>Alexander structural review</h3>
-<p><strong>Strongest feature:</strong> The shared output stage is the right center — the device's job is "get a value to TD cleanly," not "envelope follow." The <code>clip 0. 1.</code> is the boundary's physical expression.</p>
+<p><strong>Strongest feature:</strong> The shared output stage is the right center — the device's job is "get a normalized value out over OSC," not "envelope follow." The <code>clip 0. 1.</code> is the boundary's physical expression.</p>
 
 <p><strong>Weakness — inner calm:</strong> Three modes in one device is premature. Envelope reads audio (MSP domain). Observer watches LOM (control domain). Passthrough takes MCP values. These are three different sources of truth sharing plumbing. If any mode grows, they'll compete for patch real estate.</p>
 
@@ -668,56 +653,53 @@ async def add_signal_track(
   <li><code>live.meter~</code> taps before downsampling to display smoothed audio natively</li>
 </ul>
 
-<h3>Signal presets (from TD-side analysis)</h3>
+<h3>Example presets by signal type</h3>
 <table class="param-table">
   <thead>
     <tr><th>Signal type</th><th>Attack</th><th>Release</th><th>Gate</th><th>Smoothing</th><th>Notes</th></tr>
   </thead>
   <tbody>
-    <tr><td>onset</td><td>≤5 ms</td><td>~40 ms</td><td>0.3</td><td>none</td><td>TD's Rise/Fall handles curve. 30ms hold + 40ms decay in WAV.</td></tr>
-    <tr><td>amplitude</td><td>~10 ms</td><td>~100 ms</td><td>0.0</td><td>one-pole</td><td>Smoother, SignalBridge owns the curve.</td></tr>
-    <tr><td>articulation</td><td>~10 ms</td><td>~100 ms</td><td>0.0</td><td>none</td><td>~1.5s smoothing happens in TD's SignalMapper.</td></tr>
-    <tr><td>notechange</td><td>≤5 ms</td><td>~40 ms</td><td>0.3</td><td>none</td><td>Pitch-change gate — sharp edges, TD smoothes.</td></tr>
+    <tr><td>transient / onset</td><td>≤5 ms</td><td>~40 ms</td><td>0.3</td><td>none</td><td>Sharp response. Let the receiver handle further smoothing.</td></tr>
+    <tr><td>amplitude envelope</td><td>~10 ms</td><td>~100 ms</td><td>0.0</td><td>one-pole</td><td>Smooth tracking. SignalBridge owns the curve.</td></tr>
+    <tr><td>pitch / spectral</td><td>~10 ms</td><td>~100 ms</td><td>0.0</td><td>none</td><td>Receiver-side smoothing for slow signals.</td></tr>
+    <tr><td>gate / trigger</td><td>≤5 ms</td><td>~40 ms</td><td>0.3</td><td>none</td><td>Binary-like signal — fast edges, threshold filters noise.</td></tr>
   </tbody>
 </table>
 
 <div class="note">
-<strong>What TD already handles (don't duplicate):</strong> Rate limiting (cook rate + AutoOSC filter), curve shaping (SignalMapper's per-route Curve param), bipolar center mapping. SignalBridge's job ends at producing a clean 0–1 value.
+<strong>Avoid duplicating receiver-side processing:</strong> If your receiver already handles curve shaping, rate limiting, or bipolar remapping, set smoothing to <code>none</code> and let it do the work. SignalBridge's job ends at producing a clean 0–1 value.
 </div>
 
 <h3>Resolved: string parameters → live.menu</h3>
-<p>M4L device parameters are numeric only. <code>param_name</code> is implemented as a <code>live.menu</code> with the 12 known Soulrise signal labels. MCP sets by index via <code>lom_set</code>. Adding a new signal = one menu entry in the Max patch. Bilatlive and Bilatsynth are excluded (TD-computed — would be dropped by the one-writer guard).</p>
+<p>M4L device parameters are numeric only. <code>param_name</code> is implemented as a <code>live.menu</code> with user-configurable entries — populate it with your project's signal names. MCP sets by index via <code>lom_set</code>. Adding a new signal = one menu entry in the Max patch.</p>
 
 <h2>Build Plan</h2>
 
 <h3>M4L device (needs Max)</h3>
 <ol class="step-list">
-  <li>Build the patch: three input paths, shared output stage, ~20 objects</li>
+  <li>Build the patch: envelope input path, shared output stage, ~20 objects</li>
   <li>Design presentation mode UI: name, meter, mode badge, dials, OSC readout</li>
   <li>Add UDP status reporting to MCP server</li>
   <li>Test: load via <code>load_instrument_or_effect</code>, configure via <code>lom_set</code></li>
 </ol>
 
-<h3>AbletonBridge (code — can build now)</h3>
+<h3>AbletonBridge (code)</h3>
 <ol class="step-list">
-  <li>New handler: <code>add_signal_track</code> in <code>handlers/arrangement.py</code></li>
-  <li>New MCP tool: <code>add_signal_track</code> in <code>tools/arrangement.py</code></li>
+  <li>Workflow tool: <code>add_signal_track</code> in <code>tools/workflows.py</code> ✓</li>
+  <li>Tests ✓</li>
   <li>Dashboard signals panel on <code>:9880</code></li>
-  <li>Codegen refresh + tests</li>
 </ol>
 
 <h2>Acceptance Criteria</h2>
 <div class="criteria">
   <div class="criterion">SignalBridge loads via <code>load_instrument_or_effect('SignalBridge')</code></div>
   <div class="criterion">All device parameters settable via <code>lom_set</code></div>
-  <div class="criterion">Envelope mode: audio → normalized float → OSC on port 3333</div>
-  <div class="criterion">Observer mode: LOM parameter change → OSC output</div>
-  <div class="criterion">Passthrough mode: <code>lom_set</code> value → OSC output</div>
+  <div class="criterion">Envelope mode: audio → normalized float → OSC output</div>
   <div class="criterion">Dashboard shows all active SignalBridge instances with live values</div>
   <div class="criterion"><code>add_signal_track</code> creates a complete signal track in one call</div>
-  <div class="criterion">Range is 0–1 by default — <code>clip~</code> enforces at signal level</div>
+  <div class="criterion">Range is 0–1 by default — <code>clip</code> enforces at output stage</div>
   <div class="criterion">All existing AbletonBridge tests pass</div>
-  <div class="criterion">Three Soulrise signals (Onset, Articulation, Notechange) work end-to-end</div>
+  <div class="criterion">Configured signals work end-to-end (audio in → OSC out at receiver)</div>
 </div>
 
 </div>
