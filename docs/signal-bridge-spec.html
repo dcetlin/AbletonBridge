@@ -523,11 +523,13 @@ pre code {
 <h3>What it does</h3>
 <ol class="step-list">
   <li>Create audio track named <code>{name}_signal</code></li>
+  <li>Name the track</li>
   <li>Load WAV from <code>wav_path</code> into arrangement at position 0</li>
-  <li>Disable warp, reset start marker to 0 (bracket LOM paths)</li>
+  <li>Disable warp, reset start marker to 0</li>
   <li>Load SignalBridge.amxd via <code>load_instrument_or_effect</code> — <strong>errors if device not found</strong></li>
-  <li>Set all device params via <code>set_device_parameters_batch</code> — batch errors surfaced as warnings</li>
-  <li>Read back actual device state via <code>get_device_parameters</code> — returned values come from the device, not echoed inputs</li>
+  <li>Wait for device parameters to appear (~3s budget, polls at 300ms). If params never appear, <strong>warns and skips configuration</strong>.</li>
+  <li>Set all device params via <code>set_device_parameters_batch</code> — batch errors and clamps surfaced as warnings</li>
+  <li>Read back actual device state — returned values come from the device, not echoed inputs. Reports <code>osc_address</code> from the Param Name display value.</li>
   <li>Mute track (signal tracks shouldn't be audible; device still receives audio)</li>
 </ol>
 

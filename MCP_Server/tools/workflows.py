@@ -21,7 +21,7 @@ from shared.commands import (
     CreateReturnTrackParams, GetAllTracksInfoParams, GetDeviceParametersParams,
     GetMasterTrackInfoParams, GetReturnTrackInfoParams, GetReturnTracksParams,
     GetScenesParams, GetSessionInfoParams, GetTrackInfoParams,
-    LoadInstrumentOrEffectParams, SetClipNameParams, SetDeviceParametersBatchParams,
+    LoadInstrumentOrEffectParams, SetClipNameParams,
     SetMasterVolumeParams,
     SetReturnTrackMuteParams, SetReturnTrackPanParams, SetReturnTrackSoloParams,
     SetReturnTrackVolumeParams, SetTrackColorParams, SetTrackMuteParams,
@@ -34,6 +34,8 @@ logger = logging.getLogger("AbletonBridge")
 SIGNAL_BRIDGE_EXPECTED_PARAMS = {
     "Param Name", "Active", "Attack", "Release", "Gate", "Invert", "Dest Port",
 }
+SIGNAL_BRIDGE_WAIT_TRIES = 10
+SIGNAL_BRIDGE_WAIT_DELAY = 0.3
 
 
 def _persist_chain_templates():
@@ -722,8 +724,10 @@ def register_tools(mcp):
                 display[p["name"]] = p["display_value"]
         return state, display
 
-    def _wait_for_device_params(ableton, track_idx, expected, tries=4, delay=0.25):
-        """Poll get_device_parameters until expected param names appear, or give up."""
+    def _wait_for_device_params(ableton, track_idx, expected,
+                                tries=SIGNAL_BRIDGE_WAIT_TRIES,
+                                delay=SIGNAL_BRIDGE_WAIT_DELAY):
+        """Poll get_device_parameters until expected param names appear. Returns error string or None."""
         found = set()
         for attempt in range(tries):
             if attempt > 0:
@@ -732,12 +736,12 @@ def register_tools(mcp):
                 state, _display = _read_device_state(ableton, track_idx)
                 found = set(state.keys())
                 if expected.issubset(found):
-                    return state, None
+                    return None
             except Exception as e:
                 if attempt == tries - 1:
-                    return None, f"get_device_parameters failed: {e}"
+                    return f"get_device_parameters failed: {e}"
         missing = expected - found
-        return None, f"device parameters not ready after {tries} attempts. Missing: {', '.join(sorted(missing))}"
+        return f"device parameters not ready after {tries} attempts (~{tries * delay:.1f}s). Missing: {', '.join(sorted(missing))}"
 
     @mcp.tool()
     @_tool_handler("creating signal track")
@@ -849,7 +853,7 @@ def register_tools(mcp):
 
         # Step 6: Wait for device parameters to appear (async M4L load)
         _report_progress(ctx, 6, total_steps, "Waiting for device parameters")
-        ready_readback, ready_err = _wait_for_device_params(
+        ready_err = _wait_for_device_params(
             ableton, track_idx, SIGNAL_BRIDGE_EXPECTED_PARAMS
         )
         if ready_err:
@@ -859,7 +863,7 @@ def register_tools(mcp):
         _report_progress(ctx, 7, total_steps, "Configuring SignalBridge")
         device_state = {}
         display_values = {}
-        if ready_readback is not None:
+        if not ready_err:
             device_params = [
                 {"name": "Param Name", "value": param_index},
                 {"name": "Attack", "value": attack_ms},
@@ -889,9 +893,11 @@ def register_tools(mcp):
                 warnings.append(f"get_device_parameters readback: {e}")
 
         osc_address = None
-        param_display = display_values.get("Param Name") if display_values else None
+        param_display = display_values.get("Param Name")
         if param_display:
             osc_address = f"/Params/{param_display}"
+        elif device_state and "Param Name" in device_state:
+            warnings.append("could not determine OSC address (no display_value for Param Name)")
 
         # Step 8: Mute track (signal tracks shouldn't be audible)
         _report_progress(ctx, 8, total_steps, "Muting track")

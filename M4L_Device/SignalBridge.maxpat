@@ -378,7 +378,16 @@
               "parameter_longname": "Param Name",
               "parameter_shortname": "Param",
               "parameter_type": 2,
-              "parameter_enum": "Param1 Param2 Param3 Param4 Param5 Param6 Param7 Param8",
+              "parameter_enum": [
+                "Param1",
+                "Param2",
+                "Param3",
+                "Param4",
+                "Param5",
+                "Param6",
+                "Param7",
+                "Param8"
+              ],
               "parameter_mmax": 7,
               "parameter_initial_enable": 1,
               "parameter_initial": [
