@@ -464,14 +464,14 @@ pre code {
 </div>
 
 <h2>Device Parameters</h2>
-<p>All settable via <code>lom_set</code>. MCP loads the device and configures it in one sequence.</p>
+<p>All settable via <code>set_device_parameters_batch</code>. MCP loads the device and configures all parameters in one command, then reads back the actual state.</p>
 
 <table class="param-table">
   <thead>
     <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
   </thead>
   <tbody>
-    <tr><td>Param Name</td><td>live.menu</td><td>0</td><td>Selects the OSC address. User-configurable menu entries — edit in Max to match your signal names. MCP sets by index (0–7) via <code>lom_set</code>. Default entries: Param1–Param8.</td></tr>
+    <tr><td>Param Name</td><td>live.menu</td><td>0</td><td>Selects the OSC address. User-configurable menu entries — edit in Max to match your signal names. MCP sets by index (0–7) via <code>set_device_parameters_batch</code>. Default entries: Param1–Param8.</td></tr>
     <tr><td>Active</td><td>live.toggle</td><td>1</td><td>Enable / disable output</td></tr>
     <tr><td>Attack</td><td>live.dial</td><td>5.0 ms</td><td>Envelope attack time (0.1–500 ms)</td></tr>
     <tr><td>Release</td><td>live.dial</td><td>50.0 ms</td><td>Envelope release time (0.1–2000 ms)</td></tr>
@@ -612,7 +612,7 @@ pre code {
 <h2>Acceptance Criteria</h2>
 <div class="criteria">
   <div class="criterion">SignalBridge.amxd loads via <code>load_instrument_or_effect</code></div>
-  <div class="criterion">All 7 device parameters settable via <code>lom_set</code></div>
+  <div class="criterion">All 7 device parameters settable via <code>set_device_parameters_batch</code></div>
   <div class="criterion">Audio in → normalized 0–1 float → OSC output on configured port</div>
   <div class="criterion"><code>add_signal_track</code> creates a complete signal track in one call</div>
   <div class="criterion">Device load failure is an error, not silent</div>

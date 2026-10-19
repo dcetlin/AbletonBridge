@@ -704,6 +704,10 @@ def register_tools(mcp):
 
     # --- SignalBridge: audio-to-OSC signal routing ---
 
+    SIGNAL_BRIDGE_EXPECTED_PARAMS = {
+        "Param Name", "Active", "Attack", "Release", "Gate", "Invert", "Dest Port",
+    }
+
     @mcp.tool()
     @_tool_handler("creating signal track")
     def add_signal_track(
@@ -731,21 +735,23 @@ def register_tools(mcp):
         - wav_path: Absolute path to the signal WAV file
         - param_index: Index into the SignalBridge device's Param Name menu (0-7, default 0).
                        The menu entries are user-configurable in the Max patch.
-        - osc_port: OSC destination port (default 3333)
-        - attack_ms: Envelope attack in milliseconds (default 5.0)
-        - release_ms: Envelope release in milliseconds (default 50.0)
+        - osc_port: OSC destination port, 1-65535 (default 3333)
+        - attack_ms: Envelope attack, 0.1-500 ms (default 5.0)
+        - release_ms: Envelope release, 0.1-2000 ms (default 50.0)
         - gate: Threshold below which output is zeroed, 0-1 (default 0.0).
-                 Note: with invert=True, a gated (silent) input outputs 1 (invert applies after gate).
+                 With invert=True, a gated (silent) input outputs 1 (invert applies after gate).
         - invert: If true, output is 1-value (default false).
-                  Note: turning Active off on the device holds the last value (does not drop to 0).
+                  Turning Active off on the device holds the last value (does not drop to 0).
                   The envelope analyzes the left channel only.
         """
+        _validate_range(param_index, "param_index", 0, 7)
+        _validate_range(osc_port, "osc_port", 1, 65535)
+        _validate_range(attack_ms, "attack_ms", 0.1, 500)
+        _validate_range(release_ms, "release_ms", 0.1, 2000)
+        _validate_range(gate, "gate", 0, 1)
+
         ableton = get_ableton_connection()
         warnings = []
-
-        if param_index < 0 or param_index > 7:
-            return json.dumps({"error": f"param_index must be 0-7, got {param_index}"})
-
         total_steps = 8
         track_name = f"{name}_signal"
 
@@ -754,7 +760,7 @@ def register_tools(mcp):
         result = ableton.send_command("create_audio_track", {"index": -1})
         track_idx = result.get("index")
         if track_idx is None:
-            return json.dumps({"error": "create_audio_track returned no index", "result": result})
+            raise ValueError("create_audio_track returned no index")
 
         # Step 2: Set track name
         _report_progress(ctx, 2, total_steps, "Naming track")
@@ -772,7 +778,10 @@ def register_tools(mcp):
                 "track_index": track_idx, "file_path": wav_path, "position": 0.0
             })
         except Exception as e:
-            return json.dumps({"error": f"Failed to load WAV: {e}", "track_index": track_idx})
+            raise ValueError(
+                f"Failed to load WAV '{wav_path}': {e}. "
+                f"Track {track_idx} ('{track_name}') was left in place."
+            )
 
         # Step 4: Disable warp and reset start marker (bracket LOM paths)
         _report_progress(ctx, 4, total_steps, "Disabling warp")
@@ -795,14 +804,13 @@ def register_tools(mcp):
                 "track_index": track_idx, "uri": uri
             })
         except Exception as e:
-            return json.dumps({
-                "error": f"Failed to load SignalBridge device: {e}. "
+            raise ValueError(
+                f"Failed to load SignalBridge device: {e}. "
                 "Ensure SignalBridge.amxd is frozen in Max and saved to a shallow path "
                 "in your User Library (e.g. User Library/SignalBridge.amxd — the browser "
-                "cache indexes only 3 levels deep). See docs/signal-bridge-spec.html.",
-                "track_index": track_idx,
-                "track_left_in_place": True,
-            })
+                f"cache indexes only 3 levels deep). Track {track_idx} ('{track_name}') "
+                "was left in place."
+            )
 
         # Step 6: Configure SignalBridge device parameters
         _report_progress(ctx, 6, total_steps, "Configuring SignalBridge")
@@ -813,7 +821,7 @@ def register_tools(mcp):
             {"name": "Gate", "value": gate},
             {"name": "Invert", "value": 1 if invert else 0},
             {"name": "Active", "value": 1},
-            {"name": "Dest Port", "value": osc_port},
+            {"name": "Dest Port", "value": float(osc_port)},
         ]
         try:
             batch_result = ableton.send_command("set_device_parameters_batch", {
@@ -824,21 +832,41 @@ def register_tools(mcp):
             for entry in batch_result.get("results", []):
                 if "error" in entry:
                     warnings.append(f"set param '{entry.get('name', '?')}': {entry['error']}")
+                elif entry.get("clamped"):
+                    warnings.append(f"param '{entry.get('name', '?')}' was clamped to {entry.get('value')}")
         except Exception as e:
             warnings.append(f"set_device_parameters_batch: {e}")
 
-        # Step 7: Read back actual device state
+        # Step 7: Read back actual device state (retry once for async M4L load)
         _report_progress(ctx, 7, total_steps, "Verifying device state")
         device_state = {}
-        try:
-            readback = ableton.send_command("get_device_parameters", {
-                "track_index": track_idx,
-                "device_index": 0,
-            })
-            for p in readback.get("parameters", []):
-                device_state[p["name"]] = p.get("value")
-        except Exception as e:
-            warnings.append(f"get_device_parameters readback: {e}")
+        for attempt in range(2):
+            try:
+                readback = ableton.send_command("get_device_parameters", {
+                    "track_index": track_idx,
+                    "device_index": 0,
+                })
+                for p in readback.get("parameters", []):
+                    device_state[p["name"]] = p.get("value")
+            except Exception as e:
+                if attempt == 0:
+                    import time
+                    time.sleep(0.5)
+                    continue
+                warnings.append(f"get_device_parameters readback: {e}")
+            found = set(device_state.keys())
+            if SIGNAL_BRIDGE_EXPECTED_PARAMS.issubset(found):
+                break
+            if attempt == 0:
+                import time
+                time.sleep(0.5)
+                device_state.clear()
+            else:
+                missing = SIGNAL_BRIDGE_EXPECTED_PARAMS - found
+                warnings.append(
+                    f"device parameters not ready — configuration may not have applied. "
+                    f"Missing: {', '.join(sorted(missing))}"
+                )
 
         # Step 8: Mute track (signal tracks shouldn't be audible)
         _report_progress(ctx, 8, total_steps, "Muting track")
@@ -852,8 +880,6 @@ def register_tools(mcp):
         response = {
             "track_index": track_idx,
             "track_name": track_name,
-            "param_index": param_index,
-            "osc_port": osc_port,
             "device_state": device_state,
         }
         if warnings:
