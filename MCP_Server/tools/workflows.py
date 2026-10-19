@@ -6,6 +6,7 @@ MCP tool call, reducing round-trip overhead by 3-5x for common workflows.
 import json
 import logging
 import os
+import time
 from typing import List, Optional
 from mcp.server.fastmcp import Context
 from MCP_Server.tools._base import _tool_handler, _m4l_result, _report_progress
@@ -708,6 +709,24 @@ def register_tools(mcp):
         "Param Name", "Active", "Attack", "Release", "Gate", "Invert", "Dest Port",
     }
 
+    def _wait_for_device_params(ableton, track_idx, expected, tries=4, delay=0.25):
+        """Poll get_device_parameters until expected param names appear, or give up."""
+        for attempt in range(tries):
+            if attempt > 0:
+                time.sleep(delay)
+            try:
+                readback = ableton.send_command("get_device_parameters", {
+                    "track_index": track_idx, "device_index": 0,
+                })
+                found = {p["name"] for p in readback.get("parameters", [])}
+                if expected.issubset(found):
+                    return readback, None
+            except Exception as e:
+                if attempt == tries - 1:
+                    return None, f"get_device_parameters failed: {e}"
+        missing = expected - found
+        return None, f"device parameters not ready after {tries} attempts. Missing: {', '.join(sorted(missing))}"
+
     @mcp.tool()
     @_tool_handler("creating signal track")
     def add_signal_track(
@@ -812,35 +831,41 @@ def register_tools(mcp):
                 "was left in place."
             )
 
-        # Step 6: Configure SignalBridge device parameters
-        _report_progress(ctx, 6, total_steps, "Configuring SignalBridge")
-        device_params = [
-            {"name": "Param Name", "value": param_index},
-            {"name": "Attack", "value": attack_ms},
-            {"name": "Release", "value": release_ms},
-            {"name": "Gate", "value": gate},
-            {"name": "Invert", "value": 1 if invert else 0},
-            {"name": "Active", "value": 1},
-            {"name": "Dest Port", "value": float(osc_port)},
-        ]
-        try:
-            batch_result = ableton.send_command("set_device_parameters_batch", {
-                "track_index": track_idx,
-                "device_index": 0,
-                "parameters": device_params,
-            })
-            for entry in batch_result.get("results", []):
-                if "error" in entry:
-                    warnings.append(f"set param '{entry.get('name', '?')}': {entry['error']}")
-                elif entry.get("clamped"):
-                    warnings.append(f"param '{entry.get('name', '?')}' was clamped to {entry.get('value')}")
-        except Exception as e:
-            warnings.append(f"set_device_parameters_batch: {e}")
+        # Step 6: Wait for device parameters to appear (async M4L load)
+        _report_progress(ctx, 6, total_steps, "Waiting for device parameters")
+        ready_readback, ready_err = _wait_for_device_params(
+            ableton, track_idx, SIGNAL_BRIDGE_EXPECTED_PARAMS
+        )
+        if ready_err:
+            warnings.append(ready_err)
 
-        # Step 7: Read back actual device state (retry once for async M4L load)
-        _report_progress(ctx, 7, total_steps, "Verifying device state")
+        # Step 7: Configure SignalBridge device parameters (only if params are ready)
+        _report_progress(ctx, 7, total_steps, "Configuring SignalBridge")
         device_state = {}
-        for attempt in range(2):
+        if ready_readback is not None:
+            device_params = [
+                {"name": "Param Name", "value": param_index},
+                {"name": "Attack", "value": attack_ms},
+                {"name": "Release", "value": release_ms},
+                {"name": "Gate", "value": gate},
+                {"name": "Invert", "value": 1 if invert else 0},
+                {"name": "Active", "value": 1},
+                {"name": "Dest Port", "value": float(osc_port)},
+            ]
+            try:
+                batch_result = ableton.send_command("set_device_parameters_batch", {
+                    "track_index": track_idx,
+                    "device_index": 0,
+                    "parameters": device_params,
+                })
+                for entry in batch_result.get("results", []):
+                    if "error" in entry:
+                        warnings.append(f"set param '{entry.get('name', '?')}': {entry['error']}")
+                    elif entry.get("clamped"):
+                        warnings.append(f"param '{entry.get('name', '?')}' was clamped to {entry.get('value')}")
+            except Exception as e:
+                warnings.append(f"set_device_parameters_batch: {e}")
+
             try:
                 readback = ableton.send_command("get_device_parameters", {
                     "track_index": track_idx,
@@ -849,24 +874,7 @@ def register_tools(mcp):
                 for p in readback.get("parameters", []):
                     device_state[p["name"]] = p.get("value")
             except Exception as e:
-                if attempt == 0:
-                    import time
-                    time.sleep(0.5)
-                    continue
                 warnings.append(f"get_device_parameters readback: {e}")
-            found = set(device_state.keys())
-            if SIGNAL_BRIDGE_EXPECTED_PARAMS.issubset(found):
-                break
-            if attempt == 0:
-                import time
-                time.sleep(0.5)
-                device_state.clear()
-            else:
-                missing = SIGNAL_BRIDGE_EXPECTED_PARAMS - found
-                warnings.append(
-                    f"device parameters not ready — configuration may not have applied. "
-                    f"Missing: {', '.join(sorted(missing))}"
-                )
 
         # Step 8: Mute track (signal tracks shouldn't be audible)
         _report_progress(ctx, 8, total_steps, "Muting track")
