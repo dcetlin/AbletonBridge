@@ -379,7 +379,11 @@
               "parameter_shortname": "Param",
               "parameter_type": 2,
               "parameter_enum": "Param1 Param2 Param3 Param4 Param5 Param6 Param7 Param8",
-              "parameter_mmax": 7
+              "parameter_mmax": 7,
+              "parameter_initial_enable": 1,
+              "parameter_initial": [
+                0
+              ]
             }
           },
           "varname": "ParamName"
@@ -711,35 +715,6 @@
       },
       {
         "box": {
-          "id": "obj-osc-display",
-          "maxclass": "comment",
-          "numinlets": 1,
-          "numoutlets": 0,
-          "patching_rect": [
-            650.0,
-            540.0,
-            200.0,
-            20.0
-          ],
-          "presentation": 1,
-          "presentation_rect": [
-            15.0,
-            135.0,
-            320.0,
-            16.0
-          ],
-          "text": "\u2192 /Params/Param1 @ 127.0.0.1:3333",
-          "fontsize": 9.0,
-          "textcolor": [
-            0.5,
-            0.5,
-            0.5,
-            1.0
-          ]
-        }
-      },
-      {
-        "box": {
           "id": "obj-plugout",
           "maxclass": "newobj",
           "numinlets": 1,
@@ -926,7 +901,7 @@
       {
         "patchline": {
           "source": [
-            "obj-4",
+            "obj-clip",
             0
           ],
           "destination": [

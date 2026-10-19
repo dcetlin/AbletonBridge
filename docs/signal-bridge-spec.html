@@ -457,7 +457,7 @@ pre code {
 <pre><code>plugin~ → abs~ → slide~ [attack_samps] [release_samps]
   ├→ live.meter~ (UI tap, before downsampling)
   └→ snapshot~ 16 → expr $f1 * ($f1 >= $f2) [gate] → [invert?] → clip 0. 1.
-       → prepend /Params/[name] → udpsend 127.0.0.1 [port]</code></pre>
+       → live.menu outlet 1 → sprintf set /Params/%s → prepend → udpsend 127.0.0.1 [port]</code></pre>
 
 <div class="note">
 <strong>Implementation notes:</strong> <code>slide~</code> takes sample counts, not milliseconds — convert via <code>mstosamps~</code>. <code>snapshot~ 16</code> downsamples from signal rate to ~60 Hz control rate before <code>udpsend</code> (control-rate only). <code>live.meter~</code> taps before downsampling to display the smoothed audio signal natively. Gate uses multiplication (<code>expr $f1 * ($f1 >= $f2)</code>) so output zeros below threshold instead of holding the last value.
@@ -471,7 +471,7 @@ pre code {
     <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
   </thead>
   <tbody>
-    <tr><td>Param Name</td><td>live.menu</td><td>0</td><td>Selects the OSC address. User-configurable menu entries — edit in Max to match your signal names. MCP sets by index (0–7) via <code>set_device_parameters_batch</code>. Default entries: Param1–Param8.</td></tr>
+    <tr><td>Param Name</td><td>live.menu</td><td>0</td><td>Selects the OSC address via <code>sprintf set /Params/%s</code>. Edit menu entries in Max to match your signal names. <strong>Entries must be single words with no spaces or OSC-reserved characters</strong> (<code># * ? [ ] { } ,</code>). MCP sets by index (0–7) via <code>set_device_parameters_batch</code>. Default entries: Param1–Param8.</td></tr>
     <tr><td>Active</td><td>live.toggle</td><td>1</td><td>Enable / disable output</td></tr>
     <tr><td>Attack</td><td>live.dial</td><td>5.0 ms</td><td>Envelope attack time (0.1–500 ms)</td></tr>
     <tr><td>Release</td><td>live.dial</td><td>50.0 ms</td><td>Envelope release time (0.1–2000 ms)</td></tr>

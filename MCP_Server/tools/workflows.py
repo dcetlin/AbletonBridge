@@ -710,11 +710,17 @@ def register_tools(mcp):
     # --- SignalBridge: audio-to-OSC signal routing ---
 
     def _read_device_state(ableton, track_idx):
-        """Read device parameters and return as {name: value} dict."""
+        """Read device parameters and return (state, display) dicts."""
         readback = ableton.send_command("get_device_parameters", {
             "track_index": track_idx, "device_index": 0,
         })
-        return {p["name"]: p.get("value") for p in readback.get("parameters", [])}
+        state = {}
+        display = {}
+        for p in readback.get("parameters", []):
+            state[p["name"]] = p.get("value")
+            if "display_value" in p:
+                display[p["name"]] = p["display_value"]
+        return state, display
 
     def _wait_for_device_params(ableton, track_idx, expected, tries=4, delay=0.25):
         """Poll get_device_parameters until expected param names appear, or give up."""
@@ -723,7 +729,7 @@ def register_tools(mcp):
             if attempt > 0:
                 time.sleep(delay)
             try:
-                state = _read_device_state(ableton, track_idx)
+                state, _display = _read_device_state(ableton, track_idx)
                 found = set(state.keys())
                 if expected.issubset(found):
                     return state, None
@@ -759,7 +765,9 @@ def register_tools(mcp):
         Parameters:
         - name: Track name suffix (track will be named "{name}_signal")
         - wav_path: Absolute path to the signal WAV file
-        - param_index: Index into the SignalBridge device's Param Name menu (0-7, default 0)
+        - param_index: Index into the SignalBridge device's Param Name menu (0-7, default 0).
+                       Menu entries must be single words with no spaces or OSC-reserved characters
+                       (# * ? [ ] { } ,). The entry text becomes the OSC address via sprintf.
         - osc_port: OSC destination port, 1-65535 (default 3333)
         - attack_ms: Envelope attack, 0.1-500 ms (default 5.0)
         - release_ms: Envelope release, 0.1-2000 ms (default 50.0)
@@ -850,6 +858,7 @@ def register_tools(mcp):
         # Step 7: Configure SignalBridge device parameters (only if params are ready)
         _report_progress(ctx, 7, total_steps, "Configuring SignalBridge")
         device_state = {}
+        display_values = {}
         if ready_readback is not None:
             device_params = [
                 {"name": "Param Name", "value": param_index},
@@ -875,9 +884,14 @@ def register_tools(mcp):
                 warnings.append(f"set_device_parameters_batch: {e}")
 
             try:
-                device_state = _read_device_state(ableton, track_idx)
+                device_state, display_values = _read_device_state(ableton, track_idx)
             except Exception as e:
                 warnings.append(f"get_device_parameters readback: {e}")
+
+        osc_address = None
+        param_display = display_values.get("Param Name") if display_values else None
+        if param_display:
+            osc_address = f"/Params/{param_display}"
 
         # Step 8: Mute track (signal tracks shouldn't be audible)
         _report_progress(ctx, 8, total_steps, "Muting track")
@@ -893,6 +907,8 @@ def register_tools(mcp):
             "track_name": track_name,
             "device_state": device_state,
         }
+        if osc_address:
+            response["osc_address"] = osc_address
         if warnings:
             response["warnings"] = warnings
         return json.dumps(response)

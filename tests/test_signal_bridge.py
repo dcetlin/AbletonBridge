@@ -15,12 +15,20 @@ FULL_DEVICE_STATE = {
     "Gate": 0.0, "Invert": 0, "Active": 1, "Dest Port": 3333.0,
 }
 
-
-def _readback_from(state):
-    return {"parameters": [{"name": k, "value": v} for k, v in state.items()]}
+DISPLAY_VALUES = {"Param Name": "Param1"}
 
 
-FULL_READBACK = _readback_from(FULL_DEVICE_STATE)
+def _readback_from(state, display=None):
+    params = []
+    for k, v in state.items():
+        entry = {"name": k, "value": v}
+        if display and k in display:
+            entry["display_value"] = display[k]
+        params.append(entry)
+    return {"parameters": params}
+
+
+FULL_READBACK = _readback_from(FULL_DEVICE_STATE, DISPLAY_VALUES)
 
 
 @pytest.fixture
@@ -71,6 +79,7 @@ class TestAddSignalTrack:
         assert parsed["track_index"] == 11
         assert parsed["track_name"] == "onset_signal"
         assert "device_state" in parsed
+        assert parsed.get("osc_address") == "/Params/Param1"
 
         commands = [c[0][0] for c in mock_conn.send_command.call_args_list]
         assert commands[0] == "create_audio_track"
@@ -257,8 +266,12 @@ class TestSignalBridgeMaxpat:
         assert "sprintf" in sprintf_box.get("text", "")
         assert "/Params/%s" in sprintf_box.get("text", "")
         lines_from_menu = self._get_lines_from(patch_data, "obj-param-name")
-        sprintf_fed = any(pl["destination"][0] == "obj-sprintf" for pl in lines_from_menu)
-        assert sprintf_fed, "live.menu must feed sprintf"
+        sprintf_line = next(
+            (pl for pl in lines_from_menu if pl["destination"][0] == "obj-sprintf"), None
+        )
+        assert sprintf_line is not None, "live.menu must feed sprintf"
+        assert sprintf_line["source"][1] == 1, \
+            f"sprintf must be fed from menu outlet 1 (text), not outlet {sprintf_line['source'][1]} (index)"
         lines_from_sprintf = self._get_lines_from(patch_data, "obj-sprintf")
         prepend_fed = any(pl["destination"][0] == "obj-prepend-prefix" for pl in lines_from_sprintf)
         assert prepend_fed, "sprintf must feed prepend"
