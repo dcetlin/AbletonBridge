@@ -1,0 +1,637 @@
+<title>SignalBridge</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap">
+
+<style>
+/* Signal routing spec — technical doc with audio-domain character */
+:root {
+  --bg: #fafaf9;
+  --bg-surface: #f0efed;
+  --bg-code: #e8e6e3;
+  --fg: #1c1917;
+  --fg-muted: #78716c;
+  --fg-faint: #a8a29e;
+  --accent: #16a34a;
+  --accent-dim: #dcfce7;
+  --signal: #f59e0b;
+  --signal-dim: #fef3c7;
+  --border: #d6d3d1;
+  --border-light: #e7e5e4;
+
+  --font-body: 'DM Sans', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #131211;
+    --bg-surface: #1c1a18;
+    --bg-code: #252320;
+    --fg: #e7e5e4;
+    --fg-muted: #a8a29e;
+    --fg-faint: #78716c;
+    --accent: #4ade80;
+    --accent-dim: #14532d;
+    --signal: #fbbf24;
+    --signal-dim: #451a03;
+    --border: #44403c;
+    --border-light: #292524;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #131211;
+  --bg-surface: #1c1a18;
+  --bg-code: #252320;
+  --fg: #e7e5e4;
+  --fg-muted: #a8a29e;
+  --fg-faint: #78716c;
+  --accent: #4ade80;
+  --accent-dim: #14532d;
+  --signal: #fbbf24;
+  --signal-dim: #451a03;
+  --border: #44403c;
+  --border-light: #292524;
+  color-scheme: dark;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 2rem;
+}
+
+.container {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0 0 0.25rem;
+  text-wrap: balance;
+}
+
+.subtitle {
+  font-size: 1rem;
+  color: var(--fg-muted);
+  margin: 0 0 2.5rem;
+}
+
+h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 2.5rem 0 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border-light);
+  text-wrap: balance;
+}
+
+h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 1.5rem 0 0.5rem;
+}
+
+p { margin: 0 0 1rem; }
+
+code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background: var(--bg-code);
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+}
+
+pre {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  background: var(--bg-code);
+  padding: 1rem 1.25rem;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin: 0 0 1rem;
+}
+pre code {
+  background: none;
+  padding: 0;
+  font-size: inherit;
+}
+
+.signal-flow {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  padding: 1.5rem;
+  margin: 1rem 0 1.5rem;
+  overflow-x: auto;
+}
+
+.flow-chain {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  line-height: 2;
+}
+
+.flow-node {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.3em 0.65em;
+  white-space: nowrap;
+}
+
+.flow-node.source {
+  border-color: var(--signal);
+  background: var(--signal-dim);
+}
+
+.flow-node.output {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+}
+
+.flow-arrow {
+  color: var(--fg-faint);
+  flex-shrink: 0;
+}
+
+.param-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  margin: 1rem 0 1.5rem;
+}
+
+.param-table th {
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--fg-muted);
+  padding: 0.5rem 0.75rem;
+  border-bottom: 2px solid var(--border);
+}
+
+.param-table td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border-light);
+  vertical-align: top;
+}
+
+.param-table td:first-child {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  white-space: nowrap;
+  color: var(--accent);
+}
+
+.param-table td:nth-child(2) {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--fg-muted);
+  white-space: nowrap;
+}
+
+.mode-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin: 1rem 0 1.5rem;
+}
+
+.mode-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+}
+
+.mode-card .mode-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-bottom: 0.25rem;
+}
+
+.mode-card .mode-tag {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--fg-muted);
+  margin-bottom: 0.5rem;
+}
+
+.mode-card p {
+  font-size: 0.85rem;
+  color: var(--fg-muted);
+  margin: 0;
+}
+
+.device-ui {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.5rem;
+  margin: 1rem 0 1.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+}
+
+.device-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.device-name {
+  font-family: var(--font-body);
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.device-badge {
+  font-size: 0.7rem;
+  font-weight: 500;
+  background: var(--accent-dim);
+  color: var(--accent);
+  padding: 0.2em 0.6em;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.device-meter {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.meter-bar-track {
+  flex: 1;
+  height: 8px;
+  background: var(--bg-code);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.meter-bar-fill {
+  height: 100%;
+  width: 62%;
+  background: var(--accent);
+  border-radius: 4px;
+}
+
+.meter-value {
+  font-variant-numeric: tabular-nums;
+  min-width: 3em;
+  text-align: right;
+}
+
+.device-dials {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.dial {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.dial-label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--fg-muted);
+}
+
+.dial-value {
+  font-variant-numeric: tabular-nums;
+}
+
+.device-osc {
+  font-size: 0.72rem;
+  color: var(--fg-faint);
+  margin-top: 0.5rem;
+}
+
+.step-list {
+  counter-reset: steps;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 1rem 0 1.5rem;
+  padding: 0;
+  list-style: none;
+}
+
+.step-list li {
+  counter-increment: steps;
+  display: flex;
+  gap: 0.75rem;
+  align-items: baseline;
+  font-size: 0.9rem;
+}
+
+.step-list li::before {
+  content: counter(steps);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--accent);
+  min-width: 1.5em;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.criteria {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+
+.criterion {
+  display: flex;
+  gap: 0.75rem;
+  align-items: baseline;
+  font-size: 0.9rem;
+}
+
+.criterion::before {
+  content: "□";
+  color: var(--fg-faint);
+  flex-shrink: 0;
+}
+
+.note {
+  background: var(--signal-dim);
+  border-left: 3px solid var(--signal);
+  border-radius: 0 6px 6px 0;
+  padding: 0.75rem 1rem;
+  margin: 1rem 0 1.5rem;
+  font-size: 0.9rem;
+}
+
+.section-label {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--fg-faint);
+  margin-bottom: 0.25rem;
+}
+</style>
+
+<div class="container">
+
+<div class="section-label">AbletonBridge</div>
+<h1>SignalBridge</h1>
+<p class="subtitle">M4L device that reads audio amplitude and sends it as a normalized OSC signal to an external receiver. Configurable by MCP — zero manual mapping.</p>
+
+<h2>The Problem</h2>
+<p>Routing audio-derived signals (onset detection, amplitude envelopes, pitch contours) from Ableton to an external system typically requires manual parameter mapping in the GUI. The LOM has no API for creating <code>live.remote~</code> connections or macro mappings — that wall is structural, not a missing feature.</p>
+
+<p>The fix: don't use the parameter mapping system. Audio → OSC is a straight line that M4L handles natively.</p>
+
+<h2>Signal Flow</h2>
+
+<h3>Typical (5 components, 2 manual steps)</h3>
+<div class="signal-flow">
+  <div class="flow-chain">
+    <span class="flow-node source">Audio on track</span>
+    <span class="flow-arrow">→</span>
+    <span class="flow-node">Envelope Follower</span>
+    <span class="flow-arrow">→</span>
+    <span class="flow-node" style="border-style: dashed;">manual map</span>
+    <span class="flow-arrow">→</span>
+    <span class="flow-node">Rack macro</span>
+    <span class="flow-arrow">→</span>
+    <span class="flow-node" style="border-style: dashed;">manual map</span>
+    <span class="flow-arrow">→</span>
+    <span class="flow-node">OSC plugin</span>
+    <span class="flow-arrow">→</span>
+    <span class="flow-node output">Receiver</span>
+  </div>
+</div>
+
+<h3>With SignalBridge (1 device, 0 manual steps)</h3>
+<div class="signal-flow">
+  <div class="flow-chain">
+    <span class="flow-node source">Audio on track</span>
+    <span class="flow-arrow">→</span>
+    <span class="flow-node" style="border-color: var(--accent);">SignalBridge</span>
+    <span class="flow-arrow">→</span>
+    <span class="flow-node output">Receiver</span>
+  </div>
+</div>
+
+<p>SignalBridge reads audio directly from the track, envelope-follows it, and sends the result over OSC. The signal never enters Ableton's parameter domain.</p>
+
+<h2>Device Mode</h2>
+<p>v1 is <strong>envelope-only</strong>: reads audio amplitude from the track, envelope-follows it, sends the result over OSC. Additional modes (LOM parameter observer, MCP passthrough) are deferred to v2 — see <a href="#future">Future</a>.</p>
+
+<h2>Max Patch Architecture</h2>
+
+<h3>Signal chain (v1 — envelope mode)</h3>
+<pre><code>plugin~ → abs~ → slide~ [attack_samps] [release_samps]
+  ├→ live.meter~ (UI tap, before downsampling)
+  └→ snapshot~ 16 → expr $f1 * ($f1 >= $f2) [gate] → [invert?] → clip 0. 1.
+       → live.menu outlet 1 → sprintf set /Params/%s → prepend → udpsend 127.0.0.1 [port]</code></pre>
+
+<div class="note">
+<strong>Implementation notes:</strong> <code>slide~</code> takes sample counts, not milliseconds — convert via <code>mstosamps~</code>. <code>snapshot~ 16</code> downsamples from signal rate to ~60 Hz control rate before <code>udpsend</code> (control-rate only). <code>live.meter~</code> taps before downsampling to display the smoothed audio signal natively. Gate uses multiplication (<code>expr $f1 * ($f1 >= $f2)</code>) so output zeros below threshold instead of holding the last value.
+</div>
+
+<h2>Device Parameters</h2>
+<p>All settable via <code>set_device_parameters_batch</code>. MCP loads the device and configures all parameters in one command, then reads back the actual state.</p>
+
+<table class="param-table">
+  <thead>
+    <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Param Name</td><td>live.menu</td><td>0</td><td>Selects the OSC address via <code>sprintf set /Params/%s</code>. Edit menu entries in Max to match your signal names. <strong>Entries must be single words with no spaces or OSC-reserved characters</strong> (<code># * ? [ ] { } ,</code>). MCP sets by index (0–7) via <code>set_device_parameters_batch</code>. Default entries: Param1–Param8.</td></tr>
+    <tr><td>Active</td><td>live.toggle</td><td>1</td><td>Enable / disable output</td></tr>
+    <tr><td>Attack</td><td>live.dial</td><td>5.0 ms</td><td>Envelope attack time (0.1–500 ms)</td></tr>
+    <tr><td>Release</td><td>live.dial</td><td>50.0 ms</td><td>Envelope release time (0.1–2000 ms)</td></tr>
+    <tr><td>Gate</td><td>live.dial</td><td>0.0</td><td>Zeros output below this threshold (0–1). Use ~0.3 for onset/trigger signals to avoid false triggers in silence.</td></tr>
+    <tr><td>Invert</td><td>live.toggle</td><td>0</td><td>Outputs <code>1 - value</code>. Makes inverted mappings visible in Ableton.</td></tr>
+    <tr><td>Dest Port</td><td>live.numbox</td><td>3333</td><td>OSC destination port (1–65535). Float parameter with integer stepping.</td></tr>
+  </tbody>
+</table>
+
+<div class="note">
+  <strong>Range is 0–1 by default.</strong> Out-of-range values are structurally impossible — <code>clip 0. 1.</code> enforces the range at the output stage before OSC packing.
+</div>
+
+<h2>Device UI</h2>
+<p>Presentation mode in Ableton — glanceable per-track view.</p>
+
+<div class="device-ui">
+  <div class="device-header">
+    <span class="device-name">Onset</span>
+    <span class="device-badge">ENV</span>
+  </div>
+  <div class="device-meter">
+    <div class="meter-bar-track"><div class="meter-bar-fill"></div></div>
+    <span class="meter-value">0.62</span>
+  </div>
+  <div class="device-dials">
+    <div class="dial"><span class="dial-label">Attack</span><span class="dial-value">5ms</span></div>
+    <div class="dial"><span class="dial-label">Release</span><span class="dial-value">50ms</span></div>
+    <div class="dial"><span class="dial-label">Gate</span><span class="dial-value">0.0</span></div>
+    <div class="dial"><span class="dial-label">Invert</span><span class="dial-value">off</span></div>
+  </div>
+  <div class="device-osc">→ /Params/Param1 @ 127.0.0.1:3333</div>
+</div>
+
+<h2>AbletonBridge Integration</h2>
+
+<h3>Workflow tool</h3>
+<pre><code>add_signal_track(
+    name: str,
+    wav_path: str,
+    param_index: int = 0,    # which live.menu slot (0–7)
+    osc_port: int = 3333,
+    attack_ms: float = 5.0,
+    release_ms: float = 50.0,
+    gate: float = 0.0,
+    invert: bool = False,
+)</code></pre>
+
+<h3>What it does</h3>
+<ol class="step-list">
+  <li>Create audio track, name it <code>{name}_signal</code></li>
+  <li>Load WAV from <code>wav_path</code> into arrangement at position 0</li>
+  <li>Disable warp, reset start marker to 0</li>
+  <li>Load SignalBridge.amxd via <code>load_instrument_or_effect</code> — <strong>errors if device not found</strong></li>
+  <li>Wait for device parameters to appear (~3s budget, polls at 300ms). If params never appear, <strong>warns and skips configuration</strong>.</li>
+  <li>Set all device params via <code>set_device_parameters_batch</code> — batch errors and clamps surfaced as warnings</li>
+  <li>Read back actual device state — returned values come from the device, not echoed inputs. Reports <code>osc_address</code> from the Param Name display value.</li>
+  <li>Mute track (signal tracks shouldn't be audible; device still receives audio)</li>
+</ol>
+
+<p>Implemented as a compound workflow tool in <code>MCP_Server/tools/workflows.py</code>. Orchestrates existing commands — no new Remote Script handler needed.</p>
+
+<h2>OSC Output Contract</h2>
+<p>SignalBridge sends standard OSC messages to localhost.</p>
+
+<table class="param-table">
+  <thead>
+    <tr><th>Property</th><th>Value</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Transport</td><td>UDP to 127.0.0.1 (localhost only)</td></tr>
+    <tr><td>Port</td><td>Configurable via Dest Port parameter (default 3333)</td></tr>
+    <tr><td>Address</td><td><code>/Params/&lt;menu entry&gt;</code> — determined by the Param Name live.menu selection</td></tr>
+    <tr><td>Value</td><td>Single float, 0–1 normalized</td></tr>
+  </tbody>
+</table>
+
+<div class="note">
+<strong>One-writer guard:</strong> Some OSC receivers ignore incoming messages for parameters that are being computed internally. If a signal appears dead, check whether the receiver has claimed that parameter — the device's output may be silently dropped.
+</div>
+
+<h2>End-to-End Workflow</h2>
+<h3>Adding a new signal</h3>
+<pre><code>add_signal_track(
+    name="kick",
+    wav_path="/path/to/kick_envelope.wav",
+    param_index=0,
+    attack_ms=2.0,
+    release_ms=80.0
+)</code></pre>
+<p>One call. Track appears, WAV loads, SignalBridge configures, signal flows to the receiver. The response includes <code>device_state</code> read back from the actual device.</p>
+
+<h3>Debug flow</h3>
+<ol class="step-list">
+  <li>Signal missing at the receiver → check the device face in Ableton (real-time meter shows current value)</li>
+  <li>Meter shows signal but receiver doesn't get it → check OSC address (Param Name menu) and port (Dest Port) match receiver expectations</li>
+  <li>If the receiver has a one-writer guard, check that it hasn't claimed the parameter</li>
+  <li>Tweak attack/release on the device face, see results immediately</li>
+</ol>
+
+<h2>What Stays Unchanged</h2>
+<p><strong>Existing parameter mapping chains</strong> (rack macros, VST/AU plugins) continue to work for non-audio-derived signals. SignalBridge is additive — it handles the audio-to-OSC path and doesn't interfere with other routing.</p>
+<p><strong>All existing MCP tools</strong> — <code>add_signal_track</code> composes existing primitives internally.</p>
+
+<h2>Example Presets</h2>
+<table class="param-table">
+  <thead>
+    <tr><th>Signal type</th><th>Attack</th><th>Release</th><th>Gate</th><th>Notes</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>transient / onset</td><td>≤5 ms</td><td>~40 ms</td><td>0.3</td><td>Sharp response. Gate filters noise in silence.</td></tr>
+    <tr><td>amplitude envelope</td><td>~10 ms</td><td>~100 ms</td><td>0.0</td><td>Smooth tracking.</td></tr>
+    <tr><td>gate / trigger</td><td>≤5 ms</td><td>~40 ms</td><td>0.3</td><td>Binary-like — fast edges, threshold filters noise.</td></tr>
+  </tbody>
+</table>
+
+<h2>Setup</h2>
+<ol class="step-list">
+  <li>Open <code>M4L_Device/SignalBridge.maxpat</code> in Max for Live (drag into an Ableton track, then click the wrench icon)</li>
+  <li>Edit the Param Name <code>live.menu</code> entries to match your project's signal names</li>
+  <li>File → Save As → save as <code>SignalBridge.amxd</code> (or File → Freeze Device, then save)</li>
+  <li>Save the <code>.amxd</code> to a <strong>shallow path</strong> in your User Library — e.g. <code>~/Music/Ableton/User Library/SignalBridge.amxd</code>. The browser cache indexes only 3 levels deep; the default M4L save path (<code>Presets/Audio Effects/Max Audio Effect/</code>) is too deep to be found.</li>
+  <li>The MCP tool resolves <code>SignalBridge.amxd</code> (or <code>SignalBridge</code>) from Ableton's browser. Verify the name in Live's browser matches. If the device isn't found, the tool errors with setup instructions.</li>
+</ol>
+
+<div class="note">
+<strong>The <code>.maxpat</code> is the source file.</strong> Ableton cannot load it directly — it must be saved/frozen as <code>.amxd</code> first. The repo ships the <code>.maxpat</code> because <code>.amxd</code> is a binary format that requires the Max editor to produce.
+</div>
+
+<div class="note">
+<strong>Behavioral notes:</strong>
+<ul style="margin: 0.5rem 0 0; font-size: 0.9rem;">
+  <li>With Invert on, a gated (silent) input outputs <strong>1</strong>, not 0 — invert applies after gate.</li>
+  <li>Turning Active off holds the last sent value; the receiver does not see a drop to 0.</li>
+  <li>The envelope analyzes the <strong>left channel only</strong>. Stereo signals should be summed to mono upstream.</li>
+</ul>
+</div>
+
+<h2>Acceptance Criteria</h2>
+<div class="criteria">
+  <div class="criterion">SignalBridge.amxd loads via <code>load_instrument_or_effect</code></div>
+  <div class="criterion">All 7 device parameters settable via <code>set_device_parameters_batch</code></div>
+  <div class="criterion">Audio in → normalized 0–1 float → OSC output on configured port</div>
+  <div class="criterion"><code>add_signal_track</code> creates a complete signal track in one call</div>
+  <div class="criterion">Device load failure is an error, not silent</div>
+  <div class="criterion">Device state read back after configuration — returned values come from the device</div>
+  <div class="criterion">Range enforced by <code>clip 0. 1.</code> — out-of-range values structurally impossible</div>
+  <div class="criterion">All AbletonBridge tests pass (including structural maxpat tests)</div>
+</div>
+
+<h2 id="future">Future</h2>
+<p>Deferred from v1. These features may be added if they earn their place.</p>
+<ul style="font-size: 0.9rem; margin-bottom: 1rem;">
+  <li><strong>Observer mode:</strong> Watch any LOM parameter via <code>live.observer</code> and forward changes as OSC. Different source of truth than audio — may warrant a separate device.</li>
+  <li><strong>Passthrough mode:</strong> Accept values directly from MCP via <code>lom_set</code>. May converge with observer or stay separate.</li>
+  <li><strong>Smoothing menu:</strong> <code>none / linear / one-pole</code> toggle to control whether SignalBridge or the receiver owns the smoothing curve.</li>
+  <li><strong>RMS dual output:</strong> Send both peak and RMS values from one device (<code>/Params/&lt;name&gt;</code> + <code>/Params/&lt;name&gt;Rms</code>).</li>
+  <li><strong>Dashboard signals panel:</strong> Live-updating table of all active SignalBridge instances on the <code>:9880</code> dashboard, powered by UDP status reports from the devices.</li>
+  <li><strong>Configurable dest host:</strong> Currently localhost only. Remote OSC targets would need a host parameter.</li>
+  <li><strong>Dynamic param name via OSC config channel:</strong> Accept string names over OSC instead of a fixed menu, for fully dynamic signal routing.</li>
+</ul>
+
+</div>
