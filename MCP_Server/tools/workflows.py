@@ -700,3 +700,147 @@ def register_tools(mcp):
                 })
 
         return json.dumps({"templates": templates})
+
+    # --- SignalBridge: audio-to-OSC signal routing for Soulrise/TD ---
+
+    SIGNAL_BRIDGE_PARAMS = [
+        "Violin", "Master", "Bilatamount", "Bilatfreq", "Violinpitch",
+        "Pitchvibrato", "Vibratointensity", "Synths", "Synthsthickness",
+        "Onset", "Articulation", "Notechange",
+    ]
+
+    @mcp.tool()
+    @_tool_handler("creating signal track")
+    def add_signal_track(
+        ctx: Context,
+        name: str,
+        wav_path: str,
+        param_name: str,
+        attack_ms: float = 5.0,
+        release_ms: float = 50.0,
+        gate: float = 0.0,
+        invert: bool = False,
+    ) -> str:
+        """Create a signal track with SignalBridge M4L device routing audio to TouchDesigner via OSC.
+
+        Orchestrates: create audio track → load WAV → disable warp → load SignalBridge
+        → configure device parameters → mute track. One call replaces 6+ manual steps.
+
+        The SignalBridge device reads audio amplitude, envelope-follows it, and sends
+        a normalized 0-1 float as /Params/<param_name> over OSC to TD on port 3333.
+
+        Parameters:
+        - name: Track name suffix (track will be named "{name}_signal")
+        - wav_path: Absolute path to the signal WAV file
+        - param_name: TD parameter name (must match a Params custom par label exactly, case-sensitive).
+                      Known signals: Violin, Master, Bilatamount, Bilatfreq, Violinpitch,
+                      Pitchvibrato, Vibratointensity, Synths, Synthsthickness,
+                      Onset, Articulation, Notechange
+        - attack_ms: Envelope attack in milliseconds (default 5.0, use <=5 for onset-type signals)
+        - release_ms: Envelope release in milliseconds (default 50.0, use ~100 for amplitude signals)
+        - gate: Threshold below which output is zeroed, 0-1 (default 0.0, use ~0.3 for onset signals)
+        - invert: If true, output is 1-value (default false)
+        """
+        ableton = get_ableton_connection()
+
+        param_index = None
+        for i, p in enumerate(SIGNAL_BRIDGE_PARAMS):
+            if p.lower() == param_name.lower():
+                param_index = i
+                break
+        if param_index is None:
+            return json.dumps({
+                "error": f"Unknown param_name '{param_name}'. "
+                f"Known signals: {', '.join(SIGNAL_BRIDGE_PARAMS)}"
+            })
+
+        total_steps = 7
+        track_name = f"{name}_signal"
+
+        # Step 1: Create audio track
+        _report_progress(ctx, 1, total_steps, "Creating audio track")
+        result = ableton.send_command("create_audio_track", {"index": -1})
+        track_idx = result.get("index", 0)
+
+        # Step 2: Set track name
+        _report_progress(ctx, 2, total_steps, "Naming track")
+        try:
+            ableton.send_command("set_track_name", {
+                "track_index": track_idx, "name": track_name
+            })
+        except Exception as e:
+            logger.debug("set_track_name failed: %s", e)
+
+        # Step 3: Load WAV into arrangement at position 0
+        _report_progress(ctx, 3, total_steps, "Loading WAV")
+        try:
+            ableton.send_command("load_audio_to_arrangement", {
+                "track_index": track_idx, "file_path": wav_path, "position": 0.0
+            })
+        except Exception as e:
+            return json.dumps({"error": f"Failed to load WAV: {e}", "track_index": track_idx})
+
+        # Step 4: Disable warp and reset start marker (bracket LOM paths)
+        _report_progress(ctx, 4, total_steps, "Disabling warp")
+        lom_path = f"tracks[{track_idx}].arrangement_clips[0]"
+        for prop, val in [("warping", 0), ("loop_start", 0.0), ("start_marker", 0.0)]:
+            try:
+                ableton.send_command("lom_set", {
+                    "path": f"{lom_path}.{prop}", "value": val
+                })
+            except Exception as e:
+                logger.debug("lom_set %s.%s failed: %s", lom_path, prop, e)
+
+        # Step 5: Load SignalBridge M4L device
+        _report_progress(ctx, 5, total_steps, "Loading SignalBridge")
+        device_loaded = False
+        try:
+            uri = resolve_device_uri("SignalBridge")
+            ableton.send_command("load_instrument_or_effect", {
+                "track_index": track_idx, "uri": uri
+            })
+            device_loaded = True
+        except Exception as e:
+            logger.warning("Failed to load SignalBridge: %s", e)
+
+        # Step 6: Configure SignalBridge device parameters
+        _report_progress(ctx, 6, total_steps, "Configuring SignalBridge")
+        if device_loaded:
+            device_params = [
+                {"name": "Param Name", "value": param_index},
+                {"name": "Attack", "value": attack_ms},
+                {"name": "Release", "value": release_ms},
+                {"name": "Gate", "value": gate},
+                {"name": "Invert", "value": 1 if invert else 0},
+                {"name": "Active", "value": 1},
+            ]
+            try:
+                ableton.send_command("set_device_parameters_batch", {
+                    "track_index": track_idx,
+                    "device_index": 0,
+                    "parameters": device_params,
+                })
+            except Exception as e:
+                logger.warning("Failed to configure SignalBridge: %s", e)
+
+        # Step 7: Mute track (signal tracks shouldn't be audible)
+        _report_progress(ctx, 7, total_steps, "Muting track")
+        try:
+            ableton.send_command("set_track_mute", {
+                "track_index": track_idx, "mute": True
+            })
+        except Exception as e:
+            logger.debug("set_track_mute failed: %s", e)
+
+        return json.dumps({
+            "track_index": track_idx,
+            "track_name": track_name,
+            "param_name": param_name,
+            "param_index": param_index,
+            "osc_address": f"/Params/{param_name}",
+            "device_loaded": device_loaded,
+            "attack_ms": attack_ms,
+            "release_ms": release_ms,
+            "gate": gate,
+            "invert": invert,
+        })
