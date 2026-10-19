@@ -21,8 +21,7 @@ from shared.commands import (
     CreateReturnTrackParams, GetAllTracksInfoParams, GetDeviceParametersParams,
     GetMasterTrackInfoParams, GetReturnTrackInfoParams, GetReturnTracksParams,
     GetScenesParams, GetSessionInfoParams, GetTrackInfoParams,
-    LoadInstrumentOrEffectParams, SetClipNameParams,
-    SetMasterVolumeParams,
+    LoadInstrumentOrEffectParams, SetClipNameParams, SetMasterVolumeParams,
     SetReturnTrackMuteParams, SetReturnTrackPanParams, SetReturnTrackSoloParams,
     SetReturnTrackVolumeParams, SetTrackColorParams, SetTrackMuteParams,
     SetTrackNameParams, SetTrackPanParams, SetTrackSendParams,
@@ -733,7 +732,7 @@ def register_tools(mcp):
             if attempt > 0:
                 time.sleep(delay)
             try:
-                state, _display = _read_device_state(ableton, track_idx)
+                state = _read_device_state(ableton, track_idx)[0]
                 found = set(state.keys())
                 if expected.issubset(found):
                     return None
@@ -896,7 +895,7 @@ def register_tools(mcp):
         param_display = display_values.get("Param Name")
         if param_display:
             osc_address = f"/Params/{param_display}"
-        elif device_state and "Param Name" in device_state:
+        elif "Param Name" in device_state:
             warnings.append("could not determine OSC address (no display_value for Param Name)")
 
         # Step 8: Mute track (signal tracks shouldn't be audible)

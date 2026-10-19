@@ -354,3 +354,14 @@ class TestSignalBridgeMaxpat:
         assert menu is not None
         vr = menu.get("saved_attribute_attributes", {}).get("valueof", {})
         assert vr.get("parameter_initial_enable") == 1
+
+    def test_prepend_default_matches_enum_0(self, patch_data):
+        """F4: prepend's initial argument must equal /Params/ + parameter_enum[0]."""
+        menu = self._get_box(patch_data, "obj-param-name")
+        assert menu is not None
+        enum = menu.get("saved_attribute_attributes", {}).get("valueof", {}).get("parameter_enum", [])
+        assert len(enum) >= 1
+        prepend = self._get_box(patch_data, "obj-prepend-prefix")
+        assert prepend is not None
+        expected = f"prepend /Params/{enum[0]}"
+        assert prepend.get("text") == expected, f"Expected '{expected}', got '{prepend.get('text')}'"
