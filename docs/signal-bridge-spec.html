@@ -448,51 +448,19 @@ pre code {
 
 <p>SignalBridge reads audio directly from the track, envelope-follows it, and sends the result over OSC. The signal never enters Ableton's parameter domain.</p>
 
-<h2>Three Modes</h2>
-<div class="mode-cards">
-  <div class="mode-card">
-    <div class="mode-name">Envelope</div>
-    <div class="mode-tag">mode: "envelope"</div>
-    <p>Reads audio amplitude on the track. Audio signal → envelope follower → OSC.</p>
-  </div>
-  <div class="mode-card">
-    <div class="mode-name">Observer</div>
-    <div class="mode-tag">mode: "observer"</div>
-    <p>Watches any LOM parameter via <code>live.observer</code> and forwards changes as OSC. For parameter-derived signals.</p>
-  </div>
-  <div class="mode-card">
-    <div class="mode-name">Passthrough</div>
-    <div class="mode-tag">mode: "passthrough"</div>
-    <p>Accepts a value directly from MCP via <code>lom_set</code> on the device parameter. For MCP-computed signals.</p>
-  </div>
-</div>
-
-<p><strong>v1 ships envelope-only.</strong> Observer and passthrough are deferred — different sources of truth that shouldn't share plumbing prematurely.</p>
+<h2>Device Mode</h2>
+<p>v1 is <strong>envelope-only</strong>: reads audio amplitude from the track, envelope-follows it, sends the result over OSC. Additional modes (LOM parameter observer, MCP passthrough) are deferred to v2 — see <a href="#future">Future</a>.</p>
 
 <h2>Max Patch Architecture</h2>
 
-<h3>Envelope mode (primary path)</h3>
-<pre><code>plugin~ → peakamp~ 1 → slide~ [attack_samps] [release_samps]
+<h3>Signal chain (v1 — envelope mode)</h3>
+<pre><code>plugin~ → abs~ → slide~ [attack_samps] [release_samps]
   ├→ live.meter~ (UI tap, before downsampling)
-  └→ snapshot~ 16 → gate [threshold] → [smoothing] → [invert?] → clip 0. 1.
-       ├→ pak /Params/[name] f → udpsend
-       └→ (if rms_out) average~ → snapshot~ 16 → pak /Params/[name]Rms f → udpsend</code></pre>
+  └→ snapshot~ 16 → expr $f1 * ($f1 >= $f2) [gate] → [invert?] → clip 0. 1.
+       → prepend /Params/[name] → udpsend 127.0.0.1 [port]</code></pre>
 
 <div class="note">
-<strong>Implementation notes:</strong> <code>slide~</code> takes sample counts, not milliseconds — convert via <code>mstosamps~</code> or <code>ms * sr / 1000</code>. <code>snapshot~ 16</code> downsamples from signal rate to ~60 Hz control rate before <code>udpsend</code> (which is control-rate only). Tap <code>live.meter~</code> before downsampling to display the smoothed audio signal natively. Smoothing stage is bypassed when set to <code>none</code> (receiver owns the curve); <code>linear</code> uses <code>line</code>; <code>one-pole</code> uses <code>slide</code> (control rate).
-</div>
-
-<h3>Observer mode (deferred to v2)</h3>
-<p style="font-size: 0.9rem; color: var(--fg-muted);">Different source of truth — shouldn't share plumbing with envelope mode prematurely. Split into a separate device if it earns its existence.</p>
-
-<h3>Passthrough mode (deferred to v2)</h3>
-<p style="font-size: 0.9rem; color: var(--fg-muted);">Same reasoning. May converge with observer or stay separate.</p>
-
-<h3>Shared output stage (control rate)</h3>
-<pre><code>[input 0–1] → gate [active] → clip 0. 1. → pak /Params/[name] f → udpsend [host] [port]</code></pre>
-
-<div class="note">
-  <strong>Reporting:</strong> The device also sends its current value + status to the MCP server over UDP (same pattern the existing dashboard uses). This powers the dashboard signals panel.
+<strong>Implementation notes:</strong> <code>slide~</code> takes sample counts, not milliseconds — convert via <code>mstosamps~</code>. <code>snapshot~ 16</code> downsamples from signal rate to ~60 Hz control rate before <code>udpsend</code> (control-rate only). <code>live.meter~</code> taps before downsampling to display the smoothed audio signal natively. Gate uses multiplication (<code>expr $f1 * ($f1 >= $f2)</code>) so output zeros below threshold instead of holding the last value.
 </div>
 
 <h2>Device Parameters</h2>
@@ -503,17 +471,13 @@ pre code {
     <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
   </thead>
   <tbody>
-    <tr><td>param_name</td><td>menu</td><td>—</td><td>OSC address becomes <code>/Params/&lt;value&gt;</code>. User-configurable <code>live.menu</code> — populate with your project's signal names. MCP sets by index via <code>lom_set</code>.</td></tr>
-    <tr><td>active</td><td>toggle</td><td>1</td><td>Enable / disable output</td></tr>
-    <tr><td>attack</td><td>float ms</td><td>5.0</td><td>Envelope attack time</td></tr>
-    <tr><td>release</td><td>float ms</td><td>50.0</td><td>Envelope release time</td></tr>
-    <tr><td>min</td><td>float</td><td>0.0</td><td>Output range floor</td></tr>
-    <tr><td>max</td><td>float</td><td>1.0</td><td>Output range ceiling</td></tr>
-    <tr><td>smoothing</td><td>menu</td><td>one-pole</td><td>none · linear · one-pole — controls whether SignalBridge or the receiver owns the curve. Use <code>none</code> when the receiver handles its own smoothing.</td></tr>
-    <tr><td>gate</td><td>float</td><td>0.0</td><td>Zeros output below this threshold (0–1). Onset signals use ~0.3 to avoid false triggers in silence.</td></tr>
-    <tr><td>invert</td><td>toggle</td><td>0</td><td>Outputs <code>1 - value</code>. Makes inverted mappings visible in Ableton instead of hidden in receiver-side expressions.</td></tr>
-    <tr><td>rms_out</td><td>toggle</td><td>0</td><td>Sends a second OSC output at <code>/Params/&lt;name&gt;Rms</code> with RMS value. One device → two signals, saves a track. <strong>The receiver must be configured to accept the <code>&lt;name&gt;Rms</code> address</strong> — unmatched addresses are typically dropped silently.</td></tr>
-    <tr><td>dest_port</td><td>int</td><td>3333</td><td>OSC destination port</td></tr>
+    <tr><td>Param Name</td><td>live.menu</td><td>0</td><td>Selects the OSC address. User-configurable menu entries — edit in Max to match your signal names. MCP sets by index (0–7) via <code>lom_set</code>. Default entries: Param1–Param8.</td></tr>
+    <tr><td>Active</td><td>live.toggle</td><td>1</td><td>Enable / disable output</td></tr>
+    <tr><td>Attack</td><td>live.dial</td><td>5.0 ms</td><td>Envelope attack time (0.1–500 ms)</td></tr>
+    <tr><td>Release</td><td>live.dial</td><td>50.0 ms</td><td>Envelope release time (0.1–2000 ms)</td></tr>
+    <tr><td>Gate</td><td>live.dial</td><td>0.0</td><td>Zeros output below this threshold (0–1). Use ~0.3 for onset/trigger signals to avoid false triggers in silence.</td></tr>
+    <tr><td>Invert</td><td>live.toggle</td><td>0</td><td>Outputs <code>1 - value</code>. Makes inverted mappings visible in Ableton.</td></tr>
+    <tr><td>Dest Port</td><td>live.numbox</td><td>3333</td><td>OSC destination port (1–65535). Float parameter with integer stepping.</td></tr>
   </tbody>
 </table>
 
@@ -536,70 +500,50 @@ pre code {
   <div class="device-dials">
     <div class="dial"><span class="dial-label">Attack</span><span class="dial-value">5ms</span></div>
     <div class="dial"><span class="dial-label">Release</span><span class="dial-value">50ms</span></div>
-    <div class="dial"><span class="dial-label">Min</span><span class="dial-value">0.0</span></div>
-    <div class="dial"><span class="dial-label">Max</span><span class="dial-value">1.0</span></div>
+    <div class="dial"><span class="dial-label">Gate</span><span class="dial-value">0.0</span></div>
+    <div class="dial"><span class="dial-label">Invert</span><span class="dial-value">off</span></div>
   </div>
-  <div class="device-osc">→ /Params/Onset @ 127.0.0.1:3333</div>
+  <div class="device-osc">→ /Params/Param1 @ 127.0.0.1:3333</div>
 </div>
 
 <h2>AbletonBridge Integration</h2>
 
 <h3>Workflow tool</h3>
-<pre><code>@mcp.tool()
-@_tool_handler("creating signal track")
-def add_signal_track(
-    ctx: Context,
+<pre><code>add_signal_track(
     name: str,
     wav_path: str,
-    param_name: str,
-    param_index: int = -1,
+    param_index: int = 0,    # which live.menu slot (0–7)
     osc_port: int = 3333,
-    osc_prefix: str = "/Params",
     attack_ms: float = 5.0,
     release_ms: float = 50.0,
     gate: float = 0.0,
     invert: bool = False,
-) -> str:</code></pre>
+)</code></pre>
 
 <h3>What it does</h3>
 <ol class="step-list">
   <li>Create audio track named <code>{name}_signal</code></li>
-  <li>Load WAV from <code>wav_path</code> into arrangement</li>
+  <li>Load WAV from <code>wav_path</code> into arrangement at position 0</li>
   <li>Disable warp, reset start marker to 0 (bracket LOM paths)</li>
-  <li>Load SignalBridge via <code>load_instrument_or_effect</code></li>
-  <li>Set device params: <code>param_name</code>, <code>mode</code>, <code>attack</code>, <code>release</code></li>
-  <li>Mute track (signal tracks shouldn't be audible)</li>
+  <li>Load SignalBridge.amxd via <code>load_instrument_or_effect</code> — <strong>errors if device not found</strong></li>
+  <li>Set all device params via <code>set_device_parameters_batch</code> — batch errors surfaced as warnings</li>
+  <li>Read back actual device state via <code>get_device_parameters</code> — returned values come from the device, not echoed inputs</li>
+  <li>Mute track (signal tracks shouldn't be audible; device still receives audio)</li>
 </ol>
 
-<p>Implemented as a compound workflow tool in <code>MCP_Server/tools/workflows.py</code> — orchestrates existing commands, no new Remote Script handler needed. Accepts any <code>param_name</code> string and configurable <code>osc_port</code> / <code>osc_prefix</code>.</p>
-
-<h3>Dashboard addition</h3>
-<p>New "Signals" panel on the existing <code>:9880</code> dashboard. The MCP server listens for status reports from SignalBridge devices over UDP.</p>
-
-<table class="param-table">
-  <thead>
-    <tr><th>Column</th><th>Source</th><th>Description</th></tr>
-  </thead>
-  <tbody>
-    <tr><td>Track</td><td>track name</td><td>Which track the device is on</td></tr>
-    <tr><td>Param</td><td>param_name</td><td>The OSC address being sent</td></tr>
-    <tr><td>Mode</td><td>mode</td><td>ENV · OBS · PASS</td></tr>
-    <tr><td>Value</td><td>live</td><td>Current normalized value + sparkline</td></tr>
-    <tr><td>Status</td><td>active</td><td>Green = flowing, dim = inactive</td></tr>
-  </tbody>
-</table>
+<p>Implemented as a compound workflow tool in <code>MCP_Server/tools/workflows.py</code>. Orchestrates existing commands — no new Remote Script handler needed.</p>
 
 <h2>OSC Output Contract</h2>
-<p>SignalBridge sends standard OSC messages. Configure the address prefix and port to match your receiver.</p>
+<p>SignalBridge sends standard OSC messages to localhost.</p>
 
 <table class="param-table">
   <thead>
-    <tr><th>Property</th><th>Default</th></tr>
+    <tr><th>Property</th><th>Value</th></tr>
   </thead>
   <tbody>
-    <tr><td>Transport</td><td>UDP to 127.0.0.1</td></tr>
-    <tr><td>Port</td><td>Configurable (default 3333)</td></tr>
-    <tr><td>Address</td><td><code>{osc_prefix}/{param_name}</code> (default prefix <code>/Params</code>)</td></tr>
+    <tr><td>Transport</td><td>UDP to 127.0.0.1 (localhost only)</td></tr>
+    <tr><td>Port</td><td>Configurable via Dest Port parameter (default 3333)</td></tr>
+    <tr><td>Address</td><td><code>/Params/&lt;menu entry&gt;</code> — determined by the Param Name live.menu selection</td></tr>
     <tr><td>Value</td><td>Single float, 0–1 normalized</td></tr>
   </tbody>
 </table>
@@ -609,97 +553,75 @@ def add_signal_track(
 </div>
 
 <h2>End-to-End Workflow</h2>
-<h3>Adding a new visual signal</h3>
+<h3>Adding a new signal</h3>
 <pre><code>add_signal_track(
     name="kick",
     wav_path="/path/to/kick_envelope.wav",
-    param_name="Kick",
     param_index=0,
     attack_ms=2.0,
     release_ms=80.0
 )</code></pre>
-<p>One call. Track appears, WAV loads, SignalBridge configures, signal flows to the receiver.</p>
+<p>One call. Track appears, WAV loads, SignalBridge configures, signal flows to the receiver. The response includes <code>device_state</code> read back from the actual device.</p>
 
 <h3>Debug flow</h3>
 <ol class="step-list">
-  <li>Something wrong at the receiver → open dashboard at <code>:9880</code></li>
-  <li>Signals panel shows which signal is flat, missing, or out of range</li>
-  <li>Look at the track in Ableton → device face shows real-time meter</li>
-  <li>Tweak attack/release on the device, see results immediately</li>
+  <li>Signal missing at the receiver → check the device face in Ableton (real-time meter shows current value)</li>
+  <li>Meter shows signal but receiver doesn't get it → check OSC address (Param Name menu) and port (Dest Port) match receiver expectations</li>
+  <li>If the receiver has a one-writer guard, check that it hasn't claimed the parameter</li>
+  <li>Tweak attack/release on the device face, see results immediately</li>
 </ol>
 
 <h2>What Stays Unchanged</h2>
 <p><strong>Existing parameter mapping chains</strong> (rack macros, VST/AU plugins) continue to work for non-audio-derived signals. SignalBridge is additive — it handles the audio-to-OSC path and doesn't interfere with other routing.</p>
 <p><strong>All existing MCP tools</strong> — <code>add_signal_track</code> composes existing primitives internally.</p>
 
-<h2>Review Findings</h2>
-
-<h3>Alexander structural review</h3>
-<p><strong>Strongest feature:</strong> The shared output stage is the right center — the device's job is "get a normalized value out over OSC," not "envelope follow." The <code>clip 0. 1.</code> is the boundary's physical expression.</p>
-
-<p><strong>Weakness — inner calm:</strong> Three modes in one device is premature. Envelope reads audio (MSP domain). Observer watches LOM (control domain). Passthrough takes MCP values. These are three different sources of truth sharing plumbing. If any mode grows, they'll compete for patch real estate.</p>
-
-<p><strong>Recommendation:</strong> Ship envelope-only as v1. Observer and passthrough can be added later if they converge on the same output contract, or split into separate devices if they diverge.</p>
-
-<p><strong>Note:</strong> Observer mode reintroduces a dependency on the parameter domain the device was designed to bypass — it thins the boundary.</p>
-
-<h3>Max/MSP feasibility</h3>
-
-<p><strong>Corrections applied above:</strong></p>
-<ul style="font-size: 0.9rem; margin-bottom: 1rem;">
-  <li><code>slide~</code> takes sample counts, not ms — needs <code>mstosamps~</code> conversion</li>
-  <li>Added <code>snapshot~ 16</code> to downsample to control rate before <code>udpsend</code></li>
-  <li>All output-stage objects are control-rate (<code>clip</code> not <code>clip~</code>, <code>gate</code> not <code>gate~</code>)</li>
-  <li><code>live.meter~</code> taps before downsampling to display smoothed audio natively</li>
-</ul>
-
-<h3>Example presets by signal type</h3>
+<h2>Example Presets</h2>
 <table class="param-table">
   <thead>
-    <tr><th>Signal type</th><th>Attack</th><th>Release</th><th>Gate</th><th>Smoothing</th><th>Notes</th></tr>
+    <tr><th>Signal type</th><th>Attack</th><th>Release</th><th>Gate</th><th>Notes</th></tr>
   </thead>
   <tbody>
-    <tr><td>transient / onset</td><td>≤5 ms</td><td>~40 ms</td><td>0.3</td><td>none</td><td>Sharp response. Let the receiver handle further smoothing.</td></tr>
-    <tr><td>amplitude envelope</td><td>~10 ms</td><td>~100 ms</td><td>0.0</td><td>one-pole</td><td>Smooth tracking. SignalBridge owns the curve.</td></tr>
-    <tr><td>pitch / spectral</td><td>~10 ms</td><td>~100 ms</td><td>0.0</td><td>none</td><td>Receiver-side smoothing for slow signals.</td></tr>
-    <tr><td>gate / trigger</td><td>≤5 ms</td><td>~40 ms</td><td>0.3</td><td>none</td><td>Binary-like signal — fast edges, threshold filters noise.</td></tr>
+    <tr><td>transient / onset</td><td>≤5 ms</td><td>~40 ms</td><td>0.3</td><td>Sharp response. Gate filters noise in silence.</td></tr>
+    <tr><td>amplitude envelope</td><td>~10 ms</td><td>~100 ms</td><td>0.0</td><td>Smooth tracking.</td></tr>
+    <tr><td>gate / trigger</td><td>≤5 ms</td><td>~40 ms</td><td>0.3</td><td>Binary-like — fast edges, threshold filters noise.</td></tr>
   </tbody>
 </table>
 
+<h2>Setup</h2>
+<ol class="step-list">
+  <li>Open <code>M4L_Device/SignalBridge.maxpat</code> in Max for Live (drag into an Ableton track, then click the wrench icon)</li>
+  <li>Edit the Param Name <code>live.menu</code> entries to match your project's signal names</li>
+  <li>File → Save As → save as <code>SignalBridge.amxd</code> (or File → Freeze Device, then save)</li>
+  <li>Move the <code>.amxd</code> to your User Library: <code>~/Music/Ableton/User Library/Presets/Audio Effects/Max Audio Effect/</code></li>
+  <li>The MCP tool resolves <code>SignalBridge.amxd</code> from Ableton's browser. If the device isn't found, the tool errors with setup instructions.</li>
+</ol>
+
 <div class="note">
-<strong>Avoid duplicating receiver-side processing:</strong> If your receiver already handles curve shaping, rate limiting, or bipolar remapping, set smoothing to <code>none</code> and let it do the work. SignalBridge's job ends at producing a clean 0–1 value.
+<strong>The <code>.maxpat</code> is the source file.</strong> Ableton cannot load it directly — it must be saved/frozen as <code>.amxd</code> first. The repo ships the <code>.maxpat</code> because <code>.amxd</code> is a binary format that requires the Max editor to produce.
 </div>
-
-<h3>Resolved: string parameters → live.menu</h3>
-<p>M4L device parameters are numeric only. <code>param_name</code> is implemented as a <code>live.menu</code> with user-configurable entries — populate it with your project's signal names. MCP sets by index via <code>lom_set</code>. Adding a new signal = one menu entry in the Max patch.</p>
-
-<h2>Build Plan</h2>
-
-<h3>M4L device (needs Max)</h3>
-<ol class="step-list">
-  <li>Build the patch: envelope input path, shared output stage, ~20 objects</li>
-  <li>Design presentation mode UI: name, meter, mode badge, dials, OSC readout</li>
-  <li>Add UDP status reporting to MCP server</li>
-  <li>Test: load via <code>load_instrument_or_effect</code>, configure via <code>lom_set</code></li>
-</ol>
-
-<h3>AbletonBridge (code)</h3>
-<ol class="step-list">
-  <li>Workflow tool: <code>add_signal_track</code> in <code>tools/workflows.py</code> ✓</li>
-  <li>Tests ✓</li>
-  <li>Dashboard signals panel on <code>:9880</code></li>
-</ol>
 
 <h2>Acceptance Criteria</h2>
 <div class="criteria">
-  <div class="criterion">SignalBridge loads via <code>load_instrument_or_effect('SignalBridge')</code></div>
-  <div class="criterion">All device parameters settable via <code>lom_set</code></div>
-  <div class="criterion">Envelope mode: audio → normalized float → OSC output</div>
-  <div class="criterion">Dashboard shows all active SignalBridge instances with live values</div>
+  <div class="criterion">SignalBridge.amxd loads via <code>load_instrument_or_effect</code></div>
+  <div class="criterion">All 7 device parameters settable via <code>lom_set</code></div>
+  <div class="criterion">Audio in → normalized 0–1 float → OSC output on configured port</div>
   <div class="criterion"><code>add_signal_track</code> creates a complete signal track in one call</div>
-  <div class="criterion">Range is 0–1 by default — <code>clip</code> enforces at output stage</div>
-  <div class="criterion">All existing AbletonBridge tests pass</div>
-  <div class="criterion">Configured signals work end-to-end (audio in → OSC out at receiver)</div>
+  <div class="criterion">Device load failure is an error, not silent</div>
+  <div class="criterion">Device state read back after configuration — returned values come from the device</div>
+  <div class="criterion">Range enforced by <code>clip 0. 1.</code> — out-of-range values structurally impossible</div>
+  <div class="criterion">All AbletonBridge tests pass (381 including structural maxpat tests)</div>
 </div>
+
+<h2 id="future">Future</h2>
+<p>Deferred from v1. These features may be added if they earn their place.</p>
+<ul style="font-size: 0.9rem; margin-bottom: 1rem;">
+  <li><strong>Observer mode:</strong> Watch any LOM parameter via <code>live.observer</code> and forward changes as OSC. Different source of truth than audio — may warrant a separate device.</li>
+  <li><strong>Passthrough mode:</strong> Accept values directly from MCP via <code>lom_set</code>. May converge with observer or stay separate.</li>
+  <li><strong>Smoothing menu:</strong> <code>none / linear / one-pole</code> toggle to control whether SignalBridge or the receiver owns the smoothing curve.</li>
+  <li><strong>RMS dual output:</strong> Send both peak and RMS values from one device (<code>/Params/&lt;name&gt;</code> + <code>/Params/&lt;name&gt;Rms</code>).</li>
+  <li><strong>Dashboard signals panel:</strong> Live-updating table of all active SignalBridge instances on the <code>:9880</code> dashboard, powered by UDP status reports from the devices.</li>
+  <li><strong>Configurable dest host:</strong> Currently localhost only. Remote OSC targets would need a host parameter.</li>
+  <li><strong>Dynamic param name via OSC config channel:</strong> Accept string names over OSC instead of a fixed menu, for fully dynamic signal routing.</li>
+</ul>
 
 </div>
