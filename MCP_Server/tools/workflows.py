@@ -701,13 +701,7 @@ def register_tools(mcp):
 
         return json.dumps({"templates": templates})
 
-    # --- SignalBridge: audio-to-OSC signal routing for Soulrise/TD ---
-
-    SIGNAL_BRIDGE_PARAMS = [
-        "Violin", "Master", "Bilatamount", "Bilatfreq", "Violinpitch",
-        "Pitchvibrato", "Vibratointensity", "Synths", "Synthsthickness",
-        "Onset", "Articulation", "Notechange",
-    ]
+    # --- SignalBridge: audio-to-OSC signal routing ---
 
     @mcp.tool()
     @_tool_handler("creating signal track")
@@ -716,43 +710,35 @@ def register_tools(mcp):
         name: str,
         wav_path: str,
         param_name: str,
+        param_index: int = -1,
+        osc_port: int = 3333,
+        osc_prefix: str = "/Params",
         attack_ms: float = 5.0,
         release_ms: float = 50.0,
         gate: float = 0.0,
         invert: bool = False,
     ) -> str:
-        """Create a signal track with SignalBridge M4L device routing audio to TouchDesigner via OSC.
+        """Create a signal track with SignalBridge M4L device routing audio to an external OSC receiver.
 
         Orchestrates: create audio track → load WAV → disable warp → load SignalBridge
         → configure device parameters → mute track. One call replaces 6+ manual steps.
 
         The SignalBridge device reads audio amplitude, envelope-follows it, and sends
-        a normalized 0-1 float as /Params/<param_name> over OSC to TD on port 3333.
+        a normalized 0-1 float over OSC. The OSC address is {osc_prefix}/{param_name}.
 
         Parameters:
         - name: Track name suffix (track will be named "{name}_signal")
         - wav_path: Absolute path to the signal WAV file
-        - param_name: TD parameter name (must match a Params custom par label exactly, case-sensitive).
-                      Known signals: Violin, Master, Bilatamount, Bilatfreq, Violinpitch,
-                      Pitchvibrato, Vibratointensity, Synths, Synthsthickness,
-                      Onset, Articulation, Notechange
-        - attack_ms: Envelope attack in milliseconds (default 5.0, use <=5 for onset-type signals)
-        - release_ms: Envelope release in milliseconds (default 50.0, use ~100 for amplitude signals)
-        - gate: Threshold below which output is zeroed, 0-1 (default 0.0, use ~0.3 for onset signals)
+        - param_name: OSC parameter name — the OSC address becomes {osc_prefix}/{param_name}
+        - param_index: Index into the SignalBridge device's Param Name menu (-1 = skip, let device use its default or set manually)
+        - osc_port: OSC destination port (default 3333)
+        - osc_prefix: OSC address prefix (default "/Params")
+        - attack_ms: Envelope attack in milliseconds (default 5.0)
+        - release_ms: Envelope release in milliseconds (default 50.0)
+        - gate: Threshold below which output is zeroed, 0-1 (default 0.0)
         - invert: If true, output is 1-value (default false)
         """
         ableton = get_ableton_connection()
-
-        param_index = None
-        for i, p in enumerate(SIGNAL_BRIDGE_PARAMS):
-            if p.lower() == param_name.lower():
-                param_index = i
-                break
-        if param_index is None:
-            return json.dumps({
-                "error": f"Unknown param_name '{param_name}'. "
-                f"Known signals: {', '.join(SIGNAL_BRIDGE_PARAMS)}"
-            })
 
         total_steps = 7
         track_name = f"{name}_signal"
@@ -807,13 +793,16 @@ def register_tools(mcp):
         _report_progress(ctx, 6, total_steps, "Configuring SignalBridge")
         if device_loaded:
             device_params = [
-                {"name": "Param Name", "value": param_index},
                 {"name": "Attack", "value": attack_ms},
                 {"name": "Release", "value": release_ms},
                 {"name": "Gate", "value": gate},
                 {"name": "Invert", "value": 1 if invert else 0},
                 {"name": "Active", "value": 1},
             ]
+            if param_index >= 0:
+                device_params.insert(0, {"name": "Param Name", "value": param_index})
+            if osc_port != 3333:
+                device_params.append({"name": "Dest Port", "value": osc_port})
             try:
                 ableton.send_command("set_device_parameters_batch", {
                     "track_index": track_idx,
@@ -836,8 +825,8 @@ def register_tools(mcp):
             "track_index": track_idx,
             "track_name": track_name,
             "param_name": param_name,
-            "param_index": param_index,
-            "osc_address": f"/Params/{param_name}",
+            "osc_address": f"{osc_prefix}/{param_name}",
+            "osc_port": osc_port,
             "device_loaded": device_loaded,
             "attack_ms": attack_ms,
             "release_ms": release_ms,
