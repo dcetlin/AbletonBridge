@@ -70,7 +70,8 @@ For signal export (WAV rendering, TouchDesigner input):
 | `Connection validation failed` / `Could not connect to Ableton` | MCP server can't reach the Remote Script, or MCP server started before Ableton | Ensure AbletonBridge is selected in Preferences → Link/Tempo & MIDI. Restart the Claude session if the MCP server started before Ableton |
 | `Hot-reloaded handlers (0 commands registered)` | Registry cleared but handler modules weren't reimported (pre-fix: string-based sys.modules lookup) | Fixed in `416a34a`. If seen: Cmd+Q Ableton, relaunch to load the fixed hot-reload code |
 | TCP timeout on `_reload_handlers` | 18s reload blocking the TCP socket | Fixed in `2fd5c99` (async background thread). If seen: the reload completed but the response timed out — check Ableton log for "commands registered" |
-| None of the above | Unknown or complex issue | Read this cookbook. If still stuck, ask the advisor: `send_to_thread(target="ableton-advisor", type="question", text="...")` |
+| No AbletonBridge tools in the session / MCP `CONNECTION_CLOSED` | The session started its own stdio server, which exited because another instance holds the singleton lock (port 9881). Or the shared SSE server on 9883 is down | Sessions should connect to the shared server: `{"type": "sse", "url": "http://localhost:9883/sse"}` in the user-scope config. Run `lsof -nP -iTCP:9881 -iTCP:9883 -sTCP:LISTEN` to see who holds which port. A stdio `ableton-bridge` belonging to some session blocks the shared server. The hydra job `ableton-bridge-sse` restarts the shared server within 5 minutes. Then `/mcp` → reconnect |
+| None of the above | Unknown or complex issue | Read this cookbook. If still stuck, ask the advisor (see Getting Help) |
 
 ---
 
@@ -91,10 +92,18 @@ Both are MCP tools callable by Claude. The dashboard at `localhost:9880` also ha
 
 ## Getting Help
 
-If you're stuck on an AbletonBridge issue and this cookbook doesn't cover it, ask the advisor:
+If you're stuck on an AbletonBridge issue and this cookbook doesn't cover it, ask the advisor. Hydra names sessions itself, so first get the advisor's current name:
 
-- **Visible (thread):** `send_to_thread(target="ableton-advisor", type="question", text="...")`
-- **Private (whisper):** via Bash: `hydra deliver --session ableton-advisor --message "your question"`
+```
+~/Workstreams/AbletonBridge/spawn-advisor.sh   # prints the live advisor's name, spawning one if none is running
+```
+
+Then message it by that name:
+
+- **Visible (thread):** `send_to_thread(target="<name>", type="question", text="...")`
+- **Private (whisper):** via Bash: `hydra deliver --session <name> --message "your question"`
+
+The advisor also builds missing capabilities. If you need a tool or device AbletonBridge doesn't have yet, say what you need, not only what failed.
 
 The advisor reads the codebase, checks the Ableton log, and gives concrete answers with file paths and tool call sequences.
 
