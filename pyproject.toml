@@ -32,10 +32,13 @@ elevenlabs = [
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.24",
+    "mypy>=1.10",
 ]
 
 [project.scripts]
 ableton-bridge = "MCP_Server.server:main"
+als-clone = "als_tools.clone:main"
+als-validate = "als_tools.validate:main"
 elevenlabs-mcp = "elevenlabs_mcp.server:main"
 
 [build-system]
@@ -43,7 +46,7 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["MCP_Server*", "elevenlabs_mcp", "shared"]
+include = ["MCP_Server*", "elevenlabs_mcp", "shared", "als_tools"]
 
 [tool.setuptools.package-data]
 MCP_Server = ["browser_cache_seed.json", "midi_cc/*.json"]
@@ -51,8 +54,14 @@ MCP_Server = ["browser_cache_seed.json", "midi_cc/*.json"]
 [tool.pyright]
 pythonVersion = "3.11"
 typeCheckingMode = "basic"
-include = ["MCP_Server", "shared"]
+include = ["MCP_Server", "shared", "als_tools"]
 exclude = ["AbletonBridge_Remote_Script"]
+strict = ["als_tools"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+files = ["als_tools", "tests/test_als_tools.py"]
 
 [project.urls]
 "Homepage" = "https://github.com/WilliamDeSimone/AbletonBridge"

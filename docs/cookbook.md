@@ -21,7 +21,7 @@ Volume, Pan, and Send parameters cannot be automated via arrangement clip envelo
 ### `live.remote~` mapping (Envelope Follower, etc.)
 M4L device internal mappings (`live.remote~` connections) cannot be created programmatically via LOM. They are internal to the Max patch. **Alternative:** Bake the automation — read the source with `get_arrangement_automation_hires`, write to the target with `create_track_automation`.
 
-**Copying an existing mapping to other sets:** Live saves the mapping in the .als as a LomId link: an `MxDIdRef` in the device points at the LomId of the mapped parameter. `scripts/als_clone_tracks.py` copies mapped devices or tracks from a reference set into closed target sets and re-points the link. Check the result with `scripts/als_validate.py`, then open the set in Live once to confirm.
+**Copying an existing mapping to other sets:** Live saves the mapping in the .als as a LomId link: an `MxDIdRef` in the device points at the LomId of the mapped parameter. `als-clone spec.json` (`als_tools/clone.py`; spec format in `als_tools/spec.py`) copies mapped devices or tracks, and rack-macro automation, from a reference set into closed target sets and re-points the link. Check the result with `als-validate set.als`, then open the set in Live once to confirm.
 
 ---
 

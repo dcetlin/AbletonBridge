@@ -46,6 +46,9 @@ jobs:
           pip install -e ".[dev]"
           pip install pyright==1.1.400
 
+      - name: Run mypy --strict (als_tools)
+        run: mypy
+
       # baseline 5 — remaining errors are unresolvable missing imports
       # (starlette, uvicorn, mido) that aren't in [dev] extras.
       # A count jump here can mean a dep failed to install, not a type regression.
