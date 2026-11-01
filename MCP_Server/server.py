@@ -19,7 +19,7 @@ import socket
 import sys
 import time
 import threading
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from typing import Any, AsyncIterator, Dict
 from datetime import datetime, timezone
 from collections import deque
@@ -184,16 +184,18 @@ def _browser_cache_warmup():
 # ===================================================================
 
 @asynccontextmanager
-async def server_lifespan(server: FastMCP) -> AsyncIterator[Dict[str, Any]]:
-    """Manage server startup and shutdown lifecycle."""
+async def _server_lifecycle(server: FastMCP) -> AsyncIterator[None]:
+    """Process-wide startup and shutdown: lock, Ableton, M4L, dashboard, caches."""
+    # Under SSE, main() takes the lock before serving; otherwise take it here.
+    owns_lock = state.singleton_lock_sock is None
     try:
-        # Singleton guard
-        try:
-            state.singleton_lock_sock = _acquire_singleton_lock()
-        except RuntimeError as e:
-            logger.error(str(e))
-            logger.error("Exiting to avoid conflicts.")
-            sys.exit(1)
+        if owns_lock:
+            try:
+                state.singleton_lock_sock = _acquire_singleton_lock()
+            except RuntimeError as e:
+                logger.error(str(e))
+                logger.error("Exiting to avoid conflicts.")
+                sys.exit(1)
 
         logger.info("AbletonBridge server starting up")
         state.server_start_time = time.time()
@@ -238,7 +240,7 @@ async def server_lifespan(server: FastMCP) -> AsyncIterator[Dict[str, Any]]:
         except Exception as e:
             logger.warning("Could not load chain templates: %s", e)
 
-        yield {}
+        yield
 
     finally:
         # Shutdown sequence
@@ -254,9 +256,38 @@ async def server_lifespan(server: FastMCP) -> AsyncIterator[Dict[str, Any]]:
             state.m4l_connection.disconnect()
             state.m4l_connection = None
 
-        _release_singleton_lock(state.singleton_lock_sock)
-        state.singleton_lock_sock = None
+        if owns_lock:
+            _release_singleton_lock(state.singleton_lock_sock)
+            state.singleton_lock_sock = None
         logger.info("AbletonBridge server shut down")
+
+
+# FastMCP enters the lifespan once per client connection: once under stdio,
+# once per connected client under SSE. Startup runs on the first entry and
+# shutdown on the last exit, so SSE clients share one Ableton connection.
+_lifecycle_lock = asyncio.Lock()
+_lifecycle_clients = 0
+_lifecycle_stack: AsyncExitStack | None = None
+
+
+@asynccontextmanager
+async def server_lifespan(server: FastMCP) -> AsyncIterator[Dict[str, Any]]:
+    """Per-client lifespan over the shared process lifecycle."""
+    global _lifecycle_clients, _lifecycle_stack
+    async with _lifecycle_lock:
+        if _lifecycle_clients == 0:
+            stack = AsyncExitStack()
+            await stack.enter_async_context(_server_lifecycle(server))
+            _lifecycle_stack = stack
+        _lifecycle_clients += 1
+    try:
+        yield {}
+    finally:
+        async with _lifecycle_lock:
+            _lifecycle_clients -= 1
+            if _lifecycle_clients == 0 and _lifecycle_stack is not None:
+                stack, _lifecycle_stack = _lifecycle_stack, None
+                await stack.aclose()
 
 
 # ===================================================================
@@ -498,6 +529,12 @@ def main():
     if transport == "sse":
         mcp_port = int(os.environ.get("ABLETON_BRIDGE_MCP_PORT", "9883"))
         state.MCP_SSE_PORT = mcp_port
+        # Fail at startup, not on the first client, if another instance runs.
+        try:
+            state.singleton_lock_sock = _acquire_singleton_lock()
+        except RuntimeError as e:
+            logger.error(str(e))
+            sys.exit(1)
         logger.info("Starting MCP server in SSE mode on port %d (multi-client)", mcp_port)
         mcp.settings.port = mcp_port
         mcp.settings.host = "127.0.0.1"
