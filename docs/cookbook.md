@@ -70,7 +70,8 @@ For signal export (WAV rendering, TouchDesigner input):
 | `Connection validation failed` / `Could not connect to Ableton` | MCP server can't reach the Remote Script, or MCP server started before Ableton | Ensure AbletonBridge is selected in Preferences → Link/Tempo & MIDI. Restart the Claude session if the MCP server started before Ableton |
 | `Hot-reloaded handlers (0 commands registered)` | Registry cleared but handler modules weren't reimported (pre-fix: string-based sys.modules lookup) | Fixed in `416a34a`. If seen: Cmd+Q Ableton, relaunch to load the fixed hot-reload code |
 | TCP timeout on `_reload_handlers` | 18s reload blocking the TCP socket | Fixed in `2fd5c99` (async background thread). If seen: the reload completed but the response timed out — check Ableton log for "commands registered" |
-| None of the above | Unknown or complex issue | Read this cookbook. If still stuck, ask the advisor: `send_to_thread(target="ableton-advisor", type="question", text="...")` |
+| No AbletonBridge tools in the session / MCP `CONNECTION_CLOSED` | The session launched its own stdio server, which exited because another AbletonBridge instance holds the singleton lock (port 9881). Or the shared SSE server on 9883 is not running | When several sessions need Ableton, run one SSE server (`scripts/start-mcp-server.sh`) and point clients at `{"type": "sse", "url": "http://localhost:9883/sse"}`. `lsof -nP -iTCP:9881 -iTCP:9883 -sTCP:LISTEN` shows which process holds which port. Then reconnect the MCP server in the client |
+| None of the above | Unknown or complex issue | Check the Ableton log (`~/Library/Preferences/Ableton/Live <version>/Log.txt`) for the command name and traceback |
 
 ---
 
@@ -86,21 +87,3 @@ After changing handler code (Remote Script) or MCP tool code:
 Both are MCP tools callable by Claude. The dashboard at `localhost:9880` also has a "Reload Remote Script" button for step 1.
 
 **First time only:** If the hot-reload code itself has never been loaded (fresh Ableton install), one full Ableton restart is needed to load the hot-reload mechanism. After that, no restarts needed.
-
----
-
-## Getting Help
-
-If you're stuck on an AbletonBridge issue and this cookbook doesn't cover it, ask the advisor:
-
-- **Visible (thread):** `send_to_thread(target="ableton-advisor", type="question", text="...")`
-- **Private (whisper):** via Bash: `hydra deliver --session ableton-advisor --message "your question"`
-
-The advisor reads the codebase, checks the Ableton log, and gives concrete answers with file paths and tool call sequences.
-
-**What to ask the advisor:**
-- How to do something the best way (not just any way)
-- Error diagnosis when the error table above doesn't match
-- Feature requests — "I need a tool that does X"
-- Whether something is possible with the current LOM/MCP/M4L surface
-- Workflow design — weighing approaches for a specific use case
