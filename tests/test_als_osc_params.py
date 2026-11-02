@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import gzip
 import struct
+import wave
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from xml.etree.ElementTree import Element, SubElement
@@ -12,7 +13,7 @@ from xml.etree.ElementTree import Element, SubElement
 import pytest
 
 from als_tools import liveset as ls
-from als_tools.clone import apply, main
+from als_tools.clone import _wav_frames, apply, main  # pyright: ignore[reportPrivateUsage]
 from als_tools.osc_plugin import EMPTY_VISUAL_INDEX, juce_hash, macro_mapping, osc_list, read_state
 from als_tools.spec import parse_spec
 from als_tools.trace import trace
@@ -318,8 +319,15 @@ def test_rejects_non_utf8_state(tmp_path: Path) -> None:
 
 def test_utf8_declared_with_single_quotes_is_accepted(tmp_path: Path) -> None:
     root = _set()
-    _replace_state(root, b"<?xml version='1.0' encoding='UTF8'?><State><Parameters><PARAM id=\"param1\"/></Parameters><OSCParameters/></State>")
+    _replace_state(root, b"<?xml version='1.0' encoding='utf-8'?><State><Parameters><PARAM id=\"param1\"/></Parameters><OSCParameters/></State>")
     assert _saved(_apply(tmp_path, root, osc_params=[_osc_item(3)]))[-1].get("parameterName") == "param1"
+
+
+def test_other_utf8_spellings_are_refused(tmp_path: Path) -> None:
+    root = _set()
+    _replace_state(root, b'<?xml version="1.0" encoding="UTF8"?><State><Parameters><PARAM id="param1"/></Parameters><OSCParameters/></State>')
+    with pytest.raises(ls.AlsError, match="only UTF-8"):
+        _apply(tmp_path, root, osc_params=[_osc_item(3)])
 
 
 def test_latin1_declared_with_single_quotes_is_refused(tmp_path: Path) -> None:
@@ -458,6 +466,51 @@ def test_unknown_xml_encoding_is_reported(tmp_path: Path, capsys: pytest.Capture
         f.write(b'<?xml version="1.0" encoding="nope"?><Ableton/>')
     assert validate_main([str(path)]) == 1
     assert "can't read" in capsys.readouterr().out
+
+
+def test_malformed_tempo_is_reported() -> None:
+    root = Element("Ableton")
+    main_track = SubElement(SubElement(root, "LiveSet"), "MainTrack")
+    _v(SubElement(SubElement(main_track, "DeviceChain"), "Mixer"), "Tempo", "").clear()
+    tempo = ls.child(main_track, "DeviceChain/Mixer/Tempo")
+    _v(tempo, "Manual", "x")
+    with pytest.raises(ls.AlsError, match="Tempo"):
+        ls.tempo(root)
+
+
+def test_multibyte_encoding_is_reported(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    path = tmp_path / "bad.als"
+    with gzip.open(path, "wb") as f:
+        f.write(b'<?xml version="1.0" encoding="shift_jis"?><Ableton/>')
+    assert validate_main([str(path)]) == 1
+    assert "can't read" in capsys.readouterr().out
+
+
+def test_plugin_state_with_multibyte_encoding_has_no_osc_list() -> None:
+    root = _set()
+    _replace_state(root, b'<?xml version="1.0" encoding="shift_jis"?><State><OSCParameters/></State>')
+    assert trace(root) == []
+
+
+def test_deeply_nested_spec_is_reported(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    spec = tmp_path / "spec.json"
+    spec.write_text("[" * 200000)
+    assert main([str(spec)]) == 1
+    assert "can't read spec" in capsys.readouterr().err
+
+
+def test_wav_without_sample_rate_is_refused(tmp_path: Path) -> None:
+    sample = tmp_path / "zero.wav"
+    with wave.open(str(sample), "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(8000)
+        w.writeframes(bytes(4))
+    data = bytearray(sample.read_bytes())
+    data[24:28] = bytes(4)
+    sample.write_bytes(data)
+    with pytest.raises(ls.AlsError, match="no sample rate|can't read"):
+        _wav_frames(str(sample))
 
 
 def test_negative_position_is_rejected(tmp_path: Path) -> None:

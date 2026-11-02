@@ -82,7 +82,7 @@ def read_set(path: str) -> Element:
     try:
         with gzip.open(path, "rb") as f:
             return ET.parse(f).getroot()
-    except (OSError, EOFError, LookupError, ET.ParseError, zlib.error) as e:
+    except (OSError, EOFError, LookupError, ValueError, ET.ParseError, zlib.error) as e:
         raise AlsError(f"can't read {path}: {e}") from e
 
 
@@ -172,7 +172,7 @@ def automation_target_id(param: Element) -> str:
 
 
 def tempo(root: Element) -> float:
-    return float(value(main_track(root), "DeviceChain/Mixer/Tempo/Manual"))
+    return to_float(value(main_track(root), "DeviceChain/Mixer/Tempo/Manual"), "Tempo")
 
 
 # ---------------------------------------------------------------------------

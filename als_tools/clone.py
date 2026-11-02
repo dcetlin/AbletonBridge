@@ -70,7 +70,7 @@ def _resolve_macro(root: Element, target: MacroTarget) -> tuple[Element, Element
         ls.set_value(rack, f"MacroDisplayNames.{target['macro'] - 1}", target["rename"])
     visible = rack.find("NumVisibleMacroControls")
     if visible is not None and ls.to_int(ls.attr(visible, "Value"), "NumVisibleMacroControls") < target["macro"]:
-        visible.set("Value", str(target["macro"] + target["macro"] % 2))  # saved racks use even counts
+        visible.set("Value", str(target["macro"] + target["macro"] % 2))  # nearly all saved racks use even counts
     return rack, mac
 
 
@@ -184,9 +184,12 @@ def add_osc(root: Element, item: OscParamItem) -> str:
 def _wav_frames(path: str) -> tuple[int, int]:
     try:
         with wave.open(path, "rb") as w:
-            return w.getnframes(), w.getframerate()
+            frames, rate = w.getnframes(), w.getframerate()
     except (wave.Error, EOFError, OSError) as e:
         raise ls.AlsError(f"can't read {path} as a WAV file: {e}") from e
+    if rate <= 0:
+        raise ls.AlsError(f"{path} has no sample rate")
+    return frames, rate
 
 
 def _set_sample(clip: Element, sample: str, set_dir: str) -> float:
@@ -213,8 +216,8 @@ def _set_sample(clip: Element, sample: str, set_dir: str) -> float:
 def _place_clip(clip: Element, seconds: float, bpm: float, anchor: Element | None) -> None:
     """Unwarped clip: Loop* and OutMarker are seconds into the file; Time and
     Current* are beats on the timeline. With an anchor, start where it starts."""
-    t0 = float(ls.attr(anchor, "Time")) if anchor is not None else 0.0
-    start = float(ls.value(anchor, "Loop/LoopStart")) if anchor is not None else 0.0
+    t0 = ls.to_float(ls.attr(anchor, "Time"), "clip Time") if anchor is not None else 0.0
+    start = ls.to_float(ls.value(anchor, "Loop/LoopStart"), "clip LoopStart") if anchor is not None else 0.0
     clip.set("Time", repr(t0))
     ls.set_value(clip, "CurrentStart", repr(t0))
     ls.set_value(clip, "CurrentEnd", repr(t0 + (seconds - start) * bpm / 60.0))
@@ -285,7 +288,7 @@ def _load_spec(path: str) -> CloneSpec:
     with open(path, encoding="utf-8") as f:
         try:
             return parse_spec(json.load(f))
-        except ValueError as e:  # bad JSON, bad UTF-8, or an integer too long to parse
+        except (ValueError, RecursionError) as e:  # bad JSON or UTF-8, an integer too long, nesting too deep
             raise ls.AlsError(f"can't read spec {path}: {e}") from e
 
 

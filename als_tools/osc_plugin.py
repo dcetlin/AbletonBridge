@@ -8,7 +8,6 @@ plugin's saved state, and that Live slot.
 
 from __future__ import annotations
 
-import codecs
 import re
 import struct
 import xml.etree.ElementTree as ET
@@ -60,7 +59,7 @@ def osc_list(state: SavedState) -> tuple[Element, Element] | None:
     """(the parsed state, its OSCParameters), or None if the state has no such list."""
     try:
         saved = ET.fromstring(state.xml.rstrip(b"\0"))
-    except (ET.ParseError, LookupError):
+    except (ET.ParseError, LookupError, ValueError):
         return None
     params = saved.find("OSCParameters")
     return None if params is None else (saved, params)
@@ -121,16 +120,9 @@ def _next_number(params: Element) -> int:
     return max((int(m[1]) for m in numbers if m), default=0) + 1
 
 
-def _is_utf8(encoding: bytes) -> bool:
-    try:
-        return codecs.lookup(encoding.decode("ascii")).name == "utf-8"
-    except (LookupError, UnicodeDecodeError):
-        return False
-
-
 def _append_entry(xml: bytes, entry: bytes) -> bytes:
     declared = re.match(rb"""<\?xml[^>]*encoding=["']([^"']+)["']""", xml)
-    if declared and not _is_utf8(declared[1]):
+    if declared and declared[1].lower() != b"utf-8":
         raise ls.AlsError(f"plugin state declares {declared[1]!r}; only UTF-8 can be edited")
     if xml.count(b"</OSCParameters>") == 1:
         return xml.replace(b"</OSCParameters>", entry + b"</OSCParameters>")
