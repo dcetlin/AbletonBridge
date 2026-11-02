@@ -229,10 +229,10 @@ def test_two_devices_on_a_macro_warn() -> None:
     ("name", "address", "status"),
     [
         ("Macro 1", "/x/Anything", "ok"),
-        ("water_amp", "/x/water_amp", "ok"),
-        ("Water Amp", "/x/water-amp", "ok"),
+        ("master_gain", "/x/master_gain", "ok"),
+        ("Master Gain", "/x/master-gain", "ok"),
         ("Amp", "/x/Amp/", "ok"),
-        ("onset trigger", "/x/Onset", "ok"),
+        ("kick trigger", "/x/Kick", "ok"),
         ("Brightness", "/x/Level", "name mismatch"),
     ],
 )
@@ -313,6 +313,65 @@ def test_cli_reports_bad_file_and_continues(tmp_path: Path, capsys: pytest.Captu
     good = _Builder()
     good.follower(good.audio_track(), _hub(good), 1)
     assert main([str(bad), _write(good.root, tmp_path / "good.als")]) == 1
+    captured = capsys.readouterr()
+    assert "als-trace:" in captured.err
+    assert "good.als" in captured.out
+
+
+def test_one_silent_parameter_among_several_is_not_sent() -> None:
+    b = _Builder()
+    track = b.audio_track("HUB")
+    rack = b.rack(ls.devices(track), {1: "Level"})
+    _plugin(rack, {"p1": "/x/Level", "p2": ""}, {"p1": 1, "p2": 1})
+    b.follower(b.audio_track(), rack, 1)
+    assert _first(b).status == "not sent"
+
+
+def _switch(device: Element, value: str) -> str:
+    switch = SubElement(device, "On")
+    _v(switch, "Manual", value)
+    target = SubElement(switch, "AutomationTarget", Id="9")
+    return ls.attr(target, "Id")
+
+
+def test_switched_off_device_does_not_feed_unless_automated() -> None:
+    b = _Builder()
+    b.follower(b.audio_track(), _hub(b), 1)
+    device = next(b.root.iter("MxDeviceAudioEffect"))
+    target = _switch(device, "false")
+    assert _first(b).status == "no feeder"
+    _envelope(b.root, "AutomationEnvelope", target, ["0", "1"])
+    assert _first(b).status == "ok"
+
+
+def test_switched_off_plugin_sends_nothing() -> None:
+    b = _Builder()
+    rack = _hub(b)
+    b.follower(b.audio_track(), rack, 1)
+    _switch(next(rack.iter("PluginDevice")), "false")
+    assert _first(b).status == "not sent"
+
+
+def test_plugin_in_a_drum_rack_is_traced_without_changing_rack_lookup() -> None:
+    b = _Builder()
+    track = b.audio_track("HUB")
+    rack = b.rack(ls.devices(track), {1: "Level"})
+    rack.tag = "DrumGroupDevice"
+    _plugin(rack, {"p1": "/x/Level"}, {"p1": 1})
+    assert _first(b).status == "no feeder"
+    with pytest.raises(ls.AlsError, match="has no rack"):
+        ls.rack(track)
+
+
+def test_cli_reports_corrupt_gzip_and_continues(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    good = _Builder()
+    good.follower(good.audio_track(), _hub(good), 1)
+    path = Path(_write(good.root, tmp_path / "good.als"))
+    data = bytearray(path.read_bytes())
+    data[20:30] = bytes(10)
+    corrupt = tmp_path / "corrupt.als"
+    corrupt.write_bytes(data)
+    assert main([str(corrupt), str(path)]) == 1
     captured = capsys.readouterr()
     assert "als-trace:" in captured.err
     assert "good.als" in captured.out

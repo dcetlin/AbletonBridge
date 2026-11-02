@@ -21,7 +21,7 @@ import xml.etree.ElementTree as ET
 from collections.abc import Iterator
 from xml.etree.ElementTree import Element
 
-RACK_TAGS = ("AudioEffectGroupDevice", "InstrumentGroupDevice", "MidiEffectGroupDevice", "DrumGroupDevice")
+RACK_TAGS = ("AudioEffectGroupDevice", "InstrumentGroupDevice", "MidiEffectGroupDevice")
 
 
 class AlsError(Exception):
@@ -104,12 +104,9 @@ def track_name(track: Element) -> str:
 
 
 def find_track(root: Element, name: str) -> Element:
-    for t in tracks(root):
+    for t in all_tracks(root):
         if track_name(t) == name:
             return t
-    main = main_track(root)
-    if track_name(main) == name:
-        return main
     raise AlsError(f"no track named {name!r}")
 
 
