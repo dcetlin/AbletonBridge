@@ -38,6 +38,7 @@ dev = [
 [project.scripts]
 ableton-bridge = "MCP_Server.server:main"
 als-clone = "als_tools.clone:main"
+als-trace = "als_tools.trace:main"
 als-validate = "als_tools.validate:main"
 elevenlabs-mcp = "elevenlabs_mcp.server:main"
 
@@ -61,7 +62,7 @@ strict = ["als_tools"]
 [tool.mypy]
 python_version = "3.11"
 strict = true
-files = ["als_tools", "tests/test_als_tools.py"]
+files = ["als_tools", "tests/test_als_tools.py", "tests/test_als_trace.py"]
 
 [project.urls]
 "Homepage" = "https://github.com/WilliamDeSimone/AbletonBridge"

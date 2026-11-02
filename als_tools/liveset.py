@@ -85,12 +85,22 @@ def tracks(root: Element) -> Element:
     return child(root, "LiveSet/Tracks")
 
 
+def main_track(root: Element) -> Element:
+    """Live's main output track. It sits outside LiveSet/Tracks and can hold devices."""
+    return child(root, "LiveSet/MainTrack")
+
+
+def all_tracks(root: Element) -> list[Element]:
+    """Every track that can hold devices. Use this for audits, not tracks()."""
+    return [*tracks(root), main_track(root)]
+
+
 def track_name(track: Element) -> str:
     return value(track, "Name/EffectiveName")
 
 
 def find_track(root: Element, name: str) -> Element:
-    for t in tracks(root):
+    for t in all_tracks(root):
         if track_name(t) == name:
             return t
     raise AlsError(f"no track named {name!r}")

@@ -23,6 +23,8 @@ M4L device internal mappings (`live.remote~` connections) cannot be created prog
 
 **Copying an existing mapping to other sets:** Live saves the mapping in the .als as a LomId link: an `MxDIdRef` in the device points at the LomId of the mapped parameter. `als-clone spec.json` (`als_tools/clone.py`; spec format in `als_tools/spec.py`) copies mapped devices or tracks, and rack-macro automation, from a reference set into closed target sets and re-points the link. Check the result with `als-validate set.als`, then open the set in Live once to confirm.
 
+**Checking that macros reach their destination:** `als-validate` only proves the file is consistent. `als-trace set.als` follows each macro on a rack that holds an OSC-forwarding plugin (such as Nativize): source device or automation → macro → plugin slot → OSC address. It exits 1 if a signal stops at the macro, a slot has no OSC address, a macro's name disagrees with its OSC address, or a macro has more than one device feeding it. A clean trace still needs a playback check at the receiver.
+
 ---
 
 ## Multi-Tool Patterns

@@ -125,7 +125,9 @@ def _live_set(reference: bool) -> Element:
     # automation on FX macro 1 (song-specific in a real set), cleared in one test
     _envelope(fx, ls.automation_target_id(ls.macro(ls.rack(fx), 1)), [(0, 5), (1, 6)])
     _track(tracks, "ReturnTrack", 9, "A-Reverb", ids)
-    tempo = SubElement(SubElement(SubElement(SubElement(liveset, "MainTrack"), "DeviceChain"), "Mixer"), "Tempo")
+    main_track = SubElement(liveset, "MainTrack")
+    _v(SubElement(main_track, "Name"), "EffectiveName", "Main")
+    tempo = SubElement(SubElement(SubElement(main_track, "DeviceChain"), "Mixer"), "Tempo")
     _v(tempo, "Manual", "120")
     _v(liveset, "NextPointeeId", str(ids.n + 1))
     return root
