@@ -410,3 +410,34 @@ def test_cli_reports_corrupt_gzip_and_continues(tmp_path: Path, capsys: pytest.C
     captured = capsys.readouterr()
     assert "als-trace:" in captured.err
     assert "good.als" in captured.out
+
+
+def test_everything_inside_a_switched_off_rack_is_inactive() -> None:
+    b = _Builder()
+    rack = _osc_rack(b)
+    source = b.audio_track()
+    outer = b.rack(ls.devices(source))
+    b.follower(source, rack, 1)
+    device = next(source.iter("MxDeviceAudioEffect"))
+    ls.devices(source).remove(device)
+    outer.append(device)
+    assert _first(b).status == "ok"
+    _switch(outer, "false")
+    assert _first(b).status == "no feeder"
+    _switch(rack, "false")
+    assert _first(b).status == "no feeder"
+    b.follower(b.audio_track("OTHER"), rack, 1)
+    assert _first(b).status == "not sent"
+
+
+def test_nested_rack_switch_maps_to_the_parent_macro() -> None:
+    b = _Builder()
+    track = b.audio_track("OSC")
+    outer = b.rack(ls.devices(track))
+    _plugin(outer, {"p1": "/x/Level"}, {"p1": 1})
+    inner = b.rack(SubElement(outer, "Branches"))
+    _switch(inner, "true")
+    _key_midi(next(inner.iter("On")), 5)
+    b.follower(b.audio_track(), outer, 5)
+    assert _only(b).macros[4].status == "local only"
+

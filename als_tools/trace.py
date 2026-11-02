@@ -11,8 +11,8 @@ it. This reads the file only: a clean trace still needs a playback check.
 
 Supported plugins are Nativize, or any JUCE VST3 saving the same <OSCParameters> list
 of <Parameter parameterName oscAddress oscOutputEnabled> elements. A set with no such
-plugin has nothing to trace. Devices and plugins switched off don't count, but one inside
-a rack that's switched off still does.
+plugin has nothing to trace. Devices and plugins switched off, or inside a rack that's
+switched off, don't count.
 """
 
 from __future__ import annotations
@@ -195,7 +195,7 @@ class _SetIndex:
         for track in ls.all_tracks(root):
             for tag in MAX_DEVICE_TAGS:
                 for device in track.iter(tag):
-                    if _is_off(device, self.moving):
+                    if self._is_inactive(device):
                         continue
                     label = f"{ls.track_name(track)}: {_device_label(device)}"
                     for lom in {ls.value(r, "LomId") for r in device.iter("MxDIdRef")} - {"0"}:
@@ -229,13 +229,23 @@ class _SetIndex:
                 continue
             param_id = ls.value(param, "ParameterId")
             label = f"{ls.value(param, 'ParameterName').strip()} (id {param_id})"
-            address = None if _is_off(owner, self.moving) else addresses_by_plugin[owner].get(int(param_id))
+            address = None if self._is_inactive(owner) else addresses_by_plugin[owner].get(int(param_id))
             self.slots[key].append(Slot(label, address))
 
+    def _is_inactive(self, device: Element) -> bool:
+        """Whether a device, or any rack around it, is switched off."""
+        current: Element | None = device
+        while current is not None:
+            if _is_off(current, self.moving):
+                return True
+            current = _enclosing_rack(current, self.parents)
+        return False
+
     def _mapped_rack(self, mapping: Element) -> Element | None:
-        """The rack whose macros a KeyMidi refers to. A macro's own KeyMidi refers to the parent rack."""
+        """The rack whose macros a KeyMidi refers to. A rack's own controls map to its parent rack."""
         rack = _enclosing_rack(mapping, self.parents)
-        if rack is not None and self.parents[mapping].tag.startswith("MacroControls."):
+        holder = self.parents[mapping]
+        if rack is not None and self.parents.get(holder) is rack:
             return _enclosing_rack(rack, self.parents)
         return rack
 
