@@ -34,7 +34,7 @@ class Report:
 
 def validate(root: Element) -> Report:
     """Check that ids are unique and every reference resolves."""
-    next_id = int(ls.value(root, "LiveSet/NextPointeeId"))
+    next_id = ls.to_int(ls.value(root, "LiveSet/NextPointeeId"), "NextPointeeId")
     ids = Counter(ls.attr(e, "Id") for e in ls.pointees(root))
     track_ids = Counter(ls.attr(t, "Id") for t in ls.tracks(root))
     refs = {ls.attr(e, "Value") for e in root.iter("PointeeId")} - {"0"}
@@ -43,7 +43,7 @@ def validate(root: Element) -> Report:
     return Report(
         pointee_count=len(ids),
         duplicate_pointee_ids=sorted(k for k, n in ids.items() if n > 1),
-        pointee_ids_not_below_next=sorted(k for k in ids if int(k) >= next_id),
+        pointee_ids_not_below_next=sorted(k for k in ids if ls.to_int(k, "pointee Id") >= next_id),
         duplicate_track_ids=sorted(k for k, n in track_ids.items() if n > 1),
         dangling_pointee_refs=sorted(r for r in refs if r not in ids),
         duplicate_lom_ids=sorted(k for k, n in loms.items() if n > 1),
@@ -58,7 +58,12 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     failed = False
     for path in paths:
-        report = validate(ls.read_set(path))
+        try:
+            report = validate(ls.read_set(path))
+        except ls.AlsError as e:
+            failed = True
+            print(f"FAIL  {path}: {e}")
+            continue
         if report.ok:
             print(f"ok    {path} ({report.pointee_count} pointees)")
         else:

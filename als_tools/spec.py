@@ -6,6 +6,7 @@ fails with a message that names the bad field before any set is read.
 
 from __future__ import annotations
 
+import math
 from typing import TypedDict, cast, get_args, get_origin, get_type_hints, is_typeddict
 
 from als_tools.liveset import AlsError
@@ -25,6 +26,11 @@ class AutomationCopy(TypedDict):
     dest: MacroRef
 
 
+class DeviceParam(TypedDict):
+    name: str         # the Max parameter's name, e.g. "Gain"
+    value: float
+
+
 class _DeviceItem(TypedDict):
     template_track: str   # track in the reference set
     device_index: int     # index in that track's device chain
@@ -33,7 +39,8 @@ class _DeviceItem(TypedDict):
 
 
 class DeviceItem(_DeviceItem, total=False):
-    position: int         # insert position in the target chain (default 0)
+    position: int         # insert position in the target chain, from 0 (default 0; past the end appends)
+    params: list[DeviceParam]  # Max parameter values to set on the copy
 
 
 class _TrackItem(TypedDict):
@@ -47,6 +54,17 @@ class TrackItem(_TrackItem, total=False):
     align_to: str         # target track whose first audio clip gives Time/LoopStart
 
 
+class _OscParamItem(TypedDict):
+    label: str        # the name Live and the plugin show
+    address: str      # OSC address the plugin sends it to; starts with "/"
+    map: MacroTarget  # macro of the rack holding the plugin; it now drives this parameter
+
+
+class OscParamItem(_OscParamItem, total=False):
+    minimum: float    # value range the plugin sends (default 0 to 1)
+    maximum: float
+
+
 class _CloneSpec(TypedDict):
     reference: str
     target: str
@@ -56,6 +74,7 @@ class _CloneSpec(TypedDict):
 class CloneSpec(_CloneSpec, total=False):
     clear_automation: list[MacroRef]
     copy_automation: list[AutomationCopy]
+    osc_params: list[OscParamItem]
     devices: list[DeviceItem]
     tracks: list[TrackItem]
 
@@ -63,6 +82,13 @@ class CloneSpec(_CloneSpec, total=False):
 # ---------------------------------------------------------------------------
 # Validation of untyped input, driven by the TypedDicts above
 # ---------------------------------------------------------------------------
+
+def _is_finite(number: int | float) -> bool:
+    try:
+        return math.isfinite(number)
+    except OverflowError:
+        return False
+
 
 def _check(obj: object, hint: object, where: str) -> None:
     origin = get_origin(hint)
@@ -90,6 +116,9 @@ def _check(obj: object, hint: object, where: str) -> None:
     elif hint is int:
         if not isinstance(obj, int) or isinstance(obj, bool):
             raise AlsError(f"{where}: expected an integer")
+    elif hint is float:
+        if not isinstance(obj, (int, float)) or isinstance(obj, bool) or not _is_finite(obj):
+            raise AlsError(f"{where}: expected a finite number")
     elif hint is str:
         if not isinstance(obj, str):
             raise AlsError(f"{where}: expected a string")

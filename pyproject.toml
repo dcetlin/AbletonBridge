@@ -62,7 +62,7 @@ strict = ["als_tools"]
 [tool.mypy]
 python_version = "3.11"
 strict = true
-files = ["als_tools", "tests/test_als_tools.py", "tests/test_als_trace.py"]
+files = ["als_tools", "tests/test_als_tools.py", "tests/test_als_trace.py", "tests/test_als_osc_params.py"]
 
 [project.urls]
 "Homepage" = "https://github.com/WilliamDeSimone/AbletonBridge"
