@@ -11,7 +11,8 @@ from xml.etree.ElementTree import Element, SubElement
 import pytest
 
 from als_tools import liveset as ls
-from als_tools.trace import MacroTrace, RackTrace, juce_hash, main, trace
+from als_tools.osc_plugin import juce_hash
+from als_tools.trace import MacroTrace, RackTrace, main, trace
 
 
 class _Builder:

@@ -19,10 +19,7 @@ from __future__ import annotations
 
 import argparse
 import re
-import struct
 import sys
-import xml.etree.ElementTree as ET
-import zlib
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import PureWindowsPath
@@ -30,11 +27,9 @@ from typing import Literal
 from xml.etree.ElementTree import Element
 
 from als_tools import liveset as ls
+from als_tools.osc_plugin import juce_hash, mapped_macro, osc_list, read_state
 
 MAX_DEVICE_TAGS = ("MxDeviceAudioEffect", "MxDeviceMidiEffect", "MxDeviceInstrument")
-RACK_TAGS = (*ls.RACK_TAGS, "DrumGroupDevice")
-JUCE_XML_MAGIC = b"VC2!"  # header of JUCE's copyXmlToBinary state
-MACRO_MAP_CHANNEL = "16"  # Live stores macro mappings as KeyMidi on channel 16
 
 Status = Literal[
     "ok",
@@ -102,33 +97,13 @@ def _names_match(macro_name: str, address: str) -> bool:
     return bool(name and leaf) and (name in leaf or leaf in name)
 
 
-def juce_hash(text: str) -> int:
-    """A JUCE VST3's ParameterId: the JUCE string hash of the parameter name."""
-    h = 0
-    for char in text:
-        h = (31 * h + ord(char)) & 0xFFFFFFFF
-    return h & 0x7FFFFFFF
-
-
 def osc_addresses(plugin: Element) -> dict[int, str | None] | None:
     """Parameter id -> OSC address (None if not sent) from saved state; None if there's no list."""
-    state = plugin.find(".//ProcessorState")
-    if state is None or state.text is None:
+    state = read_state(plugin)
+    found = osc_list(state) if state is not None else None
+    if found is None:
         return None
-    try:
-        blob = bytes.fromhex(re.sub(r"\s", "", state.text))
-    except ValueError:
-        return None
-    if blob[:4] != JUCE_XML_MAGIC or len(blob) < 8:
-        return None
-    size = struct.unpack("<I", blob[4:8])[0]
-    try:
-        saved = ET.fromstring(blob[8 : 8 + size].rstrip(b"\0"))
-    except (ET.ParseError, LookupError):
-        return None
-    params = saved.find("OSCParameters")
-    if params is None:
-        return None
+    saved, params = found
     settings = saved.find("OSCSettings")
     sending = settings is None or settings.get("oscOutputEnabled", "1") != "0"
     return {juce_hash(p.get("parameterName", "")): _sent_address(p, sending) for p in params}
@@ -142,20 +117,13 @@ def _sent_address(param: Element, plugin_sending: bool) -> str | None:
 
 def _enclosing_rack(el: Element, parents: dict[Element, Element]) -> Element | None:
     current = parents.get(el)
-    while current is not None and current.tag not in RACK_TAGS:
+    while current is not None and current.tag not in ls.CONTAINER_TAGS:
         current = parents.get(current)
     return current
 
 
 def _macro_count(rack: Element) -> int:
     return sum(1 for c in rack if c.tag.startswith("MacroControls."))
-
-
-def _macro_map(mapping: Element) -> int | None:
-    """The 1-based macro a KeyMidi maps to, or None if it's a hardware MIDI map."""
-    if ls.value(mapping, "Channel") != MACRO_MAP_CHANNEL or ls.value(mapping, "IsNote") != "false":
-        return None
-    return int(ls.value(mapping, "NoteOrController")) + 1
 
 
 def _moving_targets(root: Element) -> set[str]:
@@ -216,7 +184,7 @@ class _SetIndex:
             param: plugin for plugin in addresses_by_plugin for param in plugin.iter("PluginFloatParameter")
         }
         for mapping in track.iter("KeyMidi"):
-            number = _macro_map(mapping)
+            number = mapped_macro(mapping)
             target_rack = self._mapped_rack(mapping)
             if number is None or target_rack is None:
                 continue
@@ -229,7 +197,7 @@ class _SetIndex:
                 continue
             param_id = ls.value(param, "ParameterId")
             label = f"{ls.value(param, 'ParameterName').strip()} (id {param_id})"
-            address = None if self._is_inactive(owner) else addresses_by_plugin[owner].get(int(param_id))
+            address = None if self._is_inactive(owner) else addresses_by_plugin[owner].get(ls.to_int(param_id, "ParameterId"))
             self.slots[key].append(Slot(label, address))
 
     def _is_inactive(self, device: Element) -> bool:
@@ -258,7 +226,7 @@ class _SetIndex:
         automated = ls.automation_target_id(macro) in self.moving
         mapping = macro.find("KeyMidi")
         parent = _enclosing_rack(rack, self.parents)
-        parent_number = _macro_map(mapping) if mapping is not None else None
+        parent_number = mapped_macro(mapping) if mapping is not None else None
         if parent is not None and parent_number is not None and parent_number <= _macro_count(parent):
             parent_devices, parent_automated = self.feeders(parent, parent_number)
             devices += parent_devices
@@ -319,7 +287,7 @@ def main(argv: list[str] | None = None) -> int:
     for path in args.paths:
         try:
             failed = not _report(path, args.strict) or failed
-        except (ls.AlsError, OSError, EOFError, ET.ParseError, ValueError, zlib.error) as e:
+        except ls.AlsError as e:
             print(f"als-trace: {path}: {e}", file=sys.stderr)
             failed = True
     return 1 if failed else 0

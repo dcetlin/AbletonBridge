@@ -15,13 +15,17 @@ elements between sets:
 from __future__ import annotations
 
 import gzip
+import math
 import os
 import shutil
 import xml.etree.ElementTree as ET
+import zlib
 from collections.abc import Iterator
 from xml.etree.ElementTree import Element
 
 RACK_TAGS = ("AudioEffectGroupDevice", "InstrumentGroupDevice", "MidiEffectGroupDevice")
+# Every device that holds chains. rack() finds only RACK_TAGS, so a track's first rack stays stable.
+CONTAINER_TAGS = (*RACK_TAGS, "DrumGroupDevice")
 
 
 class AlsError(Exception):
@@ -51,6 +55,23 @@ def value(el: Element, path: str) -> str:
     return attr(child(el, path), "Value")
 
 
+def to_int(text: str, where: str) -> int:
+    try:
+        return int(text)
+    except ValueError:
+        raise AlsError(f"{where}: {text!r} is not an integer") from None
+
+
+def to_float(text: str, where: str) -> float:
+    try:
+        number = float(text)
+    except ValueError:
+        raise AlsError(f"{where}: {text!r} is not a number") from None
+    if not math.isfinite(number):
+        raise AlsError(f"{where}: {text!r} is not a finite number")
+    return number
+
+
 def set_value(el: Element, path: str, new: str) -> None:
     child(el, path).set("Value", new)
 
@@ -60,9 +81,13 @@ def set_value(el: Element, path: str, new: str) -> None:
 # ---------------------------------------------------------------------------
 
 def read_set(path: str) -> Element:
-    """The root (<Ableton>) element of the set at `path`."""
-    with gzip.open(path, "rb") as f:
-        return ET.parse(f).getroot()
+    """The root (<Ableton>) element of the set at `path`. A file that can't be read as
+    a set raises AlsError naming it."""
+    try:
+        with gzip.open(path, "rb") as f:
+            return ET.parse(f).getroot()
+    except (OSError, EOFError, LookupError, ValueError, ET.ParseError, zlib.error) as e:
+        raise AlsError(f"can't read {path}: {e}") from e
 
 
 def write_set(root: Element, path: str, backup: bool = True) -> None:
@@ -122,6 +147,15 @@ def rack(track: Element) -> Element:
     raise AlsError(f"track {track_name(track)!r} has no rack")
 
 
+def own_devices(rack_el: Element, tag: str) -> Iterator[Element]:
+    """Devices with this tag in the rack's chains, not looking inside nested racks."""
+    for sub in rack_el:
+        if sub.tag == tag:
+            yield sub
+        if sub.tag not in CONTAINER_TAGS:
+            yield from own_devices(sub, tag)
+
+
 def macro(rack_el: Element, number: int) -> Element:
     """MacroControls element for a 1-based macro number."""
     if not 1 <= number <= 16:
@@ -142,7 +176,7 @@ def automation_target_id(param: Element) -> str:
 
 
 def tempo(root: Element) -> float:
-    return float(value(main_track(root), "DeviceChain/Mixer/Tempo/Manual"))
+    return to_float(value(main_track(root), "DeviceChain/Mixer/Tempo/Manual"), "Tempo")
 
 
 # ---------------------------------------------------------------------------
@@ -168,14 +202,14 @@ def lom_definitions(root: Element) -> Iterator[Element]:
 
 
 def max_lom_id(root: Element) -> int:
-    return max((int(attr(e, "Value")) for e in root.iter("LomId")), default=0)
+    return max((to_int(attr(e, "Value"), "LomId") for e in root.iter("LomId")), default=0)
 
 
 def renumber_pointees(el: Element, root: Element) -> None:
     """Give every pointee inside `el` a fresh Id from the set's NextPointeeId, and
     update PointeeId references inside `el` to match."""
     counter = child(root, "LiveSet/NextPointeeId")
-    nxt = int(attr(counter, "Value"))
+    nxt = to_int(attr(counter, "Value"), "NextPointeeId")
     remap: dict[str, str] = {}
     for e in pointees(el):
         if e is el:
