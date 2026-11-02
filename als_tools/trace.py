@@ -242,10 +242,11 @@ class _SetIndex:
         return False
 
     def _mapped_rack(self, mapping: Element) -> Element | None:
-        """The rack whose macros a KeyMidi refers to. A rack's own controls map to its parent rack."""
+        """The rack whose macros a KeyMidi refers to. A rack's macros and switch map to its parent."""
         rack = _enclosing_rack(mapping, self.parents)
         holder = self.parents[mapping]
-        if rack is not None and self.parents.get(holder) is rack:
+        maps_to_parent = holder.tag == "On" or holder.tag.startswith("MacroControls.")
+        if rack is not None and maps_to_parent and self.parents.get(holder) is rack:
             return _enclosing_rack(rack, self.parents)
         return rack
 

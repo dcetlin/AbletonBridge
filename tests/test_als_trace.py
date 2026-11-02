@@ -441,3 +441,13 @@ def test_nested_rack_switch_maps_to_the_parent_macro() -> None:
     b.follower(b.audio_track(), outer, 5)
     assert _only(b).macros[4].status == "local only"
 
+
+def test_chain_selector_maps_to_its_own_rack() -> None:
+    b = _Builder()
+    track = b.audio_track("OSC")
+    rack = b.rack(ls.devices(track))
+    _plugin(rack, {"p1": "/x/Level"}, {"p1": 1})
+    _key_midi(SubElement(rack, "ChainSelector"), 2)
+    b.follower(b.audio_track(), rack, 2)
+    assert _only(b).macros[1].status == "local only"
+
