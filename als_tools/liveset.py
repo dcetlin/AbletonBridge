@@ -15,6 +15,7 @@ elements between sets:
 from __future__ import annotations
 
 import gzip
+import math
 import os
 import shutil
 import xml.etree.ElementTree as ET
@@ -63,9 +64,12 @@ def to_int(text: str, where: str) -> int:
 
 def to_float(text: str, where: str) -> float:
     try:
-        return float(text)
+        number = float(text)
     except ValueError:
         raise AlsError(f"{where}: {text!r} is not a number") from None
+    if not math.isfinite(number):
+        raise AlsError(f"{where}: {text!r} is not a finite number")
+    return number
 
 
 def set_value(el: Element, path: str, new: str) -> None:

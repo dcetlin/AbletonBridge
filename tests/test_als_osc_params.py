@@ -572,3 +572,21 @@ def test_validate_and_clone_report_bad_files(tmp_path: Path, capsys: pytest.Capt
     spec.write_text(f'{{"reference": "{bad}", "target": "{bad}", "output": "{tmp_path / "o.als"}"}}')
     assert main([str(spec)]) == 1
     assert "als-clone:" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("text", ["x", "nan", "inf"])
+def test_non_finite_numbers_are_reported(text: str) -> None:
+    with pytest.raises(ls.AlsError, match="number"):
+        ls.to_float(text, "field")
+
+
+def test_oversized_param_number_is_reported(tmp_path: Path) -> None:
+    root = _set()
+    name = "param" + "9" * 5000
+    _replace_state(
+        root,
+        f'<State><Parameters/><OSCParameters><Parameter parameterName="{name}" oscAddress="/x/A"/></OSCParameters></State>'.encode(),
+    )
+    with pytest.raises(ls.AlsError, match="not an integer"):
+        _apply(tmp_path, root, osc_params=[_osc_item(3)])
+

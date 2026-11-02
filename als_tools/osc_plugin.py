@@ -117,7 +117,7 @@ def _find_osc_plugin(rack: Element) -> tuple[Element, SavedState, Element, Eleme
 
 def _next_number(params: Element) -> int:
     numbers = (re.fullmatch(r"param(\d+)", p.get("parameterName", "")) for p in params)
-    return max((int(m[1]) for m in numbers if m), default=0) + 1
+    return max((ls.to_int(m[1], "OSC parameter name") for m in numbers if m), default=0) + 1
 
 
 def _append_entry(xml: bytes, entry: bytes) -> bytes:
