@@ -92,9 +92,9 @@ def _plugin(
     return plugin
 
 
-def _hub(b: _Builder, name: str = "Level", address: str = "/x/Level") -> Element:
+def _osc_rack(b: _Builder, name: str = "Level", address: str = "/x/Level") -> Element:
     """A track with one OSC rack whose macro 1 is mapped to an address."""
-    track = b.audio_track("HUB")
+    track = b.audio_track("OSC")
     rack = b.rack(ls.devices(track), {1: name})
     _plugin(rack, {"param1": address}, {"param1": 1})
     return rack
@@ -110,12 +110,12 @@ def _first(b: _Builder) -> MacroTrace:
     return _only(b).macros[0]
 
 
-def _envelope(parent: Element, tag: str, target: str, values: list[str]) -> None:
+def _envelope(parent: Element, tag: str, target: str, values: list[str], event: str = "FloatEvent") -> None:
     envelope = SubElement(parent, tag)
     _v(SubElement(envelope, "EnvelopeTarget"), "PointeeId", target)
     events = SubElement(SubElement(envelope, "Automation"), "Events")
     for value in values:
-        SubElement(events, "FloatEvent", Value=value)
+        SubElement(events, event, Value=value)
 
 
 def _write(root: Element, path: Path) -> str:
@@ -132,7 +132,7 @@ def test_juce_hash_matches_known_ids() -> None:
 
 def test_complete_path_is_ok() -> None:
     b = _Builder()
-    b.follower(b.audio_track(), _hub(b), 1)
+    b.follower(b.audio_track(), _osc_rack(b), 1)
     entry = _first(b)
     assert entry.status == "ok"
     assert entry.devices == ("SOURCE: MxDeviceAudioEffect",)
@@ -141,7 +141,7 @@ def test_complete_path_is_ok() -> None:
 
 def test_device_on_main_track_counts_as_feeder() -> None:
     b = _Builder()
-    b.follower(b.main, _hub(b), 1)
+    b.follower(b.main, _osc_rack(b), 1)
     assert _first(b).status == "ok"
 
 
@@ -157,7 +157,7 @@ def test_rack_on_main_track_is_traced() -> None:
 @pytest.mark.parametrize("tag", ["AutomationEnvelope", "ClipEnvelope"])
 def test_envelope_feeds_only_when_it_moves(tag: str) -> None:
     b = _Builder()
-    target = ls.automation_target_id(ls.macro(_hub(b), 1))
+    target = ls.automation_target_id(ls.macro(_osc_rack(b), 1))
     _envelope(b.root, tag, target, ["0.5"])
     assert _first(b).status == "no feeder"
     _envelope(b.root, tag, target, ["0.5", "0.7"])
@@ -166,19 +166,19 @@ def test_envelope_feeds_only_when_it_moves(tag: str) -> None:
 
 def test_unmapped_macro_is_unused() -> None:
     b = _Builder()
-    _hub(b)
+    _osc_rack(b)
     assert _only(b).macros[1].status == "unused"
 
 
 def test_fed_macro_with_no_destination_stops() -> None:
     b = _Builder()
-    b.follower(b.audio_track(), _hub(b), 2)
+    b.follower(b.audio_track(), _osc_rack(b), 2)
     assert _only(b).macros[1].status == "stops at macro"
 
 
 def test_fed_macro_driving_something_else_is_local() -> None:
     b = _Builder()
-    rack = _hub(b)
+    rack = _osc_rack(b)
     b.follower(b.audio_track(), rack, 2)
     _plugin(rack, None, {"cutoff": 2})
     assert _only(b).macros[1].status == "local only"
@@ -186,7 +186,7 @@ def test_fed_macro_driving_something_else_is_local() -> None:
 
 def test_mapped_parameter_with_no_feeder_is_reported_without_failing() -> None:
     b = _Builder()
-    _hub(b)
+    _osc_rack(b)
     assert _first(b).status == "no feeder"
 
 
@@ -201,7 +201,7 @@ def test_mapped_parameter_with_no_feeder_is_reported_without_failing() -> None:
 )
 def test_parameter_that_sends_nothing(osc: dict[str, str], kwargs: dict[str, str]) -> None:
     b = _Builder()
-    track = b.audio_track("HUB")
+    track = b.audio_track("OSC")
     rack = b.rack(ls.devices(track))
     _plugin(rack, osc, {"param1": 1}, **kwargs)
     b.follower(b.audio_track(), rack, 1)
@@ -210,7 +210,7 @@ def test_parameter_that_sends_nothing(osc: dict[str, str], kwargs: dict[str, str
 
 def test_hardware_midi_map_is_not_a_macro_mapping() -> None:
     b = _Builder()
-    rack = _hub(b)
+    rack = _osc_rack(b)
     b.follower(b.audio_track(), rack, 1)
     _plugin(rack, {"param9": "/x/Other"}, {"param9": 1}, channel="1")
     assert [s.address for s in _first(b).slots] == ["/x/Level"]
@@ -218,7 +218,7 @@ def test_hardware_midi_map_is_not_a_macro_mapping() -> None:
 
 def test_two_devices_on_a_macro_warn() -> None:
     b = _Builder()
-    rack = _hub(b)
+    rack = _osc_rack(b)
     source = b.audio_track()
     b.follower(source, rack, 1)
     b.follower(source, rack, 1)
@@ -238,13 +238,13 @@ def test_two_devices_on_a_macro_warn() -> None:
 )
 def test_name_check(name: str, address: str, status: str) -> None:
     b = _Builder()
-    b.follower(b.audio_track(), _hub(b, name, address), 1)
+    b.follower(b.audio_track(), _osc_rack(b, name, address), 1)
     assert _first(b).status == status
 
 
 def test_name_needs_to_match_only_one_of_two_addresses() -> None:
     b = _Builder()
-    track = b.audio_track("HUB")
+    track = b.audio_track("OSC")
     rack = b.rack(ls.devices(track), {1: "Brightness"})
     _plugin(rack, {"p1": "/x/Brightness", "p2": "/y/Glow"}, {"p1": 1, "p2": 1})
     b.follower(b.audio_track(), rack, 1)
@@ -253,21 +253,21 @@ def test_name_needs_to_match_only_one_of_two_addresses() -> None:
 
 def test_second_plugin_in_a_rack_uses_its_own_list() -> None:
     b = _Builder()
-    rack = _hub(b)
+    rack = _osc_rack(b)
     _plugin(rack, {"param1": "/y/Level"}, {"param1": 2})
     assert [s.address for s in _only(b).macros[1].slots] == ["/y/Level"]
 
 
 def test_every_osc_rack_is_traced() -> None:
     b = _Builder()
-    _hub(b)
-    _hub(b, "Other", "/y/Other")
+    _osc_rack(b)
+    _osc_rack(b, "Other", "/y/Other")
     assert len(trace(b.root)) == 2
 
 
 def test_nested_plugin_maps_to_its_own_rack_and_follows_outer_macro() -> None:
     b = _Builder()
-    track = b.audio_track("HUB")
+    track = b.audio_track("OSC")
     outer = b.rack(ls.devices(track), {1: "Outer"})
     inner = b.rack(SubElement(outer, "Branches"), {3: "Cutoff"})
     _key_midi(ls.macro(inner, 3), 1)
@@ -281,7 +281,7 @@ def test_nested_plugin_maps_to_its_own_rack_and_follows_outer_macro() -> None:
 
 def test_rack_with_eight_macros() -> None:
     b = _Builder()
-    track = b.audio_track("HUB")
+    track = b.audio_track("OSC")
     rack = b.rack(ls.devices(track), {1: "Level"}, macros=8)
     _plugin(rack, {"p1": "/x/Level"}, {"p1": 1})
     assert len(_only(b).macros) == 8
@@ -289,11 +289,11 @@ def test_rack_with_eight_macros() -> None:
 
 def test_cli_exit_codes(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     good = _Builder()
-    good.follower(good.audio_track(), _hub(good), 1)
+    good.follower(good.audio_track(), _osc_rack(good), 1)
     broken = _Builder()
-    broken.follower(broken.audio_track(), _hub(broken), 2)
+    broken.follower(broken.audio_track(), _osc_rack(broken), 2)
     misnamed = _Builder()
-    misnamed.follower(misnamed.audio_track(), _hub(misnamed, "Brightness"), 1)
+    misnamed.follower(misnamed.audio_track(), _osc_rack(misnamed, "Brightness"), 1)
     plain = _Builder()
     plain.audio_track()
 
@@ -311,7 +311,7 @@ def test_cli_reports_bad_file_and_continues(tmp_path: Path, capsys: pytest.Captu
     bad = tmp_path / "bad.als"
     bad.write_bytes(b"not gzip")
     good = _Builder()
-    good.follower(good.audio_track(), _hub(good), 1)
+    good.follower(good.audio_track(), _osc_rack(good), 1)
     assert main([str(bad), _write(good.root, tmp_path / "good.als")]) == 1
     captured = capsys.readouterr()
     assert "als-trace:" in captured.err
@@ -320,7 +320,7 @@ def test_cli_reports_bad_file_and_continues(tmp_path: Path, capsys: pytest.Captu
 
 def test_one_silent_parameter_among_several_is_not_sent() -> None:
     b = _Builder()
-    track = b.audio_track("HUB")
+    track = b.audio_track("OSC")
     rack = b.rack(ls.devices(track), {1: "Level"})
     _plugin(rack, {"p1": "/x/Level", "p2": ""}, {"p1": 1, "p2": 1})
     b.follower(b.audio_track(), rack, 1)
@@ -336,25 +336,60 @@ def _switch(device: Element, value: str) -> str:
 
 def test_switched_off_device_does_not_feed_unless_automated() -> None:
     b = _Builder()
-    b.follower(b.audio_track(), _hub(b), 1)
+    b.follower(b.audio_track(), _osc_rack(b), 1)
     device = next(b.root.iter("MxDeviceAudioEffect"))
     target = _switch(device, "false")
     assert _first(b).status == "no feeder"
-    _envelope(b.root, "AutomationEnvelope", target, ["0", "1"])
+    _envelope(b.root, "AutomationEnvelope", target, ["false", "true"], "BoolEvent")
     assert _first(b).status == "ok"
 
 
 def test_switched_off_plugin_sends_nothing() -> None:
     b = _Builder()
-    rack = _hub(b)
+    rack = _osc_rack(b)
     b.follower(b.audio_track(), rack, 1)
     _switch(next(rack.iter("PluginDevice")), "false")
     assert _first(b).status == "not sent"
 
 
+def test_automated_plugin_switch_counts_as_on() -> None:
+    b = _Builder()
+    rack = _osc_rack(b)
+    b.follower(b.audio_track(), rack, 1)
+    target = _switch(next(rack.iter("PluginDevice")), "false")
+    _envelope(b.root, "AutomationEnvelope", target, ["false", "true"], "BoolEvent")
+    assert _first(b).status == "ok"
+
+
+def test_device_label_uses_file_stem_on_any_platform() -> None:
+    for path in ("C:\\Max\\Follower.amxd", "/Users/me/Max/Follower.amxd"):
+        b = _Builder()
+        b.follower(b.audio_track(), _osc_rack(b), 1)
+        _v(next(b.root.iter("MxDeviceAudioEffect")), "Path", path)
+        assert _first(b).devices == ("SOURCE: Follower",)
+
+
+def test_unknown_state_encoding_is_not_an_osc_list() -> None:
+    b = _Builder()
+    track = b.audio_track("OSC")
+    plugin = _plugin(b.rack(ls.devices(track)), None, {})
+    xml = b'<?xml version="1.0" encoding="nope"?><State><OSCParameters/></State>'
+    state = b"VC2!" + struct.pack("<I", len(xml)) + xml
+    SubElement(plugin, "ProcessorState").text = state.hex()
+    assert trace(b.root) == []
+
+
+def test_cli_reports_malformed_value(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    b = _Builder()
+    _osc_rack(b)
+    ls.set_value(next(b.root.iter("KeyMidi")), "NoteOrController", "x")
+    assert main([_write(b.root, tmp_path / "bad.als")]) == 1
+    assert "als-trace:" in capsys.readouterr().err
+
+
 def test_plugin_in_a_drum_rack_is_traced_without_changing_rack_lookup() -> None:
     b = _Builder()
-    track = b.audio_track("HUB")
+    track = b.audio_track("OSC")
     rack = b.rack(ls.devices(track), {1: "Level"})
     rack.tag = "DrumGroupDevice"
     _plugin(rack, {"p1": "/x/Level"}, {"p1": 1})
@@ -365,7 +400,7 @@ def test_plugin_in_a_drum_rack_is_traced_without_changing_rack_lookup() -> None:
 
 def test_cli_reports_corrupt_gzip_and_continues(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     good = _Builder()
-    good.follower(good.audio_track(), _hub(good), 1)
+    good.follower(good.audio_track(), _osc_rack(good), 1)
     path = Path(_write(good.root, tmp_path / "good.als"))
     data = bytearray(path.read_bytes())
     data[20:30] = bytes(10)

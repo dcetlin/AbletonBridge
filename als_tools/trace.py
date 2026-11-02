@@ -11,8 +11,8 @@ it. This reads the file only: a clean trace still needs a playback check.
 
 Supported plugins are Nativize, or any JUCE VST3 saving the same <OSCParameters> list
 of <Parameter parameterName oscAddress oscOutputEnabled> elements. A set with no such
-plugin has nothing to trace. Devices and plugins switched off don't count, but a device
-inside a rack that's switched off still does.
+plugin has nothing to trace. Devices and plugins switched off don't count, but one inside
+a rack that's switched off still does.
 """
 
 from __future__ import annotations
@@ -163,7 +163,7 @@ def _moving_targets(root: Element) -> set[str]:
     moving: set[str] = set()
     for tag in ("AutomationEnvelope", "ClipEnvelope"):
         for envelope in root.iter(tag):
-            if len({e.get("Value") for e in envelope.iter("FloatEvent")}) > 1:
+            if len({e.get("Value") for e in ls.child(envelope, "Automation/Events")}) > 1:
                 moving.add(ls.envelope_target(envelope))
     return moving
 
