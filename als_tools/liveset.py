@@ -85,12 +85,26 @@ def tracks(root: Element) -> Element:
     return child(root, "LiveSet/Tracks")
 
 
+def main_track(root: Element) -> Element:
+    """Live's main output track. It sits outside LiveSet/Tracks and can hold devices.
+
+    Live 12 calls it MainTrack; earlier versions call it MasterTrack.
+    """
+    found = root.find("LiveSet/MainTrack")
+    return found if found is not None else child(root, "LiveSet/MasterTrack")
+
+
+def all_tracks(root: Element) -> list[Element]:
+    """Every track that can hold devices. Use this for audits, not tracks()."""
+    return [*tracks(root), main_track(root)]
+
+
 def track_name(track: Element) -> str:
     return value(track, "Name/EffectiveName")
 
 
 def find_track(root: Element, name: str) -> Element:
-    for t in tracks(root):
+    for t in all_tracks(root):
         if track_name(t) == name:
             return t
     raise AlsError(f"no track named {name!r}")
@@ -128,7 +142,7 @@ def automation_target_id(param: Element) -> str:
 
 
 def tempo(root: Element) -> float:
-    return float(value(root, "LiveSet/MainTrack/DeviceChain/Mixer/Tempo/Manual"))
+    return float(value(main_track(root), "DeviceChain/Mixer/Tempo/Manual"))
 
 
 # ---------------------------------------------------------------------------
