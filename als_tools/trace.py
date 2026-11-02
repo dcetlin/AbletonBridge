@@ -1,15 +1,22 @@
 """Trace each rack macro from what feeds it to the OSC address it reaches.
 
-    als-trace set.als [more.als ...]     # exit 1 if any signal path is broken
+    als-trace [--strict] set.als [more.als ...]
 
-A macro's path has three links: a Max device mapped to it (or its automation), a
-plugin parameter mapped to it, and that parameter's OSC address in the plugin's
-saved state. als-validate can't see a missing link, because the file is consistent
-without it. This reads the file only: a clean trace still needs a playback check.
+Exit 1 if a signal path is broken. --strict also fails on the warnings below.
+
+A macro's path has three links: a Max device mapped to it (or moving automation), a
+plugin parameter mapped to it, and that parameter's OSC address in the plugin's saved
+state. als-validate can't see a missing link, because the file is consistent without
+it. This reads the file only: a clean trace still needs a playback check.
+
+Supported plugins are JUCE VST3s that save an <OSCParameters> list of <Parameter
+parameterName oscAddress oscOutputEnabled> elements, as Nativize does. A set with no
+such plugin has nothing to trace.
 """
 
 from __future__ import annotations
 
+import argparse
 import re
 import struct
 import sys
@@ -21,16 +28,23 @@ from xml.etree.ElementTree import Element
 
 from als_tools import liveset as ls
 
-MACRO_COUNT = 16
 MAX_DEVICE_TAGS = ("MxDeviceAudioEffect", "MxDeviceMidiEffect", "MxDeviceInstrument")
-STATE_MAGIC = b"VC2!"
+PLUGIN_TAGS = ("PluginDevice", "AuPluginDevice")
+JUCE_XML_MAGIC = b"VC2!"  # header of JUCE's copyXmlToBinary state
+MACRO_MAP_CHANNEL = "16"  # Live stores macro mappings as KeyMidi on channel 16
 
 Status = Literal[
-    "ok", "unused", "no feeder", "stops at macro", "no OSC address", "multiple devices", "name mismatch"
+    "ok",
+    "unused",
+    "no feeder",
+    "local only",
+    "stops at macro",
+    "not sent",
+    "multiple devices",
+    "name mismatch",
 ]
-BROKEN: frozenset[Status] = frozenset(
-    {"stops at macro", "no OSC address", "multiple devices", "name mismatch"}
-)
+BROKEN: frozenset[Status] = frozenset({"stops at macro", "not sent"})
+WARNINGS: frozenset[Status] = frozenset({"multiple devices", "name mismatch"})
 
 
 @dataclass(frozen=True)
@@ -46,41 +60,55 @@ class MacroTrace:
     devices: tuple[str, ...]
     automated: bool
     slots: tuple[Slot, ...]
+    local_targets: int = 0
 
     @property
     def status(self) -> Status:
+        fed = bool(self.devices) or self.automated
+        if not self.slots:
+            if not fed:
+                return "unused"
+            return "local only" if self.local_targets else "stops at macro"
+        if not fed:
+            return "no feeder"
+        addresses = [s.address for s in self.slots if s.address is not None]
+        if not addresses:
+            return "not sent"
         if len(self.devices) > 1:
             return "multiple devices"
-        fed = bool(self.devices) or self.automated
-        if not fed:
-            return "no feeder" if self.slots else "unused"
-        if not self.slots:
-            return "stops at macro"
-        if any(s.address is None for s in self.slots):
-            return "no OSC address"
-        if not all(_names_match(self.name, s.address) for s in self.slots):
+        if not any(_names_match(self.name, a) for a in addresses):
             return "name mismatch"
         return "ok"
 
 
-def _names_match(macro_name: str, address: str | None) -> bool:
-    """Whether a named macro agrees with its OSC address. Default names ("Macro 9") always do."""
-    if address is None or re.fullmatch(r"Macro \d+", macro_name):
+@dataclass(frozen=True)
+class RackTrace:
+    track: str
+    macros: tuple[MacroTrace, ...]
+
+
+def _letters(text: str) -> str:
+    return "".join(c for c in text.casefold() if c.isalnum())
+
+
+def _names_match(macro_name: str, address: str) -> bool:
+    """Whether a named macro and its address share a name. Default names ("Macro 9") always do."""
+    if re.fullmatch(r"Macro \d+", macro_name):
         return True
-    wanted = re.sub(r"[^a-z0-9]", "", re.sub(r"\bsignal\b", "", macro_name.lower()))
-    return wanted == address.rsplit("/", 1)[-1].lower()
+    name, leaf = _letters(macro_name), _letters(address.rstrip("/").rsplit("/", 1)[-1])
+    return bool(name and leaf) and (name in leaf or leaf in name)
 
 
 def juce_hash(text: str) -> int:
-    """A plugin's ParameterId: the JUCE string hash of the parameter name."""
+    """A JUCE VST3's ParameterId: the JUCE string hash of the parameter name."""
     h = 0
     for char in text:
         h = (31 * h + ord(char)) & 0xFFFFFFFF
     return h & 0x7FFFFFFF
 
 
-def osc_addresses(plugin: Element) -> dict[int, str] | None:
-    """Parameter id -> OSC address from a plugin's saved state, or None if it has no list."""
+def osc_addresses(plugin: Element) -> dict[int, str | None] | None:
+    """Parameter id -> OSC address (None if not sent) from saved state; None if there's no list."""
     state = plugin.find(".//ProcessorState")
     if state is None or state.text is None:
         return None
@@ -88,121 +116,186 @@ def osc_addresses(plugin: Element) -> dict[int, str] | None:
         blob = bytes.fromhex(re.sub(r"\s", "", state.text))
     except ValueError:
         return None
-    if blob[:4] != STATE_MAGIC:
+    if blob[:4] != JUCE_XML_MAGIC or len(blob) < 8:
         return None
     size = struct.unpack("<I", blob[4:8])[0]
     try:
-        params = ET.fromstring(blob[8 : 8 + size].rstrip(b"\0")).find("OSCParameters")
+        saved = ET.fromstring(blob[8 : 8 + size].rstrip(b"\0"))
     except ET.ParseError:
         return None
+    params = saved.find("OSCParameters")
     if params is None:
         return None
-    return {juce_hash(ls.attr(p, "parameterName")): ls.attr(p, "oscAddress") for p in params}
+    settings = saved.find("OSCSettings")
+    sending = settings is None or settings.get("oscOutputEnabled", "1") != "0"
+    return {
+        juce_hash(p.get("parameterName", "")): (
+            p.get("oscAddress") or None if sending and p.get("oscOutputEnabled", "1") != "0" else None
+        )
+        for p in params
+    }
 
 
-def find_hub(root: Element) -> tuple[Element, Element, dict[int, str]] | None:
-    """The first track whose rack holds a plugin with an OSC list."""
-    for track in ls.tracks(root):
-        for rack in ls.devices(track):
-            if rack.tag not in ls.RACK_TAGS:
-                continue
-            for plugin in rack.iter("PluginDevice"):
-                addresses = osc_addresses(plugin)
-                if addresses is not None:
-                    return track, rack, addresses
-    return None
+def _enclosing_rack(el: Element, parents: dict[Element, Element]) -> Element | None:
+    current = parents.get(el)
+    while current is not None and current.tag not in ls.RACK_TAGS:
+        current = parents.get(current)
+    return current
+
+
+def _macro_count(rack: Element) -> int:
+    return sum(1 for c in rack if c.tag.startswith("MacroControls."))
+
+
+def _macro_map(mapping: Element) -> int | None:
+    """The 1-based macro a KeyMidi maps to, or None if it's a hardware MIDI map."""
+    if ls.value(mapping, "Channel") != MACRO_MAP_CHANNEL or ls.value(mapping, "IsNote") != "false":
+        return None
+    return int(ls.value(mapping, "NoteOrController")) + 1
+
+
+def _moving_targets(root: Element) -> set[str]:
+    """Automation target ids whose arrangement or clip envelope changes value."""
+    moving: set[str] = set()
+    for tag in ("AutomationEnvelope", "ClipEnvelope"):
+        for envelope in root.iter(tag):
+            if len({e.get("Value") for e in envelope.iter("FloatEvent")}) > 1:
+                moving.add(ls.envelope_target(envelope))
+    return moving
 
 
 def _device_label(device: Element) -> str:
     path = next((p.get("Value") for p in device.iter("Path") if p.get("Value")), None)
-    return PurePosixPath(path).name if path else device.tag
+    return PurePosixPath(path).stem if path else device.tag
 
 
-def _max_devices(root: Element) -> list[tuple[str, Element]]:
-    return [
-        (ls.track_name(track), device)
-        for track in ls.all_tracks(root)
-        for tag in MAX_DEVICE_TAGS
-        for device in track.iter(tag)
-    ]
+class _SetIndex:
+    """Everything a trace looks up, read once from the set."""
 
+    def __init__(self, root: Element) -> None:
+        self.parents = {child: parent for parent in root.iter() for child in parent}
+        self.moving = _moving_targets(root)
+        self.devices_by_lom: dict[str, list[str]] = {}
+        self.slots: dict[tuple[Element, int], list[Slot]] = {}
+        self.local_targets: dict[tuple[Element, int], int] = {}
+        self.hubs: list[tuple[str, Element]] = []
+        for track in ls.all_tracks(root):
+            for tag in MAX_DEVICE_TAGS:
+                for device in track.iter(tag):
+                    label = f"{ls.track_name(track)}: {_device_label(device)}"
+                    for lom in {ls.value(r, "LomId") for r in device.iter("MxDIdRef")} - {"0"}:
+                        self.devices_by_lom.setdefault(lom, []).append(label)
+            self._read_mappings(track)
 
-def _is_automated(track: Element, macro: Element) -> bool:
-    target = ls.automation_target_id(macro)
-    for envelope in ls.envelopes(track):
-        if ls.envelope_target(envelope) == target:
-            return len({e.get("Value") for e in envelope.iter("FloatEvent")}) > 1
-    return False
+    def _read_mappings(self, track: Element) -> None:
+        addresses_by_plugin = {
+            plugin: addresses
+            for tag in PLUGIN_TAGS
+            for plugin in track.iter(tag)
+            if (addresses := osc_addresses(plugin)) is not None
+        }
+        for plugin in addresses_by_plugin:
+            hub = _enclosing_rack(plugin, self.parents)
+            if hub is not None and all(hub is not r for _, r in self.hubs):
+                self.hubs.append((ls.track_name(track), hub))
+        slot_owner = {
+            param: plugin for plugin in addresses_by_plugin for param in plugin.iter("PluginFloatParameter")
+        }
+        for mapping in track.iter("KeyMidi"):
+            number = _macro_map(mapping)
+            target_rack = self._mapped_rack(mapping)
+            if number is None or target_rack is None:
+                continue
+            key = (target_rack, number)
+            holder = self.parents[mapping]
+            param = self.parents[holder] if holder.tag == "ParameterValue" else None
+            owner = slot_owner.get(param) if param is not None else None
+            if param is None or owner is None:
+                self.local_targets[key] = self.local_targets.get(key, 0) + 1
+                continue
+            param_id = ls.value(param, "ParameterId")
+            label = f"{ls.value(param, 'ParameterName').strip()} (id {param_id})"
+            self.slots.setdefault(key, []).append(Slot(label, addresses_by_plugin[owner].get(int(param_id))))
 
+    def _mapped_rack(self, mapping: Element) -> Element | None:
+        """The rack whose macros a KeyMidi refers to. A macro's own KeyMidi refers to the parent rack."""
+        rack = _enclosing_rack(mapping, self.parents)
+        if rack is not None and self.parents[mapping].tag.startswith("MacroControls."):
+            return _enclosing_rack(rack, self.parents)
+        return rack
 
-def _mapped_slots(rack: Element, addresses: dict[int, str]) -> dict[int, list[Slot]]:
-    slots: dict[int, list[Slot]] = {}
-    for param in rack.iter("PluginFloatParameter"):
-        mapping = param.find("ParameterValue/KeyMidi")
-        if mapping is None:
-            continue
-        number = int(ls.value(mapping, "NoteOrController")) + 1
-        address = addresses.get(int(ls.value(param, "ParameterId")))
-        slots.setdefault(number, []).append(Slot(ls.value(param, "ParameterName").strip(), address))
-    return slots
-
-
-def trace(root: Element) -> list[MacroTrace] | None:
-    """One entry per macro of the OSC rack, or None if the set has no such rack."""
-    hub = find_hub(root)
-    if hub is None:
-        return None
-    track, rack, addresses = hub
-    slots = _mapped_slots(rack, addresses)
-    devices = _max_devices(root)
-    result: list[MacroTrace] = []
-    for number in range(1, MACRO_COUNT + 1):
+    def feeders(self, rack: Element, number: int) -> tuple[list[str], bool]:
+        """Devices and automation feeding a macro, following it up through parent racks."""
         macro = ls.macro(rack, number)
         lom = ls.value(macro, "LomId")
-        feeders = (
-            tuple(
-                f"{name}: {_device_label(device)}"
-                for name, device in devices
-                if lom in {ls.value(r, "LomId") for r in device.iter("MxDIdRef")}
-            )
-            if lom != "0"
-            else ()
+        devices = list(self.devices_by_lom.get(lom, [])) if lom != "0" else []
+        automated = ls.automation_target_id(macro) in self.moving
+        mapping = macro.find("KeyMidi")
+        parent = _enclosing_rack(rack, self.parents)
+        parent_number = _macro_map(mapping) if mapping is not None else None
+        if parent is not None and parent_number is not None and parent_number <= _macro_count(parent):
+            parent_devices, parent_automated = self.feeders(parent, parent_number)
+            devices += parent_devices
+            automated = automated or parent_automated
+        return devices, automated
+
+    def macro_trace(self, rack: Element, number: int) -> MacroTrace:
+        devices, automated = self.feeders(rack, number)
+        return MacroTrace(
+            number=number,
+            name=ls.value(rack, f"MacroDisplayNames.{number - 1}"),
+            devices=tuple(devices),
+            automated=automated,
+            slots=tuple(self.slots.get((rack, number), ())),
+            local_targets=self.local_targets.get((rack, number), 0),
         )
-        result.append(
-            MacroTrace(
-                number=number,
-                name=ls.value(rack, f"MacroDisplayNames.{number - 1}"),
-                devices=feeders,
-                automated=_is_automated(track, macro),
-                slots=tuple(slots.get(number, ())),
-            )
-        )
-    return result
+
+
+def trace(root: Element) -> list[RackTrace]:
+    """One entry per rack that directly holds a plugin with an OSC list."""
+    index = _SetIndex(root)
+    return [
+        RackTrace(track, tuple(index.macro_trace(rack, n) for n in range(1, _macro_count(rack) + 1)))
+        for track, rack in index.hubs
+    ]
 
 
 def _line(entry: MacroTrace) -> str:
     source = ", ".join(entry.devices) or ("automation" if entry.automated else "-")
-    target = ", ".join(s.address or f"{s.label}: no address" for s in entry.slots) or "-"
+    target = ", ".join(s.address or f"{s.label}: not sent" for s in entry.slots) or "-"
     return f"  M{entry.number:<2} {entry.name:<22} {source} -> {target}  [{entry.status}]"
 
 
-def main(argv: list[str] | None = None) -> int:
-    paths = sys.argv[1:] if argv is None else argv
-    if not paths:
-        print("usage: als-trace set.als [more.als ...]", file=sys.stderr)
-        return 2
-    failed = False
-    for path in paths:
-        entries = trace(ls.read_set(path))
-        print(path)
-        if entries is None:
-            print("  no rack with an OSC plugin")
-            failed = True
-            continue
-        for entry in entries:
+def _report(path: str, strict: bool) -> bool:
+    """Print one set's trace and return whether it passed."""
+    racks = trace(ls.read_set(path))
+    failing = BROKEN | WARNINGS if strict else BROKEN
+    passed = not any(m.status in failing for rack in racks for m in rack.macros)
+    print(f"{'ok  ' if passed else 'FAIL'}  {path}")
+    if not racks:
+        print("      no rack holds a plugin with an OSC list; nothing to trace")
+    for rack in racks:
+        print(f"      rack on track {rack.track!r}")
+        for entry in rack.macros:
             if entry.status != "unused":
-                print(_line(entry))
-        failed = failed or any(e.status in BROKEN for e in entries)
+                print(f"    {_line(entry)}")
+    return passed
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        prog="als-trace", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument("--strict", action="store_true", help="also fail on multiple devices and name mismatches")
+    parser.add_argument("paths", nargs="+", metavar="set.als")
+    args = parser.parse_args(sys.argv[1:] if argv is None else argv)
+    failed = False
+    for path in args.paths:
+        try:
+            failed = not _report(path, args.strict) or failed
+        except (ls.AlsError, OSError, EOFError, ET.ParseError) as e:
+            print(f"als-trace: {path}: {e}", file=sys.stderr)
+            failed = True
     return 1 if failed else 0
 
 

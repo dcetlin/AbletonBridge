@@ -21,7 +21,7 @@ import xml.etree.ElementTree as ET
 from collections.abc import Iterator
 from xml.etree.ElementTree import Element
 
-RACK_TAGS = ("AudioEffectGroupDevice", "InstrumentGroupDevice", "MidiEffectGroupDevice")
+RACK_TAGS = ("AudioEffectGroupDevice", "InstrumentGroupDevice", "MidiEffectGroupDevice", "DrumGroupDevice")
 
 
 class AlsError(Exception):
@@ -86,8 +86,12 @@ def tracks(root: Element) -> Element:
 
 
 def main_track(root: Element) -> Element:
-    """Live's main output track. It sits outside LiveSet/Tracks and can hold devices."""
-    return child(root, "LiveSet/MainTrack")
+    """Live's main output track. It sits outside LiveSet/Tracks and can hold devices.
+
+    Live 12 calls it MainTrack; earlier versions call it MasterTrack.
+    """
+    found = root.find("LiveSet/MainTrack")
+    return found if found is not None else child(root, "LiveSet/MasterTrack")
 
 
 def all_tracks(root: Element) -> list[Element]:
@@ -100,9 +104,12 @@ def track_name(track: Element) -> str:
 
 
 def find_track(root: Element, name: str) -> Element:
-    for t in all_tracks(root):
+    for t in tracks(root):
         if track_name(t) == name:
             return t
+    main = main_track(root)
+    if track_name(main) == name:
+        return main
     raise AlsError(f"no track named {name!r}")
 
 
@@ -138,7 +145,7 @@ def automation_target_id(param: Element) -> str:
 
 
 def tempo(root: Element) -> float:
-    return float(value(root, "LiveSet/MainTrack/DeviceChain/Mixer/Tempo/Manual"))
+    return float(value(main_track(root), "DeviceChain/Mixer/Tempo/Manual"))
 
 
 # ---------------------------------------------------------------------------

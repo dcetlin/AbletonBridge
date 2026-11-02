@@ -308,3 +308,20 @@ def test_validate_flags_duplicates_and_unresolved_mappings() -> None:
 def test_reference_fixture_is_valid() -> None:
     assert validate(_live_set(reference=True)).ok
     assert validate(_live_set(reference=False)).ok
+
+
+def test_find_track_reaches_main_track(sets: tuple[str, str, Path]) -> None:
+    root = ls.read_set(sets[0])
+    assert ls.find_track(root, "Main") is ls.main_track(root)
+    assert ls.main_track(root) in ls.all_tracks(root)
+
+
+def test_main_track_accepts_older_master_track() -> None:
+    root = Element("Ableton")
+    live = SubElement(root, "LiveSet")
+    SubElement(live, "Tracks")
+    master = SubElement(live, "MasterTrack")
+    _v(SubElement(master, "Name"), "EffectiveName", "Master")
+    assert ls.main_track(root) is master
+    with pytest.raises(ls.AlsError, match="no track named"):
+        ls.find_track(root, "Nope")
