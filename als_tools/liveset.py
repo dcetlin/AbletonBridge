@@ -61,6 +61,13 @@ def to_int(text: str, where: str) -> int:
         raise AlsError(f"{where}: {text!r} is not an integer") from None
 
 
+def to_float(text: str, where: str) -> float:
+    try:
+        return float(text)
+    except ValueError:
+        raise AlsError(f"{where}: {text!r} is not a number") from None
+
+
 def set_value(el: Element, path: str, new: str) -> None:
     child(el, path).set("Value", new)
 
@@ -75,7 +82,7 @@ def read_set(path: str) -> Element:
     try:
         with gzip.open(path, "rb") as f:
             return ET.parse(f).getroot()
-    except (OSError, EOFError, ET.ParseError, zlib.error) as e:
+    except (OSError, EOFError, LookupError, ET.ParseError, zlib.error) as e:
         raise AlsError(f"can't read {path}: {e}") from e
 
 

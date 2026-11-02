@@ -7,9 +7,12 @@ fails with a message that names the bad field before any set is read.
 from __future__ import annotations
 
 import math
+import re
 from typing import TypedDict, cast, get_args, get_origin, get_type_hints, is_typeddict
 
 from als_tools.liveset import AlsError
+
+ILLEGAL_XML_CHARS = re.compile("[\x00-\x08\x0b\x0c\x0e-\x1f\ud800-\udfff\ufffe\uffff]")
 
 
 class MacroRef(TypedDict):
@@ -55,7 +58,7 @@ class TrackItem(_TrackItem, total=False):
 
 
 class _OscParamItem(TypedDict):
-    label: str        # the name Live and the plugin show
+    label: str        # the name the plugin shows
     address: str      # OSC address the plugin sends it to; starts with "/"
     map: MacroTarget  # macro of the rack holding the plugin; it now drives this parameter
 
@@ -122,6 +125,8 @@ def _check(obj: object, hint: object, where: str) -> None:
     elif hint is str:
         if not isinstance(obj, str):
             raise AlsError(f"{where}: expected a string")
+        if ILLEGAL_XML_CHARS.search(obj):
+            raise AlsError(f"{where}: {obj!r} has characters XML can't hold")
     else:
         raise TypeError(f"spec type {hint!r} has no checker")
 

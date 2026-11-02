@@ -70,7 +70,7 @@ def _resolve_macro(root: Element, target: MacroTarget) -> tuple[Element, Element
         ls.set_value(rack, f"MacroDisplayNames.{target['macro'] - 1}", target["rename"])
     visible = rack.find("NumVisibleMacroControls")
     if visible is not None and ls.to_int(ls.attr(visible, "Value"), "NumVisibleMacroControls") < target["macro"]:
-        visible.set("Value", str(target["macro"]))
+        visible.set("Value", str(target["macro"] + target["macro"] % 2))  # saved racks use even counts
     return rack, mac
 
 
@@ -118,7 +118,7 @@ def copy_automation(root: Element, item: AutomationCopy) -> str:
     for e in old:
         envs.remove(e)
     new = copy.deepcopy(src[0])
-    new.set("Id", str(max((int(ls.attr(e, "Id")) for e in envs), default=-1) + 1))
+    new.set("Id", str(max((ls.to_int(ls.attr(e, "Id"), "envelope Id") for e in envs), default=-1) + 1))
     ls.set_value(new, "EnvelopeTarget/PointeeId", dest_id)
     envs.append(new)
     points = len(ls.child(new, "Automation/Events"))
@@ -137,7 +137,9 @@ def _set_param(device: Element, param: DeviceParam) -> None:
     if len(found) != 1:
         raise ls.AlsError(f"device has {len(found)} parameters named {name!r}, expected 1")
     target = found[0]
-    if not float(ls.value(target, "MinValue")) <= new <= float(ls.value(target, "MaxValue")):
+    low = ls.to_float(ls.value(target, "MinValue"), f"{name} MinValue")
+    high = ls.to_float(ls.value(target, "MaxValue"), f"{name} MaxValue")
+    if not low <= new <= high:
         raise ls.AlsError(f"{new} is outside the range of parameter {name!r}")
     if target.tag == "MxDFloatParameter":
         ls.set_value(target, "Timeable/Manual", repr(float(new)))
@@ -158,8 +160,8 @@ def clone_device(ref_root: Element, root: Element, item: DeviceItem, ids: _Ids) 
     dest = ls.devices(ls.find_track(root, item["into"]))
     for param in item.get("params", []):
         _set_param(dev, param)
-    dev.set("Id", str(max((int(ls.attr(d, "Id")) for d in dest), default=-1) + 1))
-    dest.insert(item.get("position", 0), dev)
+    dev.set("Id", str(max((ls.to_int(ls.attr(d, "Id"), "device Id") for d in dest), default=-1) + 1))
+    dest.insert(min(item.get("position", 0), len(dest)), dev)
     m = item["map"]
     return f"device {dev.tag} -> {item['into']}, mapped to {m['track']} macro {m['macro']} (LomId {lom})"
 
@@ -254,7 +256,7 @@ def apply(spec: CloneSpec) -> CloneResult:
     root = ls.read_set(spec["target"])
     track_list = ls.tracks(root)
     ids = _Ids(lom=max(ls.max_lom_id(root), ls.max_lom_id(ref_root)) + 1,
-               track=max(int(ls.attr(t, "Id")) for t in track_list) + 1)
+               track=max(ls.to_int(ls.attr(t, "Id"), "track Id") for t in track_list) + 1)
     result = CloneResult(output=spec["output"])
 
     for ref in spec.get("clear_automation", []):
@@ -279,15 +281,22 @@ def apply(spec: CloneSpec) -> CloneResult:
     return result
 
 
+def _load_spec(path: str) -> CloneSpec:
+    with open(path, encoding="utf-8") as f:
+        try:
+            return parse_spec(json.load(f))
+        except ValueError as e:  # bad JSON, bad UTF-8, or an integer too long to parse
+            raise ls.AlsError(f"can't read spec {path}: {e}") from e
+
+
 def main(argv: list[str] | None = None) -> int:
     args = sys.argv[1:] if argv is None else argv
     if len(args) != 1:
         print("usage: als-clone spec.json", file=sys.stderr)
         return 2
     try:
-        with open(args[0]) as f:
-            result = apply(parse_spec(json.load(f)))
-    except (ls.AlsError, OSError, json.JSONDecodeError) as e:
+        result = apply(_load_spec(args[0]))
+    except (ls.AlsError, OSError) as e:
         print(f"als-clone: {e}", file=sys.stderr)
         return 1
     for line in result.actions:

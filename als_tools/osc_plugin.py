@@ -1,12 +1,14 @@
 """Read and extend the OSC parameter list a plugin saves in a Live set.
 
 Supported plugins are Nativize, or any JUCE VST3 saving the same state: a <Parameters>
-list declaring paramN ids and an <OSCParameters> list. Live only exposes a plugin parameter that has a filled <PluginFloatParameter>, so
-adding one takes two edits: the plugin's saved state, and that Live slot.
+list declaring paramN ids and an <OSCParameters> list. Live only exposes a plugin
+parameter that has a filled <PluginFloatParameter>, so adding one takes two edits: the
+plugin's saved state, and that Live slot.
 """
 
 from __future__ import annotations
 
+import codecs
 import re
 import struct
 import xml.etree.ElementTree as ET
@@ -21,8 +23,8 @@ MACRO_MAP_CHANNEL = "16"  # Live stores macro mappings as KeyMidi on channel 16
 EMPTY_SLOT_ID = "-1"
 HEX_LINE = 80
 DEFAULT_MINIMUM, DEFAULT_MAXIMUM = 0.0, 1.0
-OSC_SOURCE = "Touch"  # marks an OSC parameter as user-added, as the plugin writes it
-ILLEGAL_XML_CHARS = re.compile("[\x00-\x08\x0b\x0c\x0e-\x1f\ud800-\udfff\ufffe\uffff]")
+OSC_SOURCE = "Touch"  # what saved OSC parameters carry
+EMPTY_VISUAL_INDEX = "1073741823"  # what Live saves on an empty slot
 
 
 def juce_hash(text: str) -> int:
@@ -97,21 +99,21 @@ def mapped_macro(mapping: Element) -> int | None:
 @dataclass(frozen=True)
 class AddedParam:
     name: str
-    displaced: tuple[str, ...]  # labels of parameters that lost their mapping to this macro
+    displaced: tuple[str, ...]  # mappings this replaced, for reporting
 
 
 def _find_osc_plugin(rack: Element) -> tuple[Element, SavedState, Element, Element]:
+    found: list[tuple[Element, SavedState, Element, Element]] = []
     for plugin in ls.own_devices(rack, "PluginDevice"):
         state = read_state(plugin)
-        found = osc_list(state) if state is not None else None
-        if state is not None and found is not None:
-            return plugin, state, found[0], found[1]
-    raise ls.AlsError("rack holds no plugin with an OSC list")
-
-
-def _check_text(field: str, text: str) -> None:
-    if ILLEGAL_XML_CHARS.search(text):
-        raise ls.AlsError(f"{field} {text!r} has characters XML can't hold")
+        listed = osc_list(state) if state is not None else None
+        if state is not None and listed is not None:
+            found.append((plugin, state, listed[0], listed[1]))
+    if not found:
+        raise ls.AlsError("rack holds no plugin with an OSC list")
+    if len(found) > 1:
+        raise ls.AlsError(f"rack holds {len(found)} plugins with OSC lists; can't tell which to add to")
+    return found[0]
 
 
 def _next_number(params: Element) -> int:
@@ -119,10 +121,17 @@ def _next_number(params: Element) -> int:
     return max((int(m[1]) for m in numbers if m), default=0) + 1
 
 
+def _is_utf8(encoding: bytes) -> bool:
+    try:
+        return codecs.lookup(encoding.decode("ascii")).name == "utf-8"
+    except (LookupError, UnicodeDecodeError):
+        return False
+
+
 def _append_entry(xml: bytes, entry: bytes) -> bytes:
-    declared = re.match(rb'<\?xml[^>]*encoding="([^"]+)"', xml)
-    if declared and declared[1].lower() != b"utf-8":
-        raise ls.AlsError(f"plugin state is {declared[1].decode()}, only UTF-8 can be edited")
+    declared = re.match(rb"""<\?xml[^>]*encoding=["']([^"']+)["']""", xml)
+    if declared and not _is_utf8(declared[1]):
+        raise ls.AlsError(f"plugin state declares {declared[1]!r}; only UTF-8 can be edited")
     if xml.count(b"</OSCParameters>") == 1:
         return xml.replace(b"</OSCParameters>", entry + b"</OSCParameters>")
     patched, count = re.subn(rb"<OSCParameters\s*/>", b"<OSCParameters>" + entry + b"</OSCParameters>", xml)
@@ -143,16 +152,27 @@ def _slot_for(plugin: Element, param_id: int) -> Element:
     raise ls.AlsError("plugin has no empty parameter slot")
 
 
-def _clear_macro_mappings(plugin: Element, macro: int) -> tuple[str, ...]:
-    """Unmap this macro from the plugin's parameters. Returns the labels of those it held."""
+def _labels(params: Element) -> dict[str, str]:
+    """Parameter id -> the label the plugin saves. Live's own slot names can be placeholders."""
+    return {str(juce_hash(p.get("parameterName", ""))): p.get("displayLabel", "").strip() for p in params}
+
+
+def _unmap_others(plugin: Element, filling: Element, macro: int, labels: dict[str, str]) -> list[str]:
+    """Unmap this macro from the plugin's other parameters. Returns their labels."""
     displaced: list[str] = []
     for param in plugin.iter("PluginFloatParameter"):
         holder = ls.child(param, "ParameterValue")
         mapping = holder.find("KeyMidi")
-        if mapping is not None and mapped_macro(mapping) == macro:
+        if param is not filling and mapping is not None and mapped_macro(mapping) == macro:
             holder.remove(mapping)
-            displaced.append(ls.value(param, "ParameterName").strip())
-    return tuple(displaced)
+            param_id = ls.value(param, "ParameterId")
+            displaced.append(labels.get(param_id) or ls.value(param, "ParameterName").strip())
+    return displaced
+
+
+def _next_visual_index(plugin: Element) -> int:
+    used = (ls.value(p, "VisualIndex") for p in plugin.iter("PluginFloatParameter"))
+    return max((ls.to_int(v, "VisualIndex") for v in used if v != EMPTY_VISUAL_INDEX), default=-1) + 1
 
 
 def add_osc_param(
@@ -165,14 +185,12 @@ def add_osc_param(
 ) -> AddedParam:
     """Append an OSC parameter to the plugin directly in this rack and map it to a macro.
 
-    The plugin must have a declared parameter for the next `paramN`, as Nativize does.
-    Other parameters of that plugin lose their mapping to this macro, since it now drives
-    the new one. Other plugins and devices on the macro keep theirs. Existing parameters
-    keep their numbers.
+    The rack must hold exactly one plugin with an OSC list, and that plugin must declare
+    the next `paramN`, as Nativize does. Other parameters of that plugin lose their mapping
+    to this macro, since it now drives the new one. Other plugins and devices on the macro
+    keep theirs. Existing parameters keep their numbers.
     """
     ls.macro(rack, macro)
-    _check_text("label", label)
-    _check_text("address", address)
     if not address.startswith("/"):
         raise ls.AlsError(f'address {address!r} must start with "/"')
     if minimum >= maximum:
@@ -198,13 +216,16 @@ def add_osc_param(
     ).encode()
     _write_state(plugin, SavedState(_append_entry(state.xml, entry), state.tail))
 
-    displaced = _clear_macro_mappings(plugin, macro)
-    leftover = holder.find("KeyMidi")  # the slot's old mapping to a different macro
-    if leftover is not None:
-        holder.remove(leftover)
+    displaced = _unmap_others(plugin, slot, macro, _labels(params))
+    if existing is not None:
+        previous = mapped_macro(existing)
+        holder.remove(existing)
+        if previous != macro:
+            displaced.append(f"{name} from macro {previous}")
     ls.set_value(slot, "ParameterName", f"{label} ")
     ls.set_value(slot, "ParameterId", str(juce_hash(name)))
-    ls.set_value(slot, "VisualIndex", ls.attr(slot, "Id"))
+    if ls.value(slot, "VisualIndex") == EMPTY_VISUAL_INDEX:
+        ls.set_value(slot, "VisualIndex", str(_next_visual_index(plugin)))
     ls.set_value(holder, "Manual", "0")
     holder.insert(1, macro_mapping(macro))
-    return AddedParam(name, displaced)
+    return AddedParam(name, tuple(displaced))

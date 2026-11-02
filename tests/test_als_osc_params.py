@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import gzip
 import struct
 import xml.etree.ElementTree as ET
@@ -12,7 +13,7 @@ import pytest
 
 from als_tools import liveset as ls
 from als_tools.clone import apply, main
-from als_tools.osc_plugin import juce_hash, macro_mapping, osc_list, read_state
+from als_tools.osc_plugin import EMPTY_VISUAL_INDEX, juce_hash, macro_mapping, osc_list, read_state
 from als_tools.spec import parse_spec
 from als_tools.trace import trace
 from als_tools.validate import main as validate_main, validate
@@ -55,7 +56,7 @@ def _set() -> Element:
         _v(rack, f"MacroDisplayNames.{i}", f"Macro {i + 1}")
     plugin = SubElement(rack, "PluginDevice", Id="0")
     items = "".join(
-        f'<Parameter parameterName="param{n}" oscAddress="/x/P{n}" oscOutputEnabled="1"/>'
+        f'<Parameter parameterName="param{n}" displayLabel="Param {n} " oscAddress="/x/P{n}" oscOutputEnabled="1"/>'
         for n in range(1, existing + 1)
     )
     declared = "".join(f'<PARAM id="param{n}" value="0"/>' for n in range(1, 9))
@@ -66,7 +67,7 @@ def _set() -> Element:
         filled = slot < existing
         _v(param, "ParameterName", "" if not filled else f"P{slot + 1} ")
         _v(param, "ParameterId", str(juce_hash(f"param{slot + 1}")) if filled else "-1")
-        _v(param, "VisualIndex", str(slot))
+        _v(param, "VisualIndex", str(slot) if filled else EMPTY_VISUAL_INDEX)
         value = SubElement(param, "ParameterValue")
         _v(value, "LomId", "0")
         if filled:
@@ -160,7 +161,7 @@ def test_new_param_takes_over_the_macro_and_reports_it(tmp_path: Path) -> None:
     out = str(tmp_path / "out.als")
     spec = {"reference": source, "target": source, "output": out, "osc_params": [_osc_item(2)]}
     result = apply(parse_spec(spec))
-    assert "unmapped: P2" in result.actions[0]
+    assert "(unmapped: Param 2)" in result.actions[0]
     root = ls.read_set(out)
     assert [s.address for s in trace(root)[0].macros[1].slots] == ["/x/New"]
     assert sum(1 for _ in root.iter("KeyMidi")) == 2
@@ -171,10 +172,62 @@ def test_reused_slot_ends_with_one_mapping(tmp_path: Path) -> None:
     slot = next(p for p in root.iter("PluginFloatParameter") if ls.attr(p, "Id") == "4")
     ls.set_value(slot, "ParameterId", str(juce_hash("param3")))
     ls.child(slot, "ParameterValue").insert(1, macro_mapping(7))
-    result = _apply(tmp_path, root, osc_params=[_osc_item(3)])
+    source = _write(root, tmp_path / "in.als")
+    out = str(tmp_path / "out.als")
+    spec = {"reference": source, "target": source, "output": out, "osc_params": [_osc_item(3)]}
+    assert "(unmapped: param3 from macro 7)" in apply(parse_spec(spec)).actions[0]
+    result = ls.read_set(out)
     slot = next(p for p in result.iter("PluginFloatParameter") if ls.attr(p, "Id") == "4")
     assert len(ls.child(slot, "ParameterValue").findall("KeyMidi")) == 1
     assert [s.address for s in trace(result)[0].macros[2].slots] == ["/x/New"]
+
+
+def test_reused_slot_already_on_the_macro_reports_nothing(tmp_path: Path) -> None:
+    root = _set()
+    slot = next(p for p in root.iter("PluginFloatParameter") if ls.attr(p, "Id") == "4")
+    ls.set_value(slot, "ParameterId", str(juce_hash("param3")))
+    ls.child(slot, "ParameterValue").insert(1, macro_mapping(3))
+    source = _write(root, tmp_path / "in.als")
+    spec = {"reference": source, "target": source, "output": str(tmp_path / "o.als"), "osc_params": [_osc_item(3)]}
+    assert "unmapped" not in apply(parse_spec(spec)).actions[0]
+
+
+def test_visual_index_stays_unique_after_a_reorder(tmp_path: Path) -> None:
+    root = _set()
+    slots = {ls.attr(p, "Id"): p for p in root.iter("PluginFloatParameter")}
+    ls.set_value(slots["0"], "VisualIndex", "2")
+    ls.set_value(slots["1"], "VisualIndex", "0")
+    result = _apply(tmp_path, root, osc_params=[_osc_item(3)])
+    indexes = [ls.value(p, "VisualIndex") for p in result.iter("PluginFloatParameter")]
+    assert sorted(i for i in indexes if i != EMPTY_VISUAL_INDEX) == ["0", "2", "3"]
+
+
+def test_reused_slot_keeps_its_visual_index(tmp_path: Path) -> None:
+    root = _set()
+    slot = next(p for p in root.iter("PluginFloatParameter") if ls.attr(p, "Id") == "4")
+    ls.set_value(slot, "ParameterId", str(juce_hash("param3")))
+    ls.set_value(slot, "VisualIndex", "4")
+    result = _apply(tmp_path, root, osc_params=[_osc_item(3)])
+    slot = next(p for p in result.iter("PluginFloatParameter") if ls.attr(p, "Id") == "4")
+    assert ls.value(slot, "VisualIndex") == "4"
+
+
+def test_rejects_two_osc_plugins_in_a_rack(tmp_path: Path) -> None:
+    root = _set()
+    rack = next(root.iter("AudioEffectGroupDevice"))
+    rack.append(copy.deepcopy(_plugin(root)))
+    with pytest.raises(ls.AlsError, match="2 plugins with OSC lists"):
+        _apply(tmp_path, root, osc_params=[_osc_item(3)])
+
+
+@pytest.mark.parametrize("text", ["x\x01", "x\ud800"])
+def test_spec_rejects_text_xml_cannot_hold(text: str) -> None:
+    for spec in (
+        {"osc_params": [_osc_item(3, rename=text)]},
+        {"tracks": [{"template": "a", "name": text, "sample": "s", "map": {"track": "t", "macro": 1}}]},
+    ):
+        with pytest.raises(ls.AlsError, match="XML can't hold"):
+            parse_spec({"reference": "a", "target": "a", "output": "b", **spec})
 
 
 def test_rejects_slot_with_hardware_map(tmp_path: Path) -> None:
@@ -259,6 +312,19 @@ def test_numbering_continues_past_gaps(tmp_path: Path) -> None:
 def test_rejects_non_utf8_state(tmp_path: Path) -> None:
     root = _set()
     _replace_state(root, b'<?xml version="1.0" encoding="ISO-8859-1"?><State><Parameters><PARAM id="param1"/></Parameters><OSCParameters/></State>')
+    with pytest.raises(ls.AlsError, match="only UTF-8"):
+        _apply(tmp_path, root, osc_params=[_osc_item(3)])
+
+
+def test_utf8_declared_with_single_quotes_is_accepted(tmp_path: Path) -> None:
+    root = _set()
+    _replace_state(root, b"<?xml version='1.0' encoding='UTF8'?><State><Parameters><PARAM id=\"param1\"/></Parameters><OSCParameters/></State>")
+    assert _saved(_apply(tmp_path, root, osc_params=[_osc_item(3)]))[-1].get("parameterName") == "param1"
+
+
+def test_latin1_declared_with_single_quotes_is_refused(tmp_path: Path) -> None:
+    root = _set()
+    _replace_state(root, b"<?xml version='1.0' encoding='ISO-8859-1'?><State><Parameters><PARAM id=\"param1\"/></Parameters><OSCParameters/></State>")
     with pytest.raises(ls.AlsError, match="only UTF-8"):
         _apply(tmp_path, root, osc_params=[_osc_item(3)])
 
@@ -356,6 +422,44 @@ def test_duplicate_param_name_is_rejected(tmp_path: Path) -> None:
         _apply(tmp_path, root, devices=[_follower_item(3)])
 
 
+def test_huge_position_appends(tmp_path: Path) -> None:
+    root = _apply(tmp_path, _set(), devices=[_follower_item(3, position=10**30)])
+    assert ls.devices(ls.find_track(root, "OSC"))[-1].tag == "MxDeviceAudioEffect"
+
+
+def test_malformed_values_are_reported(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    root = _set()
+    next(t for t in ls.tracks(root)).set("Id", "x")
+    source = _write(root, tmp_path / "in.als")
+    spec = tmp_path / "spec.json"
+    spec.write_text(f'{{"reference": "{source}", "target": "{source}", "output": "{tmp_path / "o.als"}"}}')
+    assert main([str(spec)]) == 1
+    assert "als-clone: track Id" in capsys.readouterr().err
+
+
+def test_malformed_param_range_is_reported(tmp_path: Path) -> None:
+    root = _set()
+    ls.set_value(next(root.iter("MxDFloatParameter")), "MinValue", "x")
+    with pytest.raises(ls.AlsError, match="Gain MinValue"):
+        _apply(tmp_path, root, devices=[_follower_item(3)])
+
+
+@pytest.mark.parametrize("content", [b"\xff\xfe", b"{", b'{"a": ' + b"9" * 5000 + b"}"])
+def test_bad_spec_files_are_reported(tmp_path: Path, capsys: pytest.CaptureFixture[str], content: bytes) -> None:
+    spec = tmp_path / "spec.json"
+    spec.write_bytes(content)
+    assert main([str(spec)]) == 1
+    assert "can't read spec" in capsys.readouterr().err
+
+
+def test_unknown_xml_encoding_is_reported(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    path = tmp_path / "bad.als"
+    with gzip.open(path, "wb") as f:
+        f.write(b'<?xml version="1.0" encoding="nope"?><Ableton/>')
+    assert validate_main([str(path)]) == 1
+    assert "can't read" in capsys.readouterr().out
+
+
 def test_negative_position_is_rejected(tmp_path: Path) -> None:
     with pytest.raises(ls.AlsError, match="negative"):
         _apply(tmp_path, _set(), devices=[_follower_item(3, position=-1)])
@@ -365,7 +469,7 @@ def test_macro_past_the_visible_count_is_shown(tmp_path: Path) -> None:
     root = _set()
     _v(next(root.iter("AudioEffectGroupDevice")), "NumVisibleMacroControls", "8")
     result = _apply(tmp_path, root, osc_params=[_osc_item(9)])
-    assert ls.value(next(result.iter("AudioEffectGroupDevice")), "NumVisibleMacroControls") == "9"
+    assert ls.value(next(result.iter("AudioEffectGroupDevice")), "NumVisibleMacroControls") == "10"
 
 
 def test_set_without_return_track_is_accepted(tmp_path: Path) -> None:
