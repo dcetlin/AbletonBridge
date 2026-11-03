@@ -12,7 +12,10 @@ import os
 import socket
 import threading
 from collections import deque
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
+if TYPE_CHECKING:
+    import asyncio
 
 # ---------------------------------------------------------------------------
 # Connection state
@@ -55,6 +58,11 @@ device_uri_map: Dict[str, str] = {}                      # lowercase name -> URI
 # ---------------------------------------------------------------------------
 browser_cache_ready: threading.Event = threading.Event()   # set when cache populated
 ableton_connected_event: threading.Event = threading.Event()  # set on first connect
+
+# ---------------------------------------------------------------------------
+# Event loop
+# ---------------------------------------------------------------------------
+main_loop: Optional["asyncio.AbstractEventLoop"] = None  # the MCP server's event loop, once started
 
 # ---------------------------------------------------------------------------
 # M4L ping cache

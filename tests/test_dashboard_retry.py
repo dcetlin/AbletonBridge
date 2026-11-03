@@ -7,6 +7,8 @@ import time
 import urllib.request
 from unittest.mock import patch
 
+import pytest
+
 import MCP_Server.state as state
 from MCP_Server.dashboard import server as dashboard
 
@@ -38,6 +40,7 @@ def test_dashboard_comes_up_once_its_port_is_free(monkeypatch) -> None:
     port = _free_port()
     monkeypatch.setattr(state, "DASHBOARD_PORT", port)
     monkeypatch.setattr(dashboard, "DASHBOARD_RETRY_SECONDS", 0.1)
+    monkeypatch.setenv("ABLETON_BRIDGE_OPEN_DASHBOARD", "1")
     holder = socket.socket()
     holder.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     holder.bind(("127.0.0.1", port))
@@ -65,6 +68,7 @@ def test_stopping_during_the_retry_wait_ends_the_loop(monkeypatch) -> None:
     port = _free_port()
     monkeypatch.setattr(state, "DASHBOARD_PORT", port)
     monkeypatch.setattr(dashboard, "DASHBOARD_RETRY_SECONDS", 0.1)
+    monkeypatch.setenv("ABLETON_BRIDGE_OPEN_DASHBOARD", "1")
     holder = socket.socket()
     holder.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     holder.bind(("127.0.0.1", port))
@@ -78,3 +82,19 @@ def test_stopping_during_the_retry_wait_ends_the_loop(monkeypatch) -> None:
         browser.assert_not_called()
         assert not _responds(port)
 
+
+@pytest.mark.parametrize("value", [None, "0", ""])
+def test_browser_stays_closed_unless_asked_for(monkeypatch, value) -> None:
+    port = _free_port()
+    monkeypatch.setattr(state, "DASHBOARD_PORT", port)
+    if value is None:
+        monkeypatch.delenv("ABLETON_BRIDGE_OPEN_DASHBOARD", raising=False)
+    else:
+        monkeypatch.setenv("ABLETON_BRIDGE_OPEN_DASHBOARD", value)
+    with patch.object(dashboard.webbrowser, "open") as browser:
+        dashboard.start_dashboard_server()
+        try:
+            assert _wait_for(lambda: _responds(port))
+            browser.assert_not_called()
+        finally:
+            dashboard.stop_dashboard_server()
