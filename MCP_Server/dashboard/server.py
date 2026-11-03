@@ -75,26 +75,65 @@ def get_server_version() -> str:
         return __version__
 
 
-def get_m4l_status() -> tuple:
-    """Return (sockets_ready, bridge_responding) with cached ping."""
-    sockets_ready = bool(state.m4l_connection and state.m4l_connection._connected)
-    if not sockets_ready:
-        return False, False
-
-    now = time.time()
-    if now - state.m4l_ping_cache["timestamp"] < state.M4L_PING_CACHE_TTL:
-        return sockets_ready, state.m4l_ping_cache["result"]
-
+def _ping_m4l() -> bool:
+    """Ping the bridge and cache the result. The caller holds state.m4l_ping_lock."""
     try:
         assert state.m4l_connection is not None
         result = state.m4l_connection.ping()
     except Exception as e:
         logger.debug("Dashboard M4L ping failed: %s", e)
         result = False
-
     state.m4l_ping_cache["result"] = result
-    state.m4l_ping_cache["timestamp"] = now
-    return sockets_ready, result
+    state.m4l_ping_cache["timestamp"] = time.time()
+    return result
+
+
+def _ping_is_fresh() -> bool:
+    return time.time() - state.m4l_ping_cache["timestamp"] < state.M4L_PING_CACHE_TTL
+
+
+def _ping_in_background() -> None:
+    """Refresh the cached ping unless one is running. The caller doesn't wait."""
+    if not state.m4l_ping_lock.acquire(blocking=False):
+        return
+    if _ping_is_fresh():  # one finished between the caller's check and the lock
+        state.m4l_ping_lock.release()
+        return
+
+    def run() -> None:
+        try:
+            _ping_m4l()
+        finally:
+            state.m4l_ping_lock.release()
+
+    try:
+        threading.Thread(target=run, daemon=True, name="dashboard-m4l-ping").start()
+    except RuntimeError as e:  # no thread available; a later poll tries again
+        state.m4l_ping_lock.release()
+        logger.debug("Dashboard M4L ping not started: %s", e)
+
+
+def get_m4l_status(wait: bool = True) -> tuple:
+    """Return (sockets_ready, bridge_responding) with cached ping.
+
+    A ping can take seconds when no device is loaded. With `wait`, a stale result is
+    refreshed first, waiting for any ping already running. Without it, the last result
+    is returned at once, however old, and refreshed in the background.
+    """
+    sockets_ready = bool(state.m4l_connection and state.m4l_connection._connected)
+    if not sockets_ready:
+        return False, False
+
+    if _ping_is_fresh():
+        return sockets_ready, state.m4l_ping_cache["result"]
+    if not wait:
+        last = state.m4l_ping_cache["result"]
+        _ping_in_background()
+        return sockets_ready, last
+    with state.m4l_ping_lock:
+        if _ping_is_fresh():
+            return sockets_ready, state.m4l_ping_cache["result"]
+        return sockets_ready, _ping_m4l()
 
 
 def build_status_json() -> dict:
@@ -107,7 +146,7 @@ def build_status_json() -> dict:
         except Exception:
             pass
 
-    m4l_sockets_ready, m4l_connected = get_m4l_status()
+    m4l_sockets_ready, m4l_connected = get_m4l_status(wait=False)
 
     with state.tool_call_lock:
         recent = list(state.tool_call_log)
@@ -175,11 +214,9 @@ def _do_reload_remote_script() -> dict:
         from MCP_Server.connections.ableton import get_ableton_connection
         ableton = get_ableton_connection()
         result = ableton.send_command("_reload_handlers", timeout=5.0)
-        count = result.get("command_count", "?")
         return {
             "status": "ok",
-            "message": f"Deployed and reloaded: {count} commands registered",
-            "command_count": count,
+            "message": f"Deployed. {result.get('message', 'Reload requested.')}",
             "deploy_output": deploy_msg,
         }
     except Exception as e:
