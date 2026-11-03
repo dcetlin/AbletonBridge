@@ -264,6 +264,16 @@ def _peer_closed(sock: socket.socket) -> bool:
     return bool(readable) and sock.recv(1, socket.MSG_PEEK) == b""
 
 
+def _is_closed_when_idle(conn: AbletonConnection) -> bool:
+    """Check for a closed peer, unless a running command holds the socket and would see it."""
+    if not conn._send_lock.acquire(blocking=False):
+        return False
+    try:
+        return _peer_closed(conn.sock)
+    finally:
+        conn._send_lock.release()
+
+
 def get_ableton_connection():
     """Get or create a persistent Ableton connection"""
 
@@ -273,7 +283,7 @@ def get_ableton_connection():
             if state.ableton_connection.sock is None:
                 raise ConnectionError("Socket is None")
             state.ableton_connection.sock.getpeername()  # raises if disconnected
-            if _peer_closed(state.ableton_connection.sock):
+            if _is_closed_when_idle(state.ableton_connection):
                 raise ConnectionError("Ableton closed the connection")
             state.ableton_connection.sock.settimeout(1.0)
             return state.ableton_connection

@@ -42,7 +42,13 @@ def test_dashboard_comes_up_once_its_port_is_free(monkeypatch) -> None:
     holder.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     holder.bind(("127.0.0.1", port))
     holder.listen()
-    with patch.object(dashboard.webbrowser, "open") as browser:
+    accepted: list[bool] = []
+
+    def open_browser(_url: str) -> None:
+        with socket.socket() as client:
+            accepted.append(client.connect_ex(("127.0.0.1", port)) == 0)
+
+    with patch.object(dashboard.webbrowser, "open", side_effect=open_browser) as browser:
         dashboard.start_dashboard_server()
         try:
             time.sleep(0.3)
@@ -50,6 +56,7 @@ def test_dashboard_comes_up_once_its_port_is_free(monkeypatch) -> None:
             holder.close()
             assert _wait_for(lambda: _responds(port))
             browser.assert_called_once()
+            assert accepted == [True]  # the port accepts by the time the browser opens
         finally:
             dashboard.stop_dashboard_server()
 

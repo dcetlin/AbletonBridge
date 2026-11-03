@@ -131,27 +131,44 @@ class TestPeerClosed:
 
 
 class TestGetAbletonConnectionLiveness:
-    def _connected(self, monkeypatch):
-        a, b = socket.socketpair()
+    @pytest.fixture
+    def tcp_pair(self):
+        """A connected TCP pair: getpeername still succeeds after the peer closes."""
+        with socket.socket() as listener:
+            listener.bind(("127.0.0.1", 0))
+            listener.listen()
+            client = socket.create_connection(listener.getsockname())
+            server_end, _ = listener.accept()
+        yield client, server_end
+        client.close()
+        server_end.close()
+
+    def _install(self, monkeypatch, sock):
         conn = AbletonConnection(host="localhost", port=9877)
-        conn.sock = a
+        conn.sock = sock
         monkeypatch.setattr(state, "ableton_connection", conn)
-        return conn, a, b
+        return conn
 
-    def test_open_connection_is_reused_with_its_timeout(self, monkeypatch):
-        conn, a, b = self._connected(monkeypatch)
-        try:
-            assert get_ableton_connection() is conn
-            assert a.gettimeout() == 1.0
-        finally:
-            a.close()
-            b.close()
+    def test_open_connection_is_reused_with_its_timeout(self, monkeypatch, tcp_pair):
+        conn = self._install(monkeypatch, tcp_pair[0])
+        assert get_ableton_connection() is conn
+        assert tcp_pair[0].gettimeout() == 1.0
 
-    def test_closed_connection_is_replaced(self, monkeypatch):
-        conn, a, b = self._connected(monkeypatch)
-        b.close()
+    def test_closed_connection_is_replaced(self, monkeypatch, tcp_pair):
+        self._install(monkeypatch, tcp_pair[0])
+        tcp_pair[1].close()
+        time.sleep(0.05)
+        tcp_pair[0].getpeername()  # the case the check exists for
         fresh = MagicMock()
         fresh.connect.return_value = True
         with patch("MCP_Server.connections.ableton.AbletonConnection", return_value=fresh):
             assert get_ableton_connection() is fresh
 
+    def test_check_is_skipped_while_a_command_holds_the_socket(self, monkeypatch, tcp_pair):
+        conn = self._install(monkeypatch, tcp_pair[0])
+        tcp_pair[1].close()
+        time.sleep(0.05)
+        with conn._send_lock:
+            with patch("MCP_Server.connections.ableton._peer_closed") as check:
+                assert get_ableton_connection() is conn
+        check.assert_not_called()
