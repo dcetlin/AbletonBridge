@@ -7,6 +7,7 @@ from typing import Any
 
 from mcp.types import ToolAnnotations
 
+import MCP_Server.state as state
 from MCP_Server.connections.ableton import AbletonCommandError
 from shared.commands import COMMAND_ANNOTATIONS, MODIFYING_COMMANDS
 
@@ -136,8 +137,8 @@ def _report_progress(ctx, current: float, total: float, message: str | None = No
     Fails silently if the event loop is unavailable.
     """
     try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
+        loop = state.main_loop
+        if loop is not None and loop.is_running():
             asyncio.run_coroutine_threadsafe(
                 ctx.report_progress(current, total, message), loop
             )

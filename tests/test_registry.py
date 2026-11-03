@@ -189,3 +189,125 @@ class TestCodegenConsistency:
                 f"Command '{cmd_name}': TypedDict fields {td_fields} != "
                 f"registry params {reg_fields}"
             )
+
+
+class TestHotReload:
+
+    def test_commands_stay_available_while_the_registry_module_reloads(self):
+        import importlib
+        from handlers import _registry
+
+        _load_registry()
+        before = set(_registry.get_registry())
+        assert before
+        _registry.clear()
+        try:
+            reloaded = importlib.reload(_registry)
+            assert set(reloaded.get_registry()) == before
+            reloaded.clear()
+
+            existing = reloaded.get_registry()["get_session_info"]
+
+            def replacement(song):
+                return {}
+
+            replacement.__module__ = existing.func.__module__
+            reloaded.command("get_session_info")(replacement)
+            assert reloaded.get_registry()["get_session_info"].func is replacement
+
+            def from_elsewhere(song):
+                return {}
+
+            from_elsewhere.__module__ = "handlers.other"
+            with pytest.raises(ValueError, match="Duplicate"):
+                reloaded.command("get_session_info")(from_elsewhere)
+        finally:
+            _registry.clear()
+            importlib.reload(sys.modules["handlers.session"])
+            _registry.finish_reload()
+
+    def test_kept_commands_still_recognise_a_missing_parameter(self):
+        import importlib
+        from handlers import _registry
+
+        before = _registry._SENTINEL
+        _registry.clear()
+        try:
+            reloaded = importlib.reload(_registry)
+            assert reloaded._SENTINEL is before
+        finally:
+            _registry.finish_reload()
+
+    def test_command_can_move_between_modules_on_reload(self):
+        from handlers import _registry
+
+        _load_registry()
+        existing = _registry.get_registry()["get_session_info"]
+
+        def moved(song):
+            return {}
+
+        moved.__module__ = "handlers.elsewhere"
+        _registry.clear()
+        try:
+            _registry.command("get_session_info")(moved)
+            assert _registry.get_registry()["get_session_info"].func is moved
+        finally:
+            _registry.get_registry()["get_session_info"] = existing
+            _registry.finish_reload()
+
+    def test_duplicate_outside_a_reload_is_refused(self):
+        from handlers import _registry
+
+        _load_registry()
+        with pytest.raises(ValueError, match="Duplicate"):
+            _registry.command("get_session_info")(lambda song: {})
+
+    def test_same_module_defining_a_command_twice_is_refused(self):
+        from handlers import _registry
+
+        _load_registry()
+        existing = _registry.get_registry()["get_session_info"]
+
+        def twice(song):
+            return {}
+
+        twice.__module__ = existing.func.__module__
+        _registry.clear()
+        try:
+            _registry.command("get_session_info")(twice)
+            with pytest.raises(ValueError, match="Duplicate"):
+                _registry.command("get_session_info")(twice)
+        finally:
+            _registry.get_registry()["get_session_info"] = existing
+            _registry.finish_reload()
+
+    def test_failed_module_is_reported(self):
+        from AbletonBridge_Remote_Script import _reload_failures
+
+        lines = _reload_failures(["session", "tracks(FAILED:boom)"])
+        assert len(lines) == 1
+        assert "tracks(FAILED:boom)" in lines[0]
+
+    def test_create_instance_logs_a_failed_reload(self, monkeypatch, capsys):
+        import AbletonBridge_Remote_Script as script
+
+        monkeypatch.setattr(script, "_COLD_START_DONE", True)
+        monkeypatch.setattr(script, "_reload_handlers", lambda: (1, ["tracks(FAILED:boom)"]))
+        monkeypatch.setattr(script, "AbletonBridge", lambda c_instance: c_instance)
+        script.create_instance("instance")
+        assert "tracks(FAILED:boom)" in capsys.readouterr().out
+
+    def test_reload_command_logs_a_failed_reload(self, monkeypatch):
+        import threading
+        from unittest.mock import MagicMock
+        import AbletonBridge_Remote_Script as script
+
+        logged = threading.Event()
+        monkeypatch.setattr(script, "_reload_handlers", lambda: (1, ["tracks(FAILED:boom)"]))
+        fake = MagicMock()
+        fake.log_message.side_effect = lambda line: "Hot-reloaded" in line and logged.set()
+        script.AbletonBridge._process_command(fake, {"type": "_reload_handlers", "params": {}})
+        assert logged.wait(5)
+        lines = [call.args[0] for call in fake.log_message.call_args_list]
+        assert any("tracks(FAILED:boom)" in line for line in lines)

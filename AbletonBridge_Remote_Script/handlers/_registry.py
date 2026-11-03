@@ -9,10 +9,13 @@ from __future__ import absolute_import, print_function, unicode_literals
 
 import inspect
 
-_SENTINEL = object()
+# Hot-reload re-runs this module. Keep what registered commands depend on, so they stay
+# available and behave the same throughout.
+_SENTINEL = globals().get("_SENTINEL", object())
 
-_REGISTRY = {}
-_RELOADING = False
+_REGISTRY = globals().get("_REGISTRY", {})
+_RELOADING = globals().get("_RELOADING", False)
+_RELOAD_OWNERS = globals().get("_RELOAD_OWNERS", {})  # command -> module, this reload
 
 
 class _CommandEntry(object):
@@ -47,7 +50,13 @@ def command(name, modifying=False, destructive=False, idempotent=True):
                 continue
             default = param.default if param.default is not inspect.Parameter.empty else _SENTINEL
             params.append((pname, default))
-        if name in _REGISTRY and not _RELOADING:
+        if _RELOADING:
+            # A command may move between modules, but one reload can't define it twice.
+            duplicate = name in _RELOAD_OWNERS
+            _RELOAD_OWNERS[name] = func.__module__
+        else:
+            duplicate = name in _REGISTRY
+        if duplicate:
             raise ValueError("Duplicate command registration: {0}".format(name))
         _REGISTRY[name] = _CommandEntry(func=func, modifying=modifying, destructive=destructive, idempotent=idempotent, params=params)
         return func
@@ -102,6 +111,7 @@ def clear():
     """
     global _RELOADING
     _RELOADING = True
+    _RELOAD_OWNERS.clear()
 
 
 def finish_reload():
