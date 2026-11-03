@@ -75,26 +75,42 @@ def get_server_version() -> str:
         return __version__
 
 
-def get_m4l_status() -> tuple:
-    """Return (sockets_ready, bridge_responding) with cached ping."""
-    sockets_ready = bool(state.m4l_connection and state.m4l_connection._connected)
-    if not sockets_ready:
-        return False, False
+_m4l_ping_running = threading.Lock()
 
-    now = time.time()
-    if now - state.m4l_ping_cache["timestamp"] < state.M4L_PING_CACHE_TTL:
-        return sockets_ready, state.m4l_ping_cache["result"]
 
+def _ping_m4l() -> bool:
+    """Ping the bridge and cache the result. The caller holds _m4l_ping_running."""
     try:
         assert state.m4l_connection is not None
         result = state.m4l_connection.ping()
     except Exception as e:
         logger.debug("Dashboard M4L ping failed: %s", e)
         result = False
-
+    finally:
+        _m4l_ping_running.release()
     state.m4l_ping_cache["result"] = result
-    state.m4l_ping_cache["timestamp"] = now
-    return sockets_ready, result
+    state.m4l_ping_cache["timestamp"] = time.time()
+    return result
+
+
+def get_m4l_status(wait: bool = True) -> tuple:
+    """Return (sockets_ready, bridge_responding) with cached ping.
+
+    A ping can take seconds when no device is loaded. Without `wait`, a stale result is
+    returned and refreshed in the background. Only one ping runs at a time.
+    """
+    sockets_ready = bool(state.m4l_connection and state.m4l_connection._connected)
+    if not sockets_ready:
+        return False, False
+
+    last = state.m4l_ping_cache["result"]
+    fresh = time.time() - state.m4l_ping_cache["timestamp"] < state.M4L_PING_CACHE_TTL
+    if fresh or not _m4l_ping_running.acquire(blocking=False):
+        return sockets_ready, last
+    if wait:
+        return sockets_ready, _ping_m4l()
+    threading.Thread(target=_ping_m4l, daemon=True, name="dashboard-m4l-ping").start()
+    return sockets_ready, last
 
 
 def build_status_json() -> dict:
@@ -107,7 +123,7 @@ def build_status_json() -> dict:
         except Exception:
             pass
 
-    m4l_sockets_ready, m4l_connected = get_m4l_status()
+    m4l_sockets_ready, m4l_connected = get_m4l_status(wait=False)
 
     with state.tool_call_lock:
         recent = list(state.tool_call_log)
@@ -175,11 +191,9 @@ def _do_reload_remote_script() -> dict:
         from MCP_Server.connections.ableton import get_ableton_connection
         ableton = get_ableton_connection()
         result = ableton.send_command("_reload_handlers", timeout=5.0)
-        count = result.get("command_count", "?")
         return {
             "status": "ok",
-            "message": f"Deployed and reloaded: {count} commands registered",
-            "command_count": count,
+            "message": f"Deployed. {result.get('message', 'Reload requested.')}",
             "deploy_output": deploy_msg,
         }
     except Exception as e:
