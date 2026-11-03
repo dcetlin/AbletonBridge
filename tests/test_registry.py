@@ -311,3 +311,47 @@ class TestHotReload:
         assert logged.wait(5)
         lines = [call.args[0] for call in fake.log_message.call_args_list]
         assert any("tracks(FAILED:boom)" in line for line in lines)
+
+
+class TestLiveDialog:
+    @pytest.fixture
+    def app(self, monkeypatch):
+        from unittest.mock import MagicMock
+
+        app = MagicMock(open_dialog_count=1, current_dialog_message="Save?", current_dialog_button_count=3)
+        live = MagicMock()
+        live.Application.get_application.return_value = app
+        monkeypatch.setitem(sys.modules, "Live", live)
+        return app
+
+    def test_reports_the_open_dialog(self, app):
+        from handlers.session import get_live_dialog
+
+        assert get_live_dialog(None) == {"open_dialog_count": 1, "message": "Save?", "button_count": 3}
+
+    def test_reports_no_dialog(self, app):
+        from handlers.session import get_live_dialog
+
+        app.open_dialog_count = 0
+        assert get_live_dialog(None) == {"open_dialog_count": 0}
+
+    def test_pressing_reports_what_it_answered(self, app):
+        from handlers.session import press_live_dialog_button
+
+        assert press_live_dialog_button(None, 2) == {"pressed": 2, "message": "Save?"}
+        app.press_current_dialog_button.assert_called_once_with(2)
+
+    @pytest.mark.parametrize("index", [-1, 3])
+    def test_button_out_of_range_is_refused(self, app, index):
+        from handlers.session import press_live_dialog_button
+
+        with pytest.raises(ValueError, match="out of range"):
+            press_live_dialog_button(None, index)
+        app.press_current_dialog_button.assert_not_called()
+
+    def test_pressing_with_no_dialog_is_refused(self, app):
+        from handlers.session import press_live_dialog_button
+
+        app.open_dialog_count = 0
+        with pytest.raises(ValueError, match="isn't showing"):
+            press_live_dialog_button(None, 0)

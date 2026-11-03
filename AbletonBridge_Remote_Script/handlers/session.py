@@ -850,6 +850,36 @@ def get_tuning_system(song, ctrl=None) -> dict:
 # --- Application View ---
 
 
+@command("get_live_dialog")
+def get_live_dialog(song, ctrl=None) -> dict:
+    """Get the dialog Live is showing, if any: its message and how many buttons it has."""
+    import Live
+    app = Live.Application.get_application()
+    if app.open_dialog_count == 0:
+        return {"open_dialog_count": 0}
+    return {
+        "open_dialog_count": app.open_dialog_count,
+        "message": app.current_dialog_message,
+        "button_count": app.current_dialog_button_count,
+    }
+
+
+@command("press_live_dialog_button", modifying=True, destructive=True, idempotent=False)
+def press_live_dialog_button(song, button_index: int, ctrl=None) -> dict:
+    """Press a button on the dialog Live is showing, by its 0-based index."""
+    import Live
+    app = Live.Application.get_application()
+    if app.open_dialog_count == 0:
+        raise ValueError("Live isn't showing a dialog")
+    button_index = int(button_index)
+    if not 0 <= button_index < app.current_dialog_button_count:
+        raise ValueError("button_index {0} is out of range: the dialog has {1} buttons".format(
+            button_index, app.current_dialog_button_count))
+    message = app.current_dialog_message
+    app.press_current_dialog_button(button_index)
+    return {"pressed": button_index, "message": message}
+
+
 @command("get_view_state")
 def get_view_state(song, ctrl=None) -> dict:
     """Get the current state of Live's application views."""

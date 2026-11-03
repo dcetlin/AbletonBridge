@@ -130,7 +130,7 @@ class TestCodegenAnnotations:
 
     def test_annotation_count(self):
         from shared.commands import COMMAND_ANNOTATIONS
-        assert len(COMMAND_ANNOTATIONS) == 21
+        assert len(COMMAND_ANNOTATIONS) == 22
 
     def test_known_destructive(self):
         from shared.commands import COMMAND_ANNOTATIONS
