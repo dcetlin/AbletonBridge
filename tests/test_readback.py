@@ -22,7 +22,7 @@ class _FakeEnvelope:
         v = self._values
         if callable(v):
             return v(t)
-        return v[t]
+        return v[round(t, 3)]  # reads land just past the exact time
 
 
 class TestVerifyAutomation:
@@ -238,7 +238,7 @@ class TestVerifyWiredThroughHandler:
     *interpolated* points that were actually written — not the raw breakpoints."""
 
     def test_hold_mode_verify_reports_match(self):
-        song, env = _clip_song(100.0, lambda t: {0.0: 0.2, 1.0: 0.8}[round(t, 6)])
+        song, env = _clip_song(100.0, lambda t: {0.0: 0.2, 1.0: 0.8}[round(t, 3)])
         res = create_clip_automation(
             song, 0, 0, "Volume",
             [{"time": 0.0, "value": 0.2}, {"time": 1.0, "value": 0.8}],

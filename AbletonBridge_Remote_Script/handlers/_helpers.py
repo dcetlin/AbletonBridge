@@ -2,6 +2,8 @@
 
 from __future__ import absolute_import, print_function, unicode_literals
 
+import time as _time
+
 
 def get_track(song, track_index, track_type="track"):
     """Get track by index with bounds validation.
@@ -167,6 +169,45 @@ def interpolate_automation(points, resolution=0.0625, mode="hold"):
     return result
 
 
+# A step written by insert_step(start, duration, value) covers (start, start + duration],
+# so reading exactly at its start returns whatever came before it.
+_STEP_READ_OFFSET = 0.0001
+_MIN_STEP_BEATS = 0.001
+
+
+def read_envelope(envelope, time):
+    """The envelope's value at `time`, counting a step that starts exactly there."""
+    return envelope.value_at_time(time + _STEP_READ_OFFSET)
+
+
+def write_automation_steps(envelope, points, start, end, param_min, param_max, deadline, tail_beats=None):
+    """Write time-sorted points as held steps. Returns the (time, value) pairs written.
+
+    Each step holds until the next point, and the last holds until `end`, or for
+    `tail_beats` if given. A step any shorter leaves the envelope at its old value in
+    between, because a step only covers its own duration. Stops at `deadline`.
+    """
+    last_time = end - _MIN_STEP_BEATS
+    timed = [
+        (max(start, min(last_time, float(point.get("time", 0.0)))),
+         max(param_min, min(param_max, float(point.get("value", 0.0)))))
+        for point in points
+    ]
+    written = []
+    for index, (time_val, value) in enumerate(timed):
+        if _time.time() > deadline:
+            break
+        if index + 1 < len(timed):
+            until = timed[index + 1][0]
+        elif tail_beats is not None:
+            until = min(end, time_val + tail_beats)
+        else:
+            until = end
+        envelope.insert_step(time_val, max(_MIN_STEP_BEATS, until - time_val), value)
+        written.append({"time": time_val, "value": value})
+    return written
+
+
 def verify_automation(envelope, expected_points, param_min, param_max, epsilon=0.01):
     """Read back automation and compare. Returns {verdict, median_error, max_error, samples}."""
     if not expected_points:
@@ -181,7 +222,7 @@ def verify_automation(envelope, expected_points, param_min, param_max, epsilon=0
         t = float(point.get("time", 0.0))
         expected = max(param_min, min(param_max, float(point.get("value", 0.0))))
         try:
-            actual = envelope.value_at_time(t)
+            actual = read_envelope(envelope, t)
             errors.append(abs(actual - expected))
         except Exception:
             errors.append(fail_error)

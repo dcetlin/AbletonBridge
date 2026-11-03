@@ -7,7 +7,9 @@ import time as _time
 from ._helpers import (
     get_track, get_clip, interpolate_automation,
     budget_automation_steps, AUTOMATION_WRITE_BUDGET_SECONDS,
+    read_envelope,
     verify_automation,
+    write_automation_steps,
 )
 from ._registry import command
 
@@ -92,27 +94,15 @@ def create_clip_automation(song, track_index: int, clip_index: int, parameter_na
     # "interpolation" overrides are honored even when the curve-global mode is "hold".
     automation_points = interpolate_automation(automation_points, resolution, interpolation)
 
-    clip_length = clip.length
-    deadline = _time.time() + AUTOMATION_WRITE_BUDGET_SECONDS
-    written = 0
-    last_written_time = None
-    written_points = []
-    for point in automation_points:
-        if _time.time() > deadline:
-            break
-        time_val = float(point.get("time", 0.0))
-        time_val = max(0.0, min(clip_length - 0.001, time_val))
-        value = float(point.get("value", 0.0))
-        clamped = max(param.min, min(param.max, value))
-        # Duration must be > 0 or Ableton's LOM silently discards the step.
-        envelope.insert_step(time_val, 0.001, clamped)
-        written += 1
-        last_written_time = time_val
-        # Record the clamped time/value we actually wrote, so verify reads back at
-        # the same coordinates (not the raw breakpoint time, which can exceed the
-        # clip boundary) and only checks steps that actually landed (not any tail
-        # skipped past the write deadline).
-        written_points.append({"time": time_val, "value": clamped})
+    # Only the points that actually landed are checked on read-back, not any tail skipped
+    # past the write deadline.
+    written_points = write_automation_steps(
+        envelope, automation_points, 0.0, clip.length, param.min, param.max,
+        _time.time() + AUTOMATION_WRITE_BUDGET_SECONDS,
+        tail_beats=resolution if append else None,
+    )
+    written = len(written_points)
+    last_written_time = written_points[-1]["time"] if written_points else None
 
     result = {
         "parameter": parameter_name,
@@ -156,7 +146,7 @@ def get_clip_automation(song, track_index: int, clip_index: int, parameter_name:
     for i in range(num_samples):
         t = i * step
         try:
-            val = envelope.value_at_time(t)
+            val = read_envelope(envelope, t)
             points.append({"time": round(t, 4), "value": round(val, 4)})
         except Exception as e:
             if ctrl:
@@ -353,21 +343,13 @@ def create_track_automation(song, track_index: int, parameter_name: str, automat
     # "interpolation" overrides are honored even when the curve-global mode is "hold".
     automation_points = interpolate_automation(automation_points, resolution, interpolation)
 
-    deadline = _time.time() + AUTOMATION_WRITE_BUDGET_SECONDS
-    written = 0
-    last_written_time = None
-    written_points = []
-    for point in automation_points:
-        if _time.time() > deadline:
-            break
-        time_val = max(clip_start, min(clip_end - 0.001, float(point.get("time", 0.0))))
-        value = max(parameter.min, min(parameter.max, float(point.get("value", 0.0))))
-        envelope.insert_step(time_val, 0.001, value)
-        written += 1
-        last_written_time = time_val
-        # Record actually-written coordinates for read-back verification (see the
-        # clip-automation path for the rationale).
-        written_points.append({"time": time_val, "value": value})
+    written_points = write_automation_steps(
+        envelope, automation_points, clip_start, clip_end, parameter.min, parameter.max,
+        _time.time() + AUTOMATION_WRITE_BUDGET_SECONDS,
+        tail_beats=resolution if append else None,
+    )
+    written = len(written_points)
+    last_written_time = written_points[-1]["time"] if written_points else None
 
     result = {
         "parameter": parameter_name,
@@ -565,7 +547,7 @@ def get_clip_automation_value(song, track_index: int, clip_index: int, parameter
         return {"has_automation": False, "parameter": parameter_name}
 
     time = float(time)
-    val = envelope.value_at_time(time)
+    val = read_envelope(envelope, time)
     return {
         "parameter": parameter_name,
         "time": time,
@@ -598,7 +580,7 @@ def get_clip_automation_hires(song, track_index: int, clip_index: int, parameter
     for i in range(sample_count):
         t = i * step
         try:
-            val = envelope.value_at_time(t)
+            val = read_envelope(envelope, t)
             points.append({"time": round(t, 4), "value": round(val, 4)})
         except Exception as e:
             if ctrl:
@@ -641,7 +623,7 @@ def get_arrangement_automation_hires(song, track_index: int, parameter_name: str
     for i in range(sample_count):
         t = i * step
         try:
-            val = envelope.value_at_time(t)
+            val = read_envelope(envelope, t)
             points.append({"beat": round(clip_start + t, 4), "value": round(val, 4)})
         except Exception as e:
             if ctrl:
