@@ -354,6 +354,8 @@ class TestLiveDialog:
             pytest.param(1.0, "Save?", {}, "must be an integer", id="float"),
             pytest.param(0, "Replace file?", {}, "not 'Replace file\\?'", id="another-dialog"),
             pytest.param(0, "", {"current_dialog_message": "", "current_dialog_button_count": 0}, "needs a person", id="file-panel"),
+            pytest.param(0, "", {}, "not ''", id="empty-message-matches-nothing"),
+            pytest.param(0, "save?", {}, "not 'save", id="message-case-matters"),
             pytest.param(0, "Save?", {"open_dialog_count": 0}, "isn't showing", id="no-dialog"),
         ],
     )

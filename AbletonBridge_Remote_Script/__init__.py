@@ -544,7 +544,7 @@ class AbletonBridge(ControlSurface):
             self.schedule_message(0, main_thread_task)
         except AssertionError:
             self.log_message("TCP command: schedule_message unavailable, returning error")
-            return {"status": "error", "message": "Ableton scheduling unavailable — try again shortly"}
+            return {"status": "error", "code": "unavailable", "message": "Ableton scheduling unavailable — try again shortly"}
 
         # A deferred read-back adds a second main-thread round-trip; give it headroom.
         timeout = 12.0 if deferred else 10.0

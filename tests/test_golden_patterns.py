@@ -154,6 +154,9 @@ def test_readme_tool_count():
     assert readme_count == actual, (
         f"README says {readme_count} tools but actual is {actual}"
     )
+    for text in (readme, (ROOT / "MCP_Server" / "instructions.py").read_text()):
+        mentioned = {int(n) for n in re.findall(r"(\d+) (?:MCP )?tools\b", text) if int(n) > 100}
+        assert mentioned <= {actual}, f"Docs mention tool counts {mentioned}, actual is {actual}"
 
 
 def test_readme_command_count():

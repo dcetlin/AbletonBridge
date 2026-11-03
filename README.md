@@ -55,7 +55,7 @@ MCP_Server/                          Remote Script/
 ├── cache/           (browser, disk)     ├── devices.py    (35 commands)
 ├── dashboard/       (Starlette)         ├── tracks.py     (29 commands)
 ├── tools/           (17 modules)        ├── mixer.py      (23 commands)
-│   ├── session.py   (53 tools)          ├── automation.py (14 commands)
+│   ├── session.py   (53 tools)          ├── automation.py (15 commands)
 │   ├── clips.py     (58 tools)          ├── browser.py    (12 commands)
 │   ├── devices.py   (50 tools)          ├── scenes.py     (10 commands)
 │   ├── m4l_tools.py (40 tools)          ├── midi.py       (9 commands)

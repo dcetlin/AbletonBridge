@@ -12,6 +12,7 @@ from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.exceptions import ToolError
 
 from MCP_Server.connections.ableton import AbletonCommandError, AbletonConnection, NON_IDEMPOTENT_COMMANDS
+from MCP_Server.constants import MODIFYING_COMMANDS
 from MCP_Server.tools.session import register_tools
 
 
@@ -67,7 +68,7 @@ def test_annotations_say_what_each_tool_does() -> None:
     assert press.destructiveHint is True and press.idempotentHint is False and press.readOnlyHint is False
 
 
-@pytest.mark.parametrize("name", ["press_live_dialog_button", "delete_time"])
+@pytest.mark.parametrize("name", ["press_live_dialog_button", "delete_time", "delete_arrangement_clip"])
 def test_commands_annotated_non_idempotent_are_never_retried(name: str) -> None:
     assert name in NON_IDEMPOTENT_COMMANDS
 
@@ -84,10 +85,55 @@ def test_a_dropped_connection_presses_only_once() -> None:
         patch.object(connection, "receive_full_response", side_effect=socket.timeout("timed out")) as receive,
         patch.object(connection, "connect", return_value=True) as reconnect,
     ):
-        with pytest.raises(Exception, match="failed after 1"):
+        with pytest.raises(AbletonCommandError, match="failed after 1"):
             connection.send_command("press_live_dialog_button", {"button_index": 0, "expected_message": "Save?"})
     assert receive.call_count == 1
     reconnect.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        pytest.param({"code": "timeout", "may_have_landed": False}, id="timeout"),
+        pytest.param({"code": "unavailable"}, id="scheduling-unavailable"),
+    ],
+)
+def test_a_temporary_error_is_retried_once(error: dict[str, Any]) -> None:
+    connection = _connection()
+    temporary = {"status": "error", "message": "busy", **error}
+    answers = [temporary, {"status": "success", "result": {"ok": True}}]
+
+    def reconnect() -> bool:
+        connection.sock = MagicMock()
+        return True
+
+    with (
+        patch.object(connection, "receive_full_response", side_effect=answers),
+        patch.object(connection, "connect", side_effect=reconnect),
+    ):
+        assert connection.send_command("get_session_info") == {"ok": True}
+
+
+def test_a_timeout_that_may_have_landed_is_not_retried() -> None:
+    connection = _connection()
+    landed = {"status": "error", "code": "timeout", "message": "slow", "may_have_landed": True}
+    with patch.object(connection, "receive_full_response", return_value=landed) as receive:
+        with pytest.raises(AbletonCommandError) as error:
+            connection.send_command("set_tempo", {"tempo": 120})
+    assert receive.call_count == 1
+    assert error.value.may_have_landed is True
+
+
+def test_a_dropped_modifying_command_says_it_may_have_landed() -> None:
+    connection = _connection()
+    with patch.object(connection, "receive_full_response", side_effect=socket.timeout("timed out")):
+        with pytest.raises(AbletonCommandError) as error:
+            connection.send_command("press_live_dialog_button", {"button_index": 0, "expected_message": "Save?"})
+    assert error.value.may_have_landed is True
+
+
+def test_the_press_gets_the_longer_modifying_timeout() -> None:
+    assert "press_live_dialog_button" in MODIFYING_COMMANDS
 
 
 def test_a_refusal_is_not_retried_and_keeps_its_detail() -> None:
