@@ -235,6 +235,7 @@ def start_dashboard_server():
                 )
                 time.sleep(DASHBOARD_RETRY_SECONDS)
                 continue
+            sock.listen(config.backlog)
             logger.info("Dashboard started at http://127.0.0.1:%d", state.DASHBOARD_PORT)
             webbrowser.open(f"http://127.0.0.1:{state.DASHBOARD_PORT}")
             loop = asyncio.new_event_loop()

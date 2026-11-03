@@ -1,6 +1,7 @@
 import sys
 import types
 
+import socket
 import pytest
 from unittest.mock import MagicMock, patch
 import MCP_Server.state as state
@@ -29,8 +30,13 @@ def mock_ableton():
     """Mock AbletonConnection that returns success responses."""
     conn = MagicMock()
     conn.sock = MagicMock()
+    # A real, quiet descriptor, so the liveness check sees an open connection.
+    quiet_end, peer_end = socket.socketpair()
+    conn.sock.fileno.return_value = quiet_end.fileno()
     conn.send_command = MagicMock(return_value={"status": "success"})
-    return conn
+    yield conn
+    quiet_end.close()
+    peer_end.close()
 
 
 @pytest.fixture

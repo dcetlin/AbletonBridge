@@ -1,5 +1,6 @@
 """AbletonConnection — TCP socket connection to the Ableton Remote Script."""
 
+import select
 import socket
 import json
 import logging
@@ -259,11 +260,8 @@ class AbletonConnection:
 
 def _peer_closed(sock: socket.socket) -> bool:
     """Whether the other end has closed. getpeername() still succeeds on such a socket."""
-    sock.settimeout(0)
-    try:
-        return sock.recv(1, socket.MSG_PEEK) == b""
-    except BlockingIOError:
-        return False
+    readable, _, _ = select.select([sock], [], [], 0)
+    return bool(readable) and sock.recv(1, socket.MSG_PEEK) == b""
 
 
 def get_ableton_connection():

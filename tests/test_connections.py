@@ -84,7 +84,7 @@ class TestGetAbletonConnection:
         mock_conn.sock.getpeername.return_value = ("localhost", 9877)
         mock_conn.send_command.return_value = {"status": "success"}
         state.ableton_connection = mock_conn
-        with patch('MCP_Server.connections.ableton.AbletonConnection'):
+        with patch('MCP_Server.connections.ableton.AbletonConnection'), patch('MCP_Server.connections.ableton._peer_closed', return_value=False):
             result = get_ableton_connection()
             assert result == mock_conn
 
@@ -128,4 +128,30 @@ class TestPeerClosed:
             assert _peer_closed(a)
         finally:
             a.close()
+
+
+class TestGetAbletonConnectionLiveness:
+    def _connected(self, monkeypatch):
+        a, b = socket.socketpair()
+        conn = AbletonConnection(host="localhost", port=9877)
+        conn.sock = a
+        monkeypatch.setattr(state, "ableton_connection", conn)
+        return conn, a, b
+
+    def test_open_connection_is_reused_with_its_timeout(self, monkeypatch):
+        conn, a, b = self._connected(monkeypatch)
+        try:
+            assert get_ableton_connection() is conn
+            assert a.gettimeout() == 1.0
+        finally:
+            a.close()
+            b.close()
+
+    def test_closed_connection_is_replaced(self, monkeypatch):
+        conn, a, b = self._connected(monkeypatch)
+        b.close()
+        fresh = MagicMock()
+        fresh.connect.return_value = True
+        with patch("MCP_Server.connections.ableton.AbletonConnection", return_value=fresh):
+            assert get_ableton_connection() is fresh
 

@@ -52,3 +52,22 @@ def test_dashboard_comes_up_once_its_port_is_free(monkeypatch) -> None:
             browser.assert_called_once()
         finally:
             dashboard.stop_dashboard_server()
+
+
+def test_stopping_during_the_retry_wait_ends_the_loop(monkeypatch) -> None:
+    port = _free_port()
+    monkeypatch.setattr(state, "DASHBOARD_PORT", port)
+    monkeypatch.setattr(dashboard, "DASHBOARD_RETRY_SECONDS", 0.1)
+    holder = socket.socket()
+    holder.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    holder.bind(("127.0.0.1", port))
+    holder.listen()
+    with patch.object(dashboard.webbrowser, "open") as browser:
+        dashboard.start_dashboard_server()
+        time.sleep(0.2)
+        dashboard.stop_dashboard_server()
+        holder.close()
+        time.sleep(0.5)
+        browser.assert_not_called()
+        assert not _responds(port)
+

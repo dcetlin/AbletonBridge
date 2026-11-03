@@ -107,3 +107,15 @@ def test_sigterm_exits_normally_only_under_sse(
         with pytest.raises(SystemExit) as exit_info:
             handlers[signal.SIGTERM](signal.SIGTERM, None)
         assert exit_info.value.code == 0
+
+
+def test_browser_cache_warmup_waits_for_live_without_a_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    event = MagicMock()
+    monkeypatch.setattr(state, "ableton_connected_event", event)
+    monkeypatch.setattr(server, "load_browser_cache_from_disk", lambda: False)
+    monkeypatch.setattr(server, "populate_browser_cache", populate := MagicMock())
+    monkeypatch.setattr(server.time, "sleep", lambda _: None)
+    server._browser_cache_warmup()
+    event.wait.assert_called_once_with()
+    populate.assert_called_once()
+
