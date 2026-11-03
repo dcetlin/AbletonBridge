@@ -3,7 +3,7 @@ import json
 import socket
 import time
 from unittest.mock import MagicMock, patch, PropertyMock, call
-from MCP_Server.connections.ableton import AbletonConnection, get_ableton_connection, NON_IDEMPOTENT_COMMANDS
+from MCP_Server.connections.ableton import AbletonConnection, _peer_closed, get_ableton_connection, NON_IDEMPOTENT_COMMANDS
 from MCP_Server.constants import TIER_0_COMMANDS, TIER_1_COMMANDS, TIER_2_COMMANDS
 import MCP_Server.state as state
 
@@ -84,7 +84,7 @@ class TestGetAbletonConnection:
         mock_conn.sock.getpeername.return_value = ("localhost", 9877)
         mock_conn.send_command.return_value = {"status": "success"}
         state.ableton_connection = mock_conn
-        with patch('MCP_Server.connections.ableton.AbletonConnection'):
+        with patch('MCP_Server.connections.ableton.AbletonConnection'), patch('MCP_Server.connections.ableton._peer_closed', return_value=False):
             result = get_ableton_connection()
             assert result == mock_conn
 
@@ -100,3 +100,75 @@ class TestGetAbletonConnection:
         with patch('MCP_Server.connections.ableton.AbletonConnection', return_value=new_conn):
             result = get_ableton_connection()
             assert new_conn.connect.called
+
+
+class TestPeerClosed:
+    def test_open_quiet_socket_is_alive(self):
+        a, b = socket.socketpair()
+        try:
+            assert not _peer_closed(a)
+        finally:
+            a.close()
+            b.close()
+
+    def test_pending_data_is_alive_and_not_consumed(self):
+        a, b = socket.socketpair()
+        try:
+            b.send(b"x")
+            assert not _peer_closed(a)
+            assert a.recv(1) == b"x"
+        finally:
+            a.close()
+            b.close()
+
+    def test_closed_peer_is_detected(self):
+        a, b = socket.socketpair()
+        b.close()
+        try:
+            assert _peer_closed(a)
+        finally:
+            a.close()
+
+
+class TestGetAbletonConnectionLiveness:
+    @pytest.fixture
+    def tcp_pair(self):
+        """A connected TCP pair: getpeername still succeeds after the peer closes."""
+        with socket.socket() as listener:
+            listener.bind(("127.0.0.1", 0))
+            listener.listen()
+            client = socket.create_connection(listener.getsockname())
+            server_end, _ = listener.accept()
+        yield client, server_end
+        client.close()
+        server_end.close()
+
+    def _install(self, monkeypatch, sock):
+        conn = AbletonConnection(host="localhost", port=9877)
+        conn.sock = sock
+        monkeypatch.setattr(state, "ableton_connection", conn)
+        return conn
+
+    def test_open_connection_is_reused_with_its_timeout(self, monkeypatch, tcp_pair):
+        conn = self._install(monkeypatch, tcp_pair[0])
+        assert get_ableton_connection() is conn
+        assert tcp_pair[0].gettimeout() == 1.0
+
+    def test_closed_connection_is_replaced(self, monkeypatch, tcp_pair):
+        self._install(monkeypatch, tcp_pair[0])
+        tcp_pair[1].close()
+        time.sleep(0.05)
+        tcp_pair[0].getpeername()  # the case the check exists for
+        fresh = MagicMock()
+        fresh.connect.return_value = True
+        with patch("MCP_Server.connections.ableton.AbletonConnection", return_value=fresh):
+            assert get_ableton_connection() is fresh
+
+    def test_check_is_skipped_while_a_command_holds_the_socket(self, monkeypatch, tcp_pair):
+        conn = self._install(monkeypatch, tcp_pair[0])
+        tcp_pair[1].close()
+        time.sleep(0.05)
+        with conn._send_lock:
+            with patch("MCP_Server.connections.ableton._peer_closed") as check:
+                assert get_ableton_connection() is conn
+        check.assert_not_called()

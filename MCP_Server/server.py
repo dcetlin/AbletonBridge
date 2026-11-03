@@ -12,14 +12,16 @@ All mutable runtime state lives in MCP_Server/state.py
 # Standard library
 # ---------------------------------------------------------------------------
 import asyncio
+import atexit
 import concurrent.futures
 import logging
 import os
+import signal
 import socket
 import sys
 import time
 import threading
-from contextlib import AsyncExitStack, asynccontextmanager
+from contextlib import asynccontextmanager
 from typing import Any, AsyncIterator, Dict
 from datetime import datetime, timezone
 from collections import deque
@@ -165,13 +167,9 @@ def _browser_cache_warmup():
             "Browser cache loaded from disk (%.0fs old, will refresh)", age
         )
 
-    # Step 2: Wait for Ableton connection, then do a live scan to refresh
-    state.ableton_connected_event.wait(timeout=30.0)
-    if not (state.ableton_connection and state.ableton_connection.sock):
-        logger.warning(
-            "Browser cache warmup: Ableton not connected after 30s, skipping live scan"
-        )
-        return
+    # Step 2: Wait for Ableton connection, then do a live scan to refresh.
+    # Services start once per process, so this has to outlast a Live that opens later.
+    state.ableton_connected_event.wait()
     time.sleep(0.5)  # brief settle after connection confirmed
     try:
         populate_browser_cache()
@@ -183,111 +181,96 @@ def _browser_cache_warmup():
 # Server lifespan — startup / shutdown
 # ===================================================================
 
-@asynccontextmanager
-async def _server_lifecycle(server: FastMCP) -> AsyncIterator[None]:
-    """Process-wide startup and shutdown: lock, Ableton, M4L, dashboard, caches."""
+def _start_services() -> None:
+    """Process-wide startup: lock, Ableton, M4L, dashboard, caches."""
     # Under SSE, main() takes the lock before serving; otherwise take it here.
-    owns_lock = state.singleton_lock_sock is None
+    if state.singleton_lock_sock is None:
+        try:
+            state.singleton_lock_sock = _acquire_singleton_lock()
+        except RuntimeError as e:
+            logger.error(str(e))
+            logger.error("Exiting to avoid conflicts.")
+            sys.exit(1)
+
+    logger.info("AbletonBridge server starting up")
+    state.server_start_time = time.time()
+
+    # Bound the thread pool used by asyncio.to_thread() to prevent
+    # excessive thread creation. With the tool semaphore limiting
+    # concurrent TCP operations to 1, most workers stay idle; 8 provides
+    # headroom for background tasks (browser cache, M4L, dashboard).
+    loop = asyncio.get_event_loop()
+    loop.set_default_executor(
+        concurrent.futures.ThreadPoolExecutor(max_workers=8)
+    )
+
+    # Connect to Ableton (Remote Script TCP)
     try:
-        if owns_lock:
-            try:
-                state.singleton_lock_sock = _acquire_singleton_lock()
-            except RuntimeError as e:
-                logger.error(str(e))
-                logger.error("Exiting to avoid conflicts.")
-                sys.exit(1)
+        get_ableton_connection()
+        logger.info("Successfully connected to Ableton on startup")
+    except Exception as e:
+        logger.warning("Could not connect to Ableton on startup: %s", e)
+        logger.warning("Make sure the Ableton Remote Script is running")
 
-        logger.info("AbletonBridge server starting up")
-        state.server_start_time = time.time()
+    # Auto-connect M4L bridge in background
+    threading.Thread(
+        target=_m4l_auto_connect, daemon=True, name="m4l-auto-connect"
+    ).start()
 
-        # Bound the thread pool used by asyncio.to_thread() to prevent
-        # excessive thread creation. With the tool semaphore limiting
-        # concurrent TCP operations to 1, most workers stay idle; 8 provides
-        # headroom for background tasks (browser cache, M4L, dashboard).
-        loop = asyncio.get_event_loop()
-        loop.set_default_executor(
-            concurrent.futures.ThreadPoolExecutor(max_workers=8)
-        )
+    # Start web dashboard on background thread
+    try:
+        start_dashboard_server()
+    except Exception as e:
+        logger.warning("Dashboard failed to start: %s", e)
 
-        # Connect to Ableton (Remote Script TCP)
-        try:
-            ableton = get_ableton_connection()
-            logger.info("Successfully connected to Ableton on startup")
-        except Exception as e:
-            logger.warning("Could not connect to Ableton on startup: %s", e)
-            logger.warning("Make sure the Ableton Remote Script is running")
+    # Pre-populate browser cache in background
+    threading.Thread(
+        target=_browser_cache_warmup, daemon=True, name="browser-cache-warmup"
+    ).start()
 
-        # Auto-connect M4L bridge in background
-        threading.Thread(
-            target=_m4l_auto_connect, daemon=True, name="m4l-auto-connect"
-        ).start()
+    # Load saved effect chain templates from disk
+    try:
+        from MCP_Server.tools.workflows import load_chain_templates_from_disk
+        load_chain_templates_from_disk()
+    except Exception as e:
+        logger.warning("Could not load chain templates: %s", e)
 
-        # Start web dashboard on background thread
-        try:
-            start_dashboard_server()
-        except Exception as e:
-            logger.warning("Dashboard failed to start: %s", e)
 
-        # Pre-populate browser cache in background
-        threading.Thread(
-            target=_browser_cache_warmup, daemon=True, name="browser-cache-warmup"
-        ).start()
+def _stop_services() -> None:
+    """Process-wide shutdown, run when the process exits."""
+    stop_dashboard_server()
 
-        # Load saved effect chain templates from disk
-        try:
-            from MCP_Server.tools.workflows import load_chain_templates_from_disk
-            load_chain_templates_from_disk()
-        except Exception as e:
-            logger.warning("Could not load chain templates: %s", e)
+    if state.ableton_connection:
+        logger.info("Disconnecting from Ableton on shutdown")
+        state.ableton_connection.disconnect()
+        state.ableton_connection = None
 
-        yield
+    if state.m4l_connection:
+        logger.info("Disconnecting M4L bridge on shutdown")
+        state.m4l_connection.disconnect()
+        state.m4l_connection = None
 
-    finally:
-        # Shutdown sequence
-        stop_dashboard_server()
-
-        if state.ableton_connection:
-            logger.info("Disconnecting from Ableton on shutdown")
-            state.ableton_connection.disconnect()
-            state.ableton_connection = None
-
-        if state.m4l_connection:
-            logger.info("Disconnecting M4L bridge on shutdown")
-            state.m4l_connection.disconnect()
-            state.m4l_connection = None
-
-        if owns_lock:
-            _release_singleton_lock(state.singleton_lock_sock)
-            state.singleton_lock_sock = None
-        logger.info("AbletonBridge server shut down")
+    if state.singleton_lock_sock is not None:
+        _release_singleton_lock(state.singleton_lock_sock)
+        state.singleton_lock_sock = None
+    logger.info("AbletonBridge server shut down")
 
 
 # FastMCP enters the lifespan once per client connection: once under stdio,
-# once per connected client under SSE. Startup runs on the first entry and
-# shutdown on the last exit, so SSE clients share one Ableton connection.
-_lifecycle_lock = asyncio.Lock()
-_lifecycle_clients = 0
-_lifecycle_stack: AsyncExitStack | None = None
+# once per connected client under SSE. Services start on the first entry and stop
+# when the process exits, so they don't restart as SSE clients come and go.
+_services_started = False
 
 
 @asynccontextmanager
 async def server_lifespan(server: FastMCP) -> AsyncIterator[Dict[str, Any]]:
-    """Per-client lifespan over the shared process lifecycle."""
-    global _lifecycle_clients, _lifecycle_stack
-    async with _lifecycle_lock:
-        if _lifecycle_clients == 0:
-            stack = AsyncExitStack()
-            await stack.enter_async_context(_server_lifecycle(server))
-            _lifecycle_stack = stack
-        _lifecycle_clients += 1
-    try:
-        yield {}
-    finally:
-        async with _lifecycle_lock:
-            _lifecycle_clients -= 1
-            if _lifecycle_clients == 0 and _lifecycle_stack is not None:
-                stack, _lifecycle_stack = _lifecycle_stack, None
-                await stack.aclose()
+    """Per-client lifespan over the process-wide services."""
+    global _services_started
+    if not _services_started:
+        _services_started = True
+        atexit.register(_stop_services)
+        _start_services()
+    yield {}
 
 
 # ===================================================================
@@ -527,6 +510,9 @@ def main():
     """
     transport = os.environ.get("ABLETON_BRIDGE_TRANSPORT", "stdio")
     if transport == "sse":
+        # uvicorn re-raises SIGTERM after serving; exit normally so _stop_services runs.
+        # Stdio keeps the default: sys.exit there would wait on the blocking stdin read.
+        signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
         mcp_port = int(os.environ.get("ABLETON_BRIDGE_MCP_PORT", "9883"))
         state.MCP_SSE_PORT = mcp_port
         # Fail at startup, not on the first client, if another instance runs.

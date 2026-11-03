@@ -8,6 +8,7 @@ is accessed via ``MCP_Server.state``.
 import logging
 import time
 import threading
+import webbrowser
 import asyncio
 from datetime import datetime, timezone
 from typing import Any, Dict, List
@@ -16,6 +17,8 @@ import MCP_Server.state as state
 from MCP_Server.dashboard.html import DASHBOARD_HTML
 
 logger = logging.getLogger("AbletonBridge")
+
+DASHBOARD_RETRY_SECONDS = 30
 
 
 # ---------------------------------------------------------------------------
@@ -218,20 +221,29 @@ def start_dashboard_server():
         log_level="warning",
         access_log=False,
     )
-    state.dashboard_server = uvicorn.Server(config)
+    server = uvicorn.Server(config)
+    state.dashboard_server = server
 
     def _run():
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        assert state.dashboard_server is not None
-        loop.run_until_complete(state.dashboard_server.serve())
+        # Services start once per process, so keep trying if the port is busy for now.
+        while state.dashboard_server is server:
+            try:
+                sock = config.bind_socket()  # uvicorn exits on a busy port
+            except SystemExit:
+                logger.warning(
+                    "Dashboard port %d is busy, retrying in %ds", state.DASHBOARD_PORT, DASHBOARD_RETRY_SECONDS
+                )
+                time.sleep(DASHBOARD_RETRY_SECONDS)
+                continue
+            sock.listen(config.backlog)
+            logger.info("Dashboard started at http://127.0.0.1:%d", state.DASHBOARD_PORT)
+            webbrowser.open(f"http://127.0.0.1:{state.DASHBOARD_PORT}")
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(server.serve(sockets=[sock]))
+            return
 
-    thread = threading.Thread(target=_run, daemon=True, name="dashboard-http")
-    thread.start()
-    logger.info("Dashboard started at http://127.0.0.1:%d", state.DASHBOARD_PORT)
-
-    import webbrowser
-    webbrowser.open(f"http://127.0.0.1:{state.DASHBOARD_PORT}")
+    threading.Thread(target=_run, daemon=True, name="dashboard-http").start()
 
 
 def stop_dashboard_server():

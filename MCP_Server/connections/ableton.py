@@ -1,5 +1,6 @@
 """AbletonConnection — TCP socket connection to the Ableton Remote Script."""
 
+import select
 import socket
 import json
 import logging
@@ -257,6 +258,22 @@ class AbletonConnection:
         raise RuntimeError("unreachable")
 
 
+def _peer_closed(sock: socket.socket) -> bool:
+    """Whether the other end has closed. getpeername() still succeeds on such a socket."""
+    readable, _, _ = select.select([sock], [], [], 0)
+    return bool(readable) and sock.recv(1, socket.MSG_PEEK) == b""
+
+
+def _is_closed_when_idle(conn: AbletonConnection) -> bool:
+    """Check for a closed peer, unless a running command holds the socket and would see it."""
+    if not conn._send_lock.acquire(blocking=False):
+        return False
+    try:
+        return conn.sock is None or _peer_closed(conn.sock)
+    finally:
+        conn._send_lock.release()
+
+
 def get_ableton_connection():
     """Get or create a persistent Ableton connection"""
 
@@ -265,8 +282,10 @@ def get_ableton_connection():
             # Test if the socket is still connected
             if state.ableton_connection.sock is None:
                 raise ConnectionError("Socket is None")
-            state.ableton_connection.sock.settimeout(1.0)
             state.ableton_connection.sock.getpeername()  # raises if disconnected
+            if _is_closed_when_idle(state.ableton_connection):
+                raise ConnectionError("Ableton closed the connection")
+            state.ableton_connection.sock.settimeout(1.0)
             return state.ableton_connection
         except Exception as e:
             logger.warning("Existing connection is no longer valid: %s", e)
