@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any, TypedDict
 
-REGISTRY_FINGERPRINT = "2611bd6409011b42"
+REGISTRY_FINGERPRINT = "f3b165070ef48a48"
 
 
 # ============================================================
@@ -1229,6 +1229,7 @@ class NudgeTempoParams(TypedDict, total=False):
 
 class PressLiveDialogButtonParams(TypedDict, total=False):
     button_index: int
+    expected_message: str
 
 
 class ReEnableAutomationParams(TypedDict, total=False):

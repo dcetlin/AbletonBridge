@@ -1,7 +1,8 @@
 """Session & transport tool handlers for AbletonBridge."""
 import json
-from typing import Any
+from typing import Annotated, Any
 from mcp.server.fastmcp import Context
+from pydantic import Field
 from MCP_Server.tools._base import _get_tool_annotations, _tool_handler, _m4l_result
 from MCP_Server.connections.ableton import get_ableton_connection
 from MCP_Server.connections.m4l import get_m4l_connection
@@ -258,27 +259,31 @@ def register_tools(mcp):
         """Get the dialog Live is showing, if any, with its message and button count.
 
         A dialog such as a save prompt can block opening a set. Live doesn't report button
-        names, so read the message before pressing anything. Measured in Live 12.2.7, the
-        save prompt's buttons are 0 = Don't Save, 1 = Cancel, 2 = Save. Save opens a file
-        panel that this tool can't answer.
+        names. Measured in Live 12.2.7 on macOS, the save prompt's buttons are 0 = Don't Save,
+        1 = Cancel, 2 = Save. Save opens a file panel, which reports no message and no buttons:
+        a person has to answer it, so avoid Save unattended.
         """
         ableton = get_ableton_connection()
         return json.dumps(ableton.send_command("get_live_dialog"))
 
     @mcp.tool(annotations=_get_tool_annotations("press_live_dialog_button"))
     @_tool_handler("pressing a button on Live's dialog")
-    def press_live_dialog_button(ctx: Context, button_index: int) -> str:
-        """Press a button on the dialog Live is showing.
-
-        This can discard unsaved work, and Live doesn't report button names, so check the
-        message with get_live_dialog first. See it for the save prompt's button order.
+    def press_live_dialog_button(
+        ctx: Context,
+        button_index: Annotated[int, Field(strict=True, ge=0)],
+        expected_message: str,
+    ) -> str:
+        """Press a button on the dialog Live is showing. This can discard unsaved work.
 
         Parameters:
-        - button_index: The 0-based index of the button
+        - button_index: The 0-based index of the button. See get_live_dialog for the save
+          prompt's order.
+        - expected_message: The message from get_live_dialog. The press is refused if the
+          dialog now says something else.
         """
-        _validate_index(button_index, "button_index")
         ableton = get_ableton_connection()
-        return json.dumps(ableton.send_command("press_live_dialog_button", {"button_index": button_index}))
+        params = {"button_index": button_index, "expected_message": expected_message}
+        return json.dumps(ableton.send_command("press_live_dialog_button", params))
 
     @mcp.tool()
     @_tool_handler("performing undo")

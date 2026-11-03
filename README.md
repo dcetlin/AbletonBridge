@@ -55,9 +55,9 @@ MCP_Server/                          Remote Script/
 ├── cache/           (browser, disk)     ├── devices.py    (35 commands)
 ├── dashboard/       (Starlette)         ├── tracks.py     (29 commands)
 ├── tools/           (17 modules)        ├── mixer.py      (23 commands)
-│   ├── session.py   (58 tools)          ├── automation.py (14 commands)
-│   ├── clips.py     (54 tools)          ├── browser.py    (12 commands)
-│   ├── devices.py   (44 tools)          ├── scenes.py     (10 commands)
+│   ├── session.py   (53 tools)          ├── automation.py (14 commands)
+│   ├── clips.py     (58 tools)          ├── browser.py    (12 commands)
+│   ├── devices.py   (50 tools)          ├── scenes.py     (10 commands)
 │   ├── m4l_tools.py (40 tools)          ├── midi.py       (9 commands)
 │   ├── ...          (17 total)          ├── audio.py      (7 commands)
 │   └── lom.py       (3 tools)          ├── arrangement.py(6 commands)
@@ -81,7 +81,7 @@ Six Mermaid diagrams in [`diagrams/`](diagrams/) cover the system in detail:
 ## Key Features
 
 - **263 handler commands** via `@command` registry with introspected param specs, TypedDict codegen, and fingerprint-based staleness detection
-- **354 MCP tools** across 17 modules — session, tracks, clips, mixer, devices, browser, automation, arrangement, scenes, creative generation, M4L deep access, snapshots, audio, grid notation, MIDI CC, LOM, and compound workflows
+- **356 MCP tools** across 17 modules — session, tracks, clips, mixer, devices, browser, automation, arrangement, scenes, creative generation, M4L deep access, snapshots, audio, grid notation, MIDI CC, LOM, and compound workflows
 - **Generic LOM access** — `lom_get`, `lom_set`, `lom_describe` for arbitrary Live Object Model traversal with path resolution, depth-bounded introspection, and a write denylist
 - **Per-point interpolation** — automation commands accept per-point `interpolation` overrides (linear/hold/custom exponent) with configurable resolution
 - **Step-budgeted automation** — `_reduce_automation_points` with collinear-point elimination keeps large automation writes within Ableton's dispatch timeout

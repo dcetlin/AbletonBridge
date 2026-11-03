@@ -17,6 +17,7 @@ from typing import Dict, List, Tuple
 
 # Tier 0: No delay -- instant property setters and navigation commands
 TIER_0_COMMANDS: frozenset = frozenset([
+    "press_live_dialog_button",
     "set_tempo", "set_track_name", "set_clip_name", "set_track_color",
     "set_clip_color", "set_track_mute", "set_track_solo", "set_track_arm",
     "set_metronome", "set_track_pan", "set_track_volume",

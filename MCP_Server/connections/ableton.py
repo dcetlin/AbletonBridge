@@ -11,6 +11,7 @@ from typing import Dict, Any, Optional
 
 from MCP_Server.constants import TIER_0_COMMANDS, TIER_1_COMMANDS, TIER_2_COMMANDS, MODIFYING_COMMANDS
 import MCP_Server.state as state
+from shared.commands import COMMAND_ANNOTATIONS
 
 logger = logging.getLogger("AbletonBridge")
 
@@ -22,7 +23,9 @@ NON_IDEMPOTENT_COMMANDS = frozenset([
     "delete_clip", "delete_scene", "delete_device",
     "duplicate_track", "duplicate_clip", "duplicate_scene", "add_notes_to_clip",
     "add_notes_extended", "delete_return_track",
-])
+]) | frozenset(
+    name for name, annotation in COMMAND_ANNOTATIONS.items() if annotation.get("idempotent") is False
+)
 
 
 class AbletonCommandError(Exception):
@@ -241,6 +244,8 @@ class AbletonConnection:
 
                     return response.get("result", {})
 
+                except AbletonCommandError:
+                    raise  # Live answered and refused; a retry would only repeat that
                 except Exception as e:
                     logger.error("Command '%s' attempt %d failed: %s", command_type, attempt, e)
                     # Close the broken socket and clear buffer
