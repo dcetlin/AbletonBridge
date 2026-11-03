@@ -9,6 +9,14 @@ from MCP_Server.connections.ableton import get_ableton_connection
 from MCP_Server.validation import _validate_index, _validate_range, _validate_automation_points, _reduce_automation_points, MAX_AUTOMATION_POINTS
 
 
+STEPPED_CURVES = ("square", "pulse", "random")  # the rest ramp between their points
+
+
+def _partial_or(result: dict, message: str) -> str:
+    """The full result if a write was cut short, so the caller can see it; else the message."""
+    return json.dumps(result) if result.get("partial") else message
+
+
 def build_adsr_points(attack, decay, sustain_level, release,
                       peak=1.0, floor=0.0, sustain_time=None):
     """Build ADSR envelope breakpoints with per-point interpolation modes.
@@ -134,8 +142,8 @@ def register_tools(mcp):
                                 verify: bool = False) -> str:
         """Create automation for a parameter within a session clip.
 
-        For automation inside a session clip's envelope. For arrangement-level track
-        automation (Volume, Pan, etc. on the timeline), use create_track_automation instead.
+        For automation inside a session clip's envelope. To put it on the arrangement,
+        follow with duplicate_clip_to_arrangement.
 
         Parameters:
         - track_index: The index of the track
@@ -144,11 +152,13 @@ def register_tools(mcp):
         - automation_points: List of {time: float, value: float} dictionaries (breakpoints)
         - device_index: Optional device index to scope parameter lookup
         - reduce: If True, apply RDP point reduction to simplify the curve (default: False)
-        - append: If True, add points to existing automation instead of clearing first (default: False)
+        - append: If True, replace only from the first point to one `resolution` past the
+          last, leaving the rest of the envelope. Otherwise the points replace the whole clip:
+          the first value also covers from the clip's start, the last holds to its end
         - interpolation: Curve shape between breakpoints: "hold" (staircase, default),
           "linear" (smooth ramps), "exponential" (exponential curve)
         - resolution: Beats between interpolated points (default: 0.0625 = 64th note).
-          Lower = smoother but more points. Only used when interpolation != "hold".
+          Lower = smoother but more points. Used when interpolation != "hold", and for append.
         - verify: If True, read the envelope back after writing and return a
           {verdict, median_error, max_error, samples} report (default: False)
 
@@ -176,7 +186,7 @@ def register_tools(mcp):
         result = ableton.send_command("create_clip_automation", cmd_params)
         pts = result.get("points_added", len(automation_points))
         mode_label = f" ({interpolation}, res={resolution})" if interpolation != "hold" else ""
-        if verify and result.get("verified"):
+        if (verify and result.get("verified")) or result.get("partial"):
             return json.dumps(result)
         return f"Created automation with {pts} points{mode_label} for parameter '{parameter_name}'"
 
@@ -279,10 +289,11 @@ def register_tools(mcp):
         resolution: float = 0.0625,
         verify: bool = False,
     ) -> str:
-        """Create automation for a track parameter (arrangement-level).
+        """Create automation for a track parameter on an arrangement clip.
 
-        For arrangement-level automation on the timeline. For automation within a
-        session clip's envelope, use create_clip_automation instead.
+        Live 12 hasn't exposed envelopes on arrangement clips in testing, so expect this to
+        fail with instructions. Use create_clip_automation on a session clip, then
+        duplicate_clip_to_arrangement.
 
         Parameters:
         - track_index: The index of the track
@@ -290,11 +301,13 @@ def register_tools(mcp):
         - automation_points: List of {time: float, value: float} dictionaries (breakpoints)
         - device_index: Optional device index to scope parameter lookup
         - reduce: If True, apply RDP point reduction to simplify the curve (default: False)
-        - append: If True, add points to existing automation instead of clearing first (default: False)
+        - append: If True, replace only from the first point to one `resolution` past the
+          last, leaving the rest of the envelope. Otherwise the points replace the whole clip:
+          the first value also covers from the clip's start, the last holds to its end
         - interpolation: Curve shape between breakpoints: "hold" (staircase, default),
           "linear" (smooth ramps), "exponential" (exponential curve)
         - resolution: Beats between interpolated points (default: 0.0625 = 64th note).
-          Only used when interpolation != "hold".
+          Used when interpolation != "hold", and for append.
         - verify: If True, read the envelope back after writing and return a
           {verdict, median_error, max_error, samples} report (default: False)
         """
@@ -317,7 +330,7 @@ def register_tools(mcp):
         result = ableton.send_command("create_track_automation", cmd_params)
         pts = result.get("points_added", len(automation_points))
         mode_label = f" ({interpolation}, res={resolution})" if interpolation != "hold" else ""
-        if verify and result.get("verified"):
+        if (verify and result.get("verified")) or result.get("partial"):
             return json.dumps(result)
         return f"Created track automation for '{parameter_name}' with {pts} points{mode_label}"
 
@@ -432,14 +445,15 @@ def register_tools(mcp):
             value = max(0.0, min(1.0, value))
             automation_points.append({"time": time, "value": value})
 
-        ableton.send_command("create_clip_automation", {
+        result = ableton.send_command("create_clip_automation", {
             "track_index": track_index,
             "clip_index": clip_index,
             "parameter_name": parameter_name,
             "automation_points": automation_points,
+            "interpolation": "hold" if curve_type in STEPPED_CURVES else "linear",
         })
 
-        return f"Created {curve_type} automation curve ({points} points) for '{parameter_name}' on track {track_index} clip {clip_index}"
+        return _partial_or(result, f"Created {curve_type} automation curve ({points} points) for '{parameter_name}' on track {track_index} clip {clip_index}")
 
     @mcp.tool(annotations=_get_tool_annotations("clear_clip_envelope"))
     @_tool_handler("clearing clip envelope")
@@ -538,8 +552,8 @@ def register_tools(mcp):
                                            clip_index_in_arrangement: int = 0) -> str:
         """Read arrangement automation envelope with configurable sample resolution.
 
-        For automation on the arrangement timeline (Volume, Pan, device params).
-        Use get_clip_automation_hires for session clip automation instead.
+        Live 12 hasn't exposed envelopes on arrangement clips in testing, so expect this to
+        report no automation. Use get_clip_automation_hires for session clips.
 
         Parameters:
         - track_index: The track index
@@ -572,7 +586,9 @@ def register_tools(mcp):
         - track_index: The track index
         - clip_index: The clip slot index
         - parameter_name: Name of the parameter to automate
-        - steps: List of {time, value, duration} dicts. duration > 0 creates a held step.
+        - steps: List of {time, value, duration} dicts. A missing or zero duration holds to
+          the next step, or the clip's end. Steps at or past the clip's end are dropped;
+          if none are left this fails, leaving existing automation alone.
         - device_index: Optional device index to scope parameter lookup
         """
         _validate_index(track_index, "track_index")
@@ -648,9 +664,9 @@ def register_tools(mcp):
         result = ableton.send_command("create_clip_automation", cmd_params)
         total_time = points[-1]["time"]
         pts = result.get("points_added", len(points))
-        return (f"Created ADSR envelope for '{parameter_name}': "
+        return _partial_or(result, (f"Created ADSR envelope for '{parameter_name}': "
                 f"A={attack} D={decay} S={sustain_level} R={release} "
-                f"({pts} points, {total_time} beats)")
+                f"({pts} points, {total_time} beats)"))
 
     @mcp.tool()
     @_tool_handler("generating LFO automation")
@@ -715,5 +731,5 @@ def register_tools(mcp):
             cmd_params["device_index"] = device_index
         result = ableton.send_command("create_clip_automation", cmd_params)
         pts = result.get("points_added", len(points))
-        return (f"Created {shape} LFO for '{parameter_name}': "
-                f"{cycles} cycle(s) over {beats} beats ({pts} points)")
+        return _partial_or(result, (f"Created {shape} LFO for '{parameter_name}': "
+                f"{cycles} cycle(s) over {beats} beats ({pts} points)"))

@@ -22,7 +22,7 @@ class _FakeEnvelope:
         v = self._values
         if callable(v):
             return v(t)
-        return v[t]
+        return v[round(t, 3)]  # reads land just past the exact time
 
 
 class TestVerifyAutomation:
@@ -238,7 +238,7 @@ class TestVerifyWiredThroughHandler:
     *interpolated* points that were actually written — not the raw breakpoints."""
 
     def test_hold_mode_verify_reports_match(self):
-        song, env = _clip_song(100.0, lambda t: {0.0: 0.2, 1.0: 0.8}[round(t, 6)])
+        song, env = _clip_song(100.0, lambda t: 0.2 if t <= 1.0 else 0.8)
         res = create_clip_automation(
             song, 0, 0, "Volume",
             [{"time": 0.0, "value": 0.2}, {"time": 1.0, "value": 0.8}],
@@ -258,8 +258,11 @@ class TestVerifyWiredThroughHandler:
         env.value_at_time.assert_not_called()
 
     def test_linear_verify_reads_interpolated_points_not_breakpoints(self):
-        # Envelope reads back the ideal linear ramp value at any time.
-        song, env = _clip_song(100.0, lambda t: max(0.0, min(1.0, t / 4.0)))
+        # Reads back as each written step holds: step value up to its end.
+        steps = []
+        song, env = _clip_song(100.0, lambda t: next(
+            (value for start, end, value in reversed(steps) if start < t <= end), 0.0))
+        env.insert_step.side_effect = lambda start, duration, value: steps.append((start, start + duration, value))
         res = create_clip_automation(
             song, 0, 0, "Volume",
             [{"time": 0.0, "value": 0.0}, {"time": 4.0, "value": 1.0}],
@@ -269,5 +272,6 @@ class TestVerifyWiredThroughHandler:
         # interpolated expansion, matching what insert_step actually wrote.
         assert res["verified"]["samples"] > 2
         assert res["points_added"] == res["verified"]["samples"]
-        assert env.value_at_time.call_count == res["verified"]["samples"]
+        # Each step is read at its start and at the end it should hold to.
+        assert env.value_at_time.call_count == 2 * res["verified"]["samples"]
         assert res["verified"]["verdict"] == "match"

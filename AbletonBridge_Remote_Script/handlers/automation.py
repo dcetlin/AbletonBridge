@@ -7,7 +7,9 @@ import time as _time
 from ._helpers import (
     get_track, get_clip, interpolate_automation,
     budget_automation_steps, AUTOMATION_WRITE_BUDGET_SECONDS,
+    read_envelope,
     verify_automation,
+    write_automation_steps,
 )
 from ._registry import command
 
@@ -79,12 +81,6 @@ def create_clip_automation(song, track_index: int, clip_index: int, parameter_na
         if envelope is None:
             raise RuntimeError("Could not get automation envelope for parameter '{0}'".format(parameter_name))
 
-    if not append and hasattr(envelope, 'clear'):
-        try:
-            envelope.clear()
-        except Exception:
-            pass
-
     resolution, planned_steps = budget_automation_steps(automation_points, resolution)
 
     # Always route through interpolate_automation: it self-guards (returns points
@@ -92,38 +88,25 @@ def create_clip_automation(song, track_index: int, clip_index: int, parameter_na
     # "interpolation" overrides are honored even when the curve-global mode is "hold".
     automation_points = interpolate_automation(automation_points, resolution, interpolation)
 
-    clip_length = clip.length
-    deadline = _time.time() + AUTOMATION_WRITE_BUDGET_SECONDS
-    written = 0
-    last_written_time = None
-    written_points = []
-    for point in automation_points:
-        if _time.time() > deadline:
-            break
-        time_val = float(point.get("time", 0.0))
-        time_val = max(0.0, min(clip_length - 0.001, time_val))
-        value = float(point.get("value", 0.0))
-        clamped = max(param.min, min(param.max, value))
-        # Duration must be > 0 or Ableton's LOM silently discards the step.
-        envelope.insert_step(time_val, 0.001, clamped)
-        written += 1
-        last_written_time = time_val
-        # Record the clamped time/value we actually wrote, so verify reads back at
-        # the same coordinates (not the raw breakpoint time, which can exceed the
-        # clip boundary) and only checks steps that actually landed (not any tail
-        # skipped past the write deadline).
-        written_points.append({"time": time_val, "value": clamped})
+    # Only the points that actually landed are checked on read-back, not any tail skipped
+    # past the write deadline.
+    written_points, planned = write_automation_steps(
+        envelope, automation_points, 0.0, clip.length, param.min, param.max,
+        _time.time() + AUTOMATION_WRITE_BUDGET_SECONDS,
+        tail_beats=resolution if append else None,
+    )
+    written = len(written_points)
+    last_written_time = written_points[-1]["time"] if written_points else None
 
     result = {
         "parameter": parameter_name,
         "track_index": track_index,
         "clip_index": clip_index,
         "points_added": written,
-        "points_planned": len(automation_points),
-        "partial": written < len(automation_points),
+        "points_planned": planned,
+        "partial": written < planned,
         "resolution_used": resolution,
-        # On a partial write, the covered range is [start, last_written_time];
-        # points are time-sorted, so a caller can resume past this boundary.
+        # On a partial write, rewrite the whole curve with fewer points or a coarser resolution.
         "last_written_time": last_written_time,
     }
     if verify:
@@ -156,7 +139,7 @@ def get_clip_automation(song, track_index: int, clip_index: int, parameter_name:
     for i in range(num_samples):
         t = i * step
         try:
-            val = envelope.value_at_time(t)
+            val = read_envelope(envelope, t)
             points.append({"time": round(t, 4), "value": round(val, 4)})
         except Exception as e:
             if ctrl:
@@ -187,11 +170,10 @@ def clear_clip_automation(song, track_index: int, clip_index: int, parameter_nam
     if envelope is None:
         return {"cleared": False, "parameter": parameter_name, "reason": "No automation envelope found"}
 
-    if hasattr(envelope, 'clear'):
-        envelope.clear()
-        return {"cleared": True, "parameter": parameter_name}
-    else:
-        raise NotImplementedError("Envelope does not support clear()")
+    if not hasattr(clip, 'clear_envelope'):
+        raise NotImplementedError("Clip does not support clear_envelope()")
+    clip.clear_envelope(param)
+    return {"cleared": True, "parameter": parameter_name}
 
 
 @command("list_clip_automated_params")
@@ -250,8 +232,8 @@ def create_track_automation(song, track_index: int, parameter_name: str, automat
     """Create automation for a track parameter (arrangement-level).
 
     Uses arrangement clips to access the automation envelope for the given
-    parameter.  If no arrangement clip exists, attempts to create one covering
-    the automation range.
+    parameter. Live 12 hasn't exposed one in testing, so expect this to raise with the
+    session-clip workaround.
     """
     track = get_track(song, track_index)
     parameter = _find_parameter(song, track_index, parameter_name, device_index=device_index)
@@ -277,22 +259,9 @@ def create_track_automation(song, track_index: int, parameter_name: str, automat
 
     arr_clips = list(track.arrangement_clips)
     if not arr_clips:
-        # Auto-create an arrangement clip covering the automation range
-        if hasattr(track, "create_arrangement_clip"):
-            end_time = t_max + 1.0
-            try:
-                track.create_arrangement_clip(0.0, end_time)
-                arr_clips = list(track.arrangement_clips)
-            except Exception as create_err:
-                raise ValueError(
-                    "No arrangement clips on track {0} and auto-create failed: {1}. "
-                    "Create a clip manually first.".format(track_index, create_err)
-                )
-        else:
-            raise ValueError(
-                "No arrangement clips on track {0} and create_arrangement_clip is not "
-                "available (requires Live 12+). Create a clip manually first.".format(track_index)
-            )
+        raise ValueError(
+            "No arrangement clips on track {0}. Use create_clip_automation on a session clip, "
+            "then duplicate_clip_to_arrangement.".format(track_index))
 
     # Pick the first arrangement clip whose range covers t_min
     target_clip = None
@@ -323,28 +292,15 @@ def create_track_automation(song, track_index: int, parameter_name: str, automat
     if hasattr(target_clip, "automation_envelope"):
         envelope = target_clip.automation_envelope(parameter)
     if envelope is None and hasattr(target_clip, "create_automation_envelope"):
-        envelope = target_clip.create_automation_envelope(parameter)
-    if envelope is None:
-        is_mixer = parameter_name.lower() in ("volume", "pan", "panning") or parameter_name.lower().startswith("send")
-        hint = (
-            " Mixer parameters cannot be automated via arrangement clip envelopes. "
-            "Workaround: use create_step_automation on a session clip, then "
-            "duplicate_clip_to_arrangement."
-        ) if is_mixer else (
-            " create_automation_envelope() does not work on arrangement clips for "
-            "parameters that haven't been automated before. Workaround: use "
-            "create_step_automation on a session clip, then duplicate_clip_to_arrangement."
-        )
-        raise RuntimeError(
-            "Could not get automation envelope for '{0}' on arrangement clip.{1}".format(
-                parameter_name, hint)
-        )
-
-    if not append and hasattr(envelope, 'clear'):
         try:
-            envelope.clear()
-        except Exception:
-            pass
+            envelope = target_clip.create_automation_envelope(parameter)
+        except RuntimeError:  # Live refuses a new envelope on an arrangement clip
+            envelope = None
+    if envelope is None:
+        raise RuntimeError(
+            "Could not get an automation envelope for '{0}': Live doesn't expose envelopes on "
+            "arrangement clips here. Use create_clip_automation on a session clip, then "
+            "duplicate_clip_to_arrangement.".format(parameter_name))
 
     resolution, planned_steps = budget_automation_steps(automation_points, resolution)
 
@@ -353,31 +309,22 @@ def create_track_automation(song, track_index: int, parameter_name: str, automat
     # "interpolation" overrides are honored even when the curve-global mode is "hold".
     automation_points = interpolate_automation(automation_points, resolution, interpolation)
 
-    deadline = _time.time() + AUTOMATION_WRITE_BUDGET_SECONDS
-    written = 0
-    last_written_time = None
-    written_points = []
-    for point in automation_points:
-        if _time.time() > deadline:
-            break
-        time_val = max(clip_start, min(clip_end - 0.001, float(point.get("time", 0.0))))
-        value = max(parameter.min, min(parameter.max, float(point.get("value", 0.0))))
-        envelope.insert_step(time_val, 0.001, value)
-        written += 1
-        last_written_time = time_val
-        # Record actually-written coordinates for read-back verification (see the
-        # clip-automation path for the rationale).
-        written_points.append({"time": time_val, "value": value})
+    written_points, planned = write_automation_steps(
+        envelope, automation_points, clip_start, clip_end, parameter.min, parameter.max,
+        _time.time() + AUTOMATION_WRITE_BUDGET_SECONDS,
+        tail_beats=resolution if append else None,
+    )
+    written = len(written_points)
+    last_written_time = written_points[-1]["time"] if written_points else None
 
     result = {
         "parameter": parameter_name,
         "track_index": track_index,
         "points_added": written,
-        "points_planned": len(automation_points),
-        "partial": written < len(automation_points),
+        "points_planned": planned,
+        "partial": written < planned,
         "resolution_used": resolution,
-        # On a partial write, the covered range is [clip_start, last_written_time];
-        # points are time-sorted, so a caller can resume past this boundary.
+        # On a partial write, rewrite the whole curve with fewer points or a coarser resolution.
         "last_written_time": last_written_time,
     }
     if verify:
@@ -565,7 +512,7 @@ def get_clip_automation_value(song, track_index: int, clip_index: int, parameter
         return {"has_automation": False, "parameter": parameter_name}
 
     time = float(time)
-    val = envelope.value_at_time(time)
+    val = read_envelope(envelope, time, end=clip.length)
     return {
         "parameter": parameter_name,
         "time": time,
@@ -598,7 +545,7 @@ def get_clip_automation_hires(song, track_index: int, clip_index: int, parameter
     for i in range(sample_count):
         t = i * step
         try:
-            val = envelope.value_at_time(t)
+            val = read_envelope(envelope, t)
             points.append({"time": round(t, 4), "value": round(val, 4)})
         except Exception as e:
             if ctrl:
@@ -641,7 +588,7 @@ def get_arrangement_automation_hires(song, track_index: int, parameter_name: str
     for i in range(sample_count):
         t = i * step
         try:
-            val = envelope.value_at_time(t)
+            val = read_envelope(envelope, t)
             points.append({"beat": round(clip_start + t, 4), "value": round(val, 4)})
         except Exception as e:
             if ctrl:
@@ -665,10 +612,20 @@ def create_step_automation(song, track_index: int, clip_index: int, parameter_na
     """Create step (held-value) automation — each step holds its value for a duration.
 
     Args:
-        steps: List of {time, value, duration} dicts. duration > 0 creates a held step.
+        steps: List of {time, value, duration} dicts. A missing or zero duration holds to
+            the next step, or the clip's end. Steps at or past the clip's end are dropped;
+            if none are left this raises, leaving existing automation alone.
     """
     track, clip = get_clip(song, track_index, clip_index)
     param = _find_parameter(song, track_index, parameter_name, device_index=device_index)
+
+    clip_length = clip.length
+    ordered = sorted(
+        (step for step in steps if float(step.get("time", 0.0)) < clip_length),
+        key=lambda step: float(step.get("time", 0.0)),
+    )
+    if not ordered:
+        raise ValueError("No automation steps fall within the clip (0-{0})".format(clip_length))
 
     if not hasattr(clip, 'automation_envelope'):
         if hasattr(clip, 'create_automation_envelope'):
@@ -684,25 +641,22 @@ def create_step_automation(song, track_index: int, clip_index: int, parameter_na
         if envelope is None:
             raise RuntimeError("Could not get automation envelope for parameter '{0}'".format(parameter_name))
 
-    if hasattr(envelope, 'clear'):
-        try:
-            envelope.clear()
-        except Exception:
-            pass
+    if hasattr(clip, 'clear_envelope'):
+        clip.clear_envelope(param)
+        envelope = clip.automation_envelope(param) or clip.create_automation_envelope(param)
 
-    clip_length = clip.length
-    for step in steps:
-        time_val = float(step.get("time", 0.0))
-        time_val = max(0.0, min(clip_length - 0.001, time_val))
-        value = float(step.get("value", 0.0))
+    for index, step in enumerate(ordered):
+        time_val = max(0.0, float(step.get("time", 0.0)))
         duration = float(step.get("duration", 0.0))
-        duration = max(0.0, min(clip_length - time_val, duration))
-        clamped = max(param.min, min(param.max, value))
-        envelope.insert_step(time_val, duration, clamped)
+        if duration <= 0:  # Live discards a step with no duration, so hold to the next
+            duration = (float(ordered[index + 1].get("time", clip_length)) if index + 1 < len(ordered) else clip_length) - time_val
+        duration = max(0.001, min(clip_length - time_val, duration))
+        value = max(param.min, min(param.max, float(step.get("value", 0.0))))
+        envelope.insert_step(time_val, duration, value)
 
     return {
         "parameter": parameter_name,
         "track_index": track_index,
         "clip_index": clip_index,
-        "steps_added": len(steps),
+        "steps_added": len(ordered),
     }
