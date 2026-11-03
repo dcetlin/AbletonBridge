@@ -189,3 +189,27 @@ class TestCodegenConsistency:
                 f"Command '{cmd_name}': TypedDict fields {td_fields} != "
                 f"registry params {reg_fields}"
             )
+
+
+class TestHotReload:
+
+    def test_commands_stay_available_while_the_registry_module_reloads(self):
+        import importlib
+        from handlers import _registry
+
+        _load_registry()
+        before = set(_registry.get_registry())
+        assert before
+        _registry.clear()
+        try:
+            reloaded = importlib.reload(_registry)
+            assert set(reloaded.get_registry()) == before
+
+            @reloaded.command("get_session_info")
+            def replacement(song):
+                return {}
+
+            assert reloaded.get_registry()["get_session_info"].func is replacement
+        finally:
+            importlib.reload(sys.modules["handlers.session"])
+            _registry.finish_reload()

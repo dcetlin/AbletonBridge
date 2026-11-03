@@ -117,3 +117,15 @@ class TestDynamicTimeouts:
                     # Check settimeout was called with appropriate value
                     timeout_calls = [c for c in conn.recv_sock.settimeout.call_args_list]
                     assert len(timeout_calls) > 0
+
+
+class TestRetire:
+    def test_retired_connection_fails_instead_of_reopening_the_port(self):
+        from MCP_Server.connections.m4l import M4LConnection
+
+        conn = M4LConnection()
+        conn.retire()
+        with patch.object(conn, "connect") as connect:
+            with pytest.raises(ConnectionError, match="replaced"):
+                conn.send_command("ping")
+        connect.assert_not_called()

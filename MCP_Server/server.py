@@ -113,17 +113,18 @@ def _m4l_auto_connect():
     ping_osc = M4LConnection._build_osc_message("/ping", [("s", ping_id)])
 
     for attempt in range(1, 16):  # 15 attempts, ~2 s apart
+        if state.m4l_connection is not conn:
+            return  # replaced: the new connection owns the port now
         try:
-            # Drain stale data
-            conn._drain_recv_socket()
-            assert conn.recv_sock is not None and conn.send_sock is not None
-            conn.recv_sock.settimeout(2.0)
-
-            # Send ping
-            conn.send_sock.sendto(ping_osc, (conn.send_host, conn.send_port))
-
-            # Wait for response
-            data, _addr = conn.recv_sock.recvfrom(65535)
+            # The socket is shared, so hold the lock for the whole exchange.
+            with conn._send_lock:
+                if not conn._connected and not conn.connect():
+                    raise ConnectionError("could not open UDP sockets")
+                conn._drain_recv_socket()
+                assert conn.recv_sock is not None and conn.send_sock is not None
+                conn.recv_sock.settimeout(2.0)
+                conn.send_sock.sendto(ping_osc, (conn.send_host, conn.send_port))
+                data, _addr = conn.recv_sock.recvfrom(65535)
             result = conn._parse_m4l_response(data)
             if result.get("status") == "success":
                 logger.info("M4L bridge auto-connected on attempt %d", attempt)
@@ -200,6 +201,7 @@ def _start_services() -> None:
     # concurrent TCP operations to 1, most workers stay idle; 8 provides
     # headroom for background tasks (browser cache, M4L, dashboard).
     loop = asyncio.get_event_loop()
+    state.main_loop = loop
     loop.set_default_executor(
         concurrent.futures.ThreadPoolExecutor(max_workers=8)
     )
@@ -247,7 +249,7 @@ def _stop_services() -> None:
 
     if state.m4l_connection:
         logger.info("Disconnecting M4L bridge on shutdown")
-        state.m4l_connection.disconnect()
+        state.m4l_connection.retire()
         state.m4l_connection = None
 
     if state.singleton_lock_sock is not None:
@@ -501,6 +503,14 @@ logging.getLogger().addHandler(DashboardLogHandler())
 # Entry point
 # ===================================================================
 
+def _stop_and_exit(signum: int, _frame: Any) -> None:
+    """Exit a stdio server at once. A normal exit would wait on the blocking stdin read."""
+    try:
+        _stop_services()
+    finally:
+        os._exit(128 + signum)
+
+
 def main():
     """Run the MCP server.
 
@@ -511,7 +521,6 @@ def main():
     transport = os.environ.get("ABLETON_BRIDGE_TRANSPORT", "stdio")
     if transport == "sse":
         # uvicorn re-raises SIGTERM after serving; exit normally so _stop_services runs.
-        # Stdio keeps the default: sys.exit there would wait on the blocking stdin read.
         signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
         mcp_port = int(os.environ.get("ABLETON_BRIDGE_MCP_PORT", "9883"))
         state.MCP_SSE_PORT = mcp_port
@@ -524,6 +533,9 @@ def main():
         logger.info("Starting MCP server in SSE mode on port %d (multi-client)", mcp_port)
         mcp.settings.port = mcp_port
         mcp.settings.host = "127.0.0.1"
+    else:
+        signal.signal(signal.SIGINT, _stop_and_exit)
+        signal.signal(signal.SIGTERM, _stop_and_exit)
     mcp.run(transport=transport)
 
 

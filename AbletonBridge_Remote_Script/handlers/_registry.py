@@ -11,8 +11,9 @@ import inspect
 
 _SENTINEL = object()
 
-_REGISTRY = {}
-_RELOADING = False
+# Hot-reload re-runs this module. Keep the commands, so they stay available throughout.
+_REGISTRY = globals().get("_REGISTRY", {})
+_RELOADING = globals().get("_RELOADING", False)
 
 
 class _CommandEntry(object):

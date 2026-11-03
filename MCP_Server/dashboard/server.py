@@ -6,6 +6,7 @@ is accessed via ``MCP_Server.state``.
 """
 
 import logging
+import os
 import time
 import threading
 import webbrowser
@@ -274,7 +275,8 @@ def start_dashboard_server():
                 continue
             sock.listen(config.backlog)
             logger.info("Dashboard started at http://127.0.0.1:%d", state.DASHBOARD_PORT)
-            webbrowser.open(f"http://127.0.0.1:{state.DASHBOARD_PORT}")
+            if os.environ.get("ABLETON_BRIDGE_OPEN_DASHBOARD") == "1":
+                webbrowser.open(f"http://127.0.0.1:{state.DASHBOARD_PORT}")
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             loop.run_until_complete(server.serve(sockets=[sock]))

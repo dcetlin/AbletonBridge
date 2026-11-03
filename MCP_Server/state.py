@@ -8,6 +8,7 @@ Variable names have **no** underscore prefix -- they are accessed as e.g.
 ``state.ableton_connection``, ``state.snapshot_store``, etc.
 """
 
+import asyncio
 import os
 import socket
 import threading
@@ -60,6 +61,7 @@ ableton_connected_event: threading.Event = threading.Event()  # set on first con
 # M4L ping cache
 # ---------------------------------------------------------------------------
 m4l_ping_cache: Dict[str, Any] = {"result": False, "timestamp": 0.0}
+main_loop: Optional[asyncio.AbstractEventLoop] = None  # the MCP server's event loop, once started
 m4l_ping_lock = threading.Lock()  # held while a dashboard status ping runs
 M4L_PING_CACHE_TTL: float = 5.0
 

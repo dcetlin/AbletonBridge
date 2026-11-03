@@ -38,6 +38,7 @@ def test_dashboard_comes_up_once_its_port_is_free(monkeypatch) -> None:
     port = _free_port()
     monkeypatch.setattr(state, "DASHBOARD_PORT", port)
     monkeypatch.setattr(dashboard, "DASHBOARD_RETRY_SECONDS", 0.1)
+    monkeypatch.setenv("ABLETON_BRIDGE_OPEN_DASHBOARD", "1")
     holder = socket.socket()
     holder.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     holder.bind(("127.0.0.1", port))
@@ -65,6 +66,7 @@ def test_stopping_during_the_retry_wait_ends_the_loop(monkeypatch) -> None:
     port = _free_port()
     monkeypatch.setattr(state, "DASHBOARD_PORT", port)
     monkeypatch.setattr(dashboard, "DASHBOARD_RETRY_SECONDS", 0.1)
+    monkeypatch.setenv("ABLETON_BRIDGE_OPEN_DASHBOARD", "1")
     holder = socket.socket()
     holder.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     holder.bind(("127.0.0.1", port))
@@ -77,4 +79,17 @@ def test_stopping_during_the_retry_wait_ends_the_loop(monkeypatch) -> None:
         time.sleep(0.5)
         browser.assert_not_called()
         assert not _responds(port)
+
+
+def test_browser_stays_closed_unless_asked_for(monkeypatch) -> None:
+    port = _free_port()
+    monkeypatch.setattr(state, "DASHBOARD_PORT", port)
+    monkeypatch.delenv("ABLETON_BRIDGE_OPEN_DASHBOARD", raising=False)
+    with patch.object(dashboard.webbrowser, "open") as browser:
+        dashboard.start_dashboard_server()
+        try:
+            assert _wait_for(lambda: _responds(port))
+            browser.assert_not_called()
+        finally:
+            dashboard.stop_dashboard_server()
 

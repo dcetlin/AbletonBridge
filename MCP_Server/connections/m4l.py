@@ -93,6 +93,7 @@ class M4LConnection:
     send_sock: socket.socket | None = None
     recv_sock: socket.socket | None = None
     _connected: bool = False
+    _retired: bool = False
     _send_lock: threading.Lock = field(default_factory=threading.Lock)
 
     def connect(self) -> bool:
@@ -125,6 +126,14 @@ class M4LConnection:
         self.send_sock = None
         self.recv_sock = None
         self._connected = False
+
+    def retire(self):
+        """Close for good, when another connection replaces this one on the same port.
+
+        A command still queued on this object fails instead of reopening the port.
+        """
+        self._retired = True
+        self.disconnect()
 
     @staticmethod
     def _build_osc_message(address: str, osc_args: list | None = None) -> bytes:
@@ -228,6 +237,8 @@ class M4LConnection:
         max_attempts = 2
         for attempt in range(1, max_attempts + 1):
             with self._send_lock:
+                if self._retired:
+                    raise ConnectionError("M4L connection was replaced.")
                 if not self._connected:
                     if not self.connect():
                         raise ConnectionError("Could not establish M4L UDP connection.")
@@ -486,18 +497,17 @@ def get_m4l_connection() -> M4LConnection:
     # If we have a connected instance, verify it still works
     if state.m4l_connection is not None and state.m4l_connection._connected:
         # Use cached ping result if recent enough (avoids ~50-200ms round trip)
-        now = time.time()
-        if (now - state.m4l_ping_cache["timestamp"]) < state.M4L_PING_CACHE_TTL:
+        if (time.time() - state.m4l_ping_cache["timestamp"]) < state.M4L_PING_CACHE_TTL:
             if state.m4l_ping_cache["result"]:
                 return state.m4l_connection
         # Cache expired or stale, do a live ping
         if state.m4l_connection.ping():
             state.m4l_ping_cache["result"] = True
-            state.m4l_ping_cache["timestamp"] = now
+            state.m4l_ping_cache["timestamp"] = time.time()
             return state.m4l_connection
         # Ping failed -- tear down and try fresh
         logger.warning("M4L bridge ping failed on existing connection, reconnecting...")
-        state.m4l_connection.disconnect()
+        state.m4l_connection.retire()
         state.m4l_connection = None
 
     # Create a fresh connection
