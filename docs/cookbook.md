@@ -15,8 +15,11 @@ Escalation reference for when things go wrong or get complex. For basic tool usa
 ### Audio tracks and `create_clip`
 `create_clip` creates MIDI clips — it fails on audio tracks. Audio tracks need an audio file to create a clip. **Workaround:** Use `load_audio_to_session` with a silent WAV file to create a clip container on an audio track.
 
-### Mixer parameters on arrangement clips
-Volume, Pan, and Send parameters cannot be automated via arrangement clip envelopes. **Workaround:** Use `create_step_automation` on a session clip, then `duplicate_clip_to_arrangement`.
+### New envelopes on arrangement clips
+Live refuses to create a new automation envelope on an arrangement clip, for mixer and device parameters alike ("Not a session clip or parameter belongs to another track"). **Workaround:** Use `create_clip_automation` or `create_step_automation` on a session clip, then `duplicate_clip_to_arrangement`.
+
+### How automation steps behave
+A step covers `(start, start + duration]`, and outside its steps an envelope reads as the parameter's own value. `create_clip_automation` therefore holds each value until the next point, and without `append` replaces the whole clip: the first value also covers from the clip's start, and the last holds to its end. With `append` it replaces only from the first point to one `resolution` past the last, so one appended point lasts just that long. Automation tools read just past the requested time, so a step starting there counts.
 
 ### `live.remote~` mapping (Envelope Follower, etc.)
 M4L device internal mappings (`live.remote~` connections) cannot be created programmatically via LOM. They are internal to the Max patch. **Alternative:** Bake the automation — read the source with `get_arrangement_automation_hires`, write to the target with `create_track_automation`.

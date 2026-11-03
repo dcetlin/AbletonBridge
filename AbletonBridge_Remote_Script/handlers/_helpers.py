@@ -170,41 +170,52 @@ def interpolate_automation(points, resolution=0.0625, mode="hold"):
 
 
 # A step written by insert_step(start, duration, value) covers (start, start + duration],
-# so reading exactly at its start returns whatever came before it.
+# so reading exactly at its start returns whatever came before it. Outside its steps an
+# envelope reads as the parameter's own value, and a later step overlays earlier ones.
 _STEP_READ_OFFSET = 0.0001
 _MIN_STEP_BEATS = 0.001
 
 
-def read_envelope(envelope, time):
-    """The envelope's value at `time`, counting a step that starts exactly there."""
-    return envelope.value_at_time(time + _STEP_READ_OFFSET)
+def read_envelope(envelope, time, end=None):
+    """The envelope's value at `time`, counting a step that starts exactly there.
+
+    `end` is where the envelope stops; a step covers its own end, so reads stay within it.
+    """
+    read_at = time + _STEP_READ_OFFSET
+    return envelope.value_at_time(read_at if end is None else min(read_at, end))
 
 
 def write_automation_steps(envelope, points, start, end, param_min, param_max, deadline, tail_beats=None):
-    """Write time-sorted points as held steps. Returns the (time, value) pairs written.
+    """Write points as held steps over [start, end). Returns what was written, in time order.
 
-    Each step holds until the next point, and the last holds until `end`, or for
-    `tail_beats` if given. A step any shorter leaves the envelope at its old value in
-    between, because a step only covers its own duration. Stops at `deadline`.
+    Each step holds until the next point, because a step only covers its own duration.
+    Without `tail_beats` the steps replace the whole range: the first value also covers
+    from `start`, and the last holds to `end`. With it, they replace only from the first
+    point to `tail_beats` past the last, leaving the rest of the envelope. Points at or past
+    `end` are dropped, and the last of several at one time wins. Stops at `deadline`.
     """
-    last_time = end - _MIN_STEP_BEATS
-    timed = [
-        (max(start, min(last_time, float(point.get("time", 0.0)))),
-         max(param_min, min(param_max, float(point.get("value", 0.0)))))
-        for point in points
-    ]
+    timed = {}
+    for point in sorted(points, key=lambda p: float(p.get("time", 0.0))):
+        time_val = max(start, float(point.get("time", 0.0)))
+        if time_val < end:
+            timed[time_val] = max(param_min, min(param_max, float(point.get("value", 0.0))))
+    steps = sorted(timed.items())
+
+    if steps and tail_beats is None and steps[0][0] > start:
+        envelope.insert_step(start, steps[0][0] - start, steps[0][1])
+
     written = []
-    for index, (time_val, value) in enumerate(timed):
+    for index, (time_val, value) in enumerate(steps):
         if _time.time() > deadline:
             break
-        if index + 1 < len(timed):
-            until = timed[index + 1][0]
+        if index + 1 < len(steps):
+            until = steps[index + 1][0]
         elif tail_beats is not None:
-            until = min(end, time_val + tail_beats)
+            until = min(end, time_val + max(tail_beats, _MIN_STEP_BEATS))
         else:
             until = end
-        envelope.insert_step(time_val, max(_MIN_STEP_BEATS, until - time_val), value)
-        written.append({"time": time_val, "value": value})
+        envelope.insert_step(time_val, until - time_val, value)
+        written.append({"time": time_val, "value": value, "until": until})
     return written
 
 
@@ -224,6 +235,9 @@ def verify_automation(envelope, expected_points, param_min, param_max, epsilon=0
         try:
             actual = read_envelope(envelope, t)
             errors.append(abs(actual - expected))
+            # A step covers its own end, so this also catches one that didn't hold.
+            if "until" in point:
+                errors.append(abs(envelope.value_at_time(point["until"]) - expected))
         except Exception:
             errors.append(fail_error)
     sorted_errors = sorted(errors)
@@ -235,4 +249,4 @@ def verify_automation(envelope, expected_points, param_min, param_max, epsilon=0
         verdict = "drift"
     else:
         verdict = "mismatch"
-    return {"verdict": verdict, "median_error": round(median_err, 6), "max_error": round(max_err, 6), "samples": len(errors)}
+    return {"verdict": verdict, "median_error": round(median_err, 6), "max_error": round(max_err, 6), "samples": len(expected_points)}

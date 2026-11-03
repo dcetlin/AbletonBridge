@@ -1,12 +1,15 @@
-"""Automation steps, checked against how Live's envelopes read in practice.
+"""Automation handlers, run against an envelope that behaves as Live's does.
 
-Observed in Live 12: insert_step(start, duration, value) covers (start, start + duration],
-and outside its steps an envelope reads as the parameter's existing value.
+Measured in Live 12: insert_step(start, duration, value) covers (start, start + duration],
+outside its steps an envelope reads as the parameter's own value, a later step overlays
+earlier ones, and a step with no duration is discarded.
 """
 
 from __future__ import annotations
 
 import time
+from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -15,8 +18,19 @@ from AbletonBridge_Remote_Script.handlers._helpers import (
     verify_automation,
     write_automation_steps,
 )
+from AbletonBridge_Remote_Script.handlers.automation import (
+    clear_clip_automation,
+    create_clip_automation,
+    create_step_automation,
+    create_track_automation,
+    get_arrangement_automation_hires,
+    get_clip_automation,
+    get_clip_automation_hires,
+    get_clip_automation_value,
+)
 
 BASE_VALUE = 0.85
+CLIP_LENGTH = 4.0
 
 
 class LiveLikeEnvelope:
@@ -24,8 +38,8 @@ class LiveLikeEnvelope:
         self.steps: list[tuple[float, float, float]] = []
 
     def insert_step(self, start: float, duration: float, value: float) -> None:
-        assert duration > 0
-        self.steps.append((start, start + duration, value))
+        if duration > 0:
+            self.steps.append((start, start + duration, value))
 
     def value_at_time(self, t: float) -> float:
         for start, end, value in reversed(self.steps):
@@ -34,54 +48,175 @@ class LiveLikeEnvelope:
         return BASE_VALUE
 
 
-def _write(points: list[dict[str, float]], end: float = 4.0, start: float = 0.0, tail: float | None = None) -> tuple[LiveLikeEnvelope, list[dict[str, float]]]:
-    envelope = LiveLikeEnvelope()
-    written = write_automation_steps(envelope, points, start, end, 0.0, 1.0, time.time() + 5, tail_beats=tail)
-    return envelope, written
+def _param() -> MagicMock:
+    param = MagicMock(min=0.0, max=1.0)
+    return param
 
 
-def test_values_hold_between_points_and_to_the_end() -> None:
-    envelope, _ = _write([{"time": 0, "value": 0.2}, {"time": 2, "value": 0.8}])
-    assert read_envelope(envelope, 0.0) == 0.2
-    assert read_envelope(envelope, 1.5) == 0.2
-    assert read_envelope(envelope, 2.0) == 0.8
-    assert read_envelope(envelope, 3.9) == 0.8
+def _clip(envelope: LiveLikeEnvelope, length: float = CLIP_LENGTH, **attributes: Any) -> MagicMock:
+    clip = MagicMock(length=length, **attributes)
+    clip.automation_envelope.return_value = envelope
+    clip.clear_envelope.side_effect = lambda _p: envelope.steps.clear()
+    return clip
 
 
-def test_read_back_matches_what_was_written() -> None:
-    envelope, written = _write([{"time": 0, "value": 0.2}, {"time": 2, "value": 0.8}])
-    assert verify_automation(envelope, written, 0.0, 1.0)["verdict"] == "match"
+def _song(envelope: LiveLikeEnvelope, length: float = CLIP_LENGTH) -> tuple[MagicMock, MagicMock]:
+    clip = _clip(envelope, length)
+    track = MagicMock(devices=[])
+    track.clip_slots = [MagicMock(has_clip=True, clip=clip)]
+    track.mixer_device.volume = _param()
+    song = MagicMock(tracks=[track])
+    return song, clip
 
 
-def test_read_back_catches_a_step_that_did_not_hold() -> None:
-    envelope = LiveLikeEnvelope()
-    envelope.insert_step(1.0, 0.001, 0.2)
-    assert verify_automation(envelope, [{"time": 2.0, "value": 0.2}], 0.0, 1.0)["verdict"] == "mismatch"
+def _arrangement_song(envelope: LiveLikeEnvelope, start: float, end: float) -> MagicMock:
+    clip = _clip(envelope, end - start, start_time=start, end_time=end)
+    track = MagicMock(devices=[], arrangement_clips=[clip])
+    track.mixer_device.volume = _param()
+    return MagicMock(tracks=[track])
 
 
-def test_append_ends_after_its_tail_and_keeps_what_follows() -> None:
-    envelope, _ = _write([{"time": 0, "value": 0.2}], tail=0.5)
-    assert read_envelope(envelope, 0.25) == 0.2
-    assert read_envelope(envelope, 1.0) == BASE_VALUE
+def _points(*pairs: tuple[float, float]) -> list[dict[str, float]]:
+    return [{"time": t, "value": v} for t, v in pairs]
 
 
-def test_arrangement_range_is_respected() -> None:
-    envelope, written = _write([{"time": 1, "value": 0.2}, {"time": 50, "value": 0.8}], start=10.0, end=20.0)
-    assert [p["time"] for p in written] == [10.0, pytest.approx(19.999)]
-    assert read_envelope(envelope, 15.0) == 0.2
+def _write_clip(points: list[dict[str, float]], envelope: LiveLikeEnvelope | None = None, **kwargs: Any) -> tuple[LiveLikeEnvelope, dict[str, Any]]:
+    envelope = envelope or LiveLikeEnvelope()
+    song, _ = _song(envelope)
+    return envelope, create_clip_automation(song, 0, 0, "Volume", points, verify=True, **kwargs)
 
 
-def test_values_are_clamped_to_the_parameter_range() -> None:
-    _, written = _write([{"time": 0, "value": -1}, {"time": 1, "value": 2}])
-    assert [p["value"] for p in written] == [0.0, 1.0]
+class TestClipWrites:
+    def test_values_hold_between_points_and_to_the_end(self) -> None:
+        envelope, result = _write_clip(_points((1, 0.2), (2, 0.8)))
+        assert [read_envelope(envelope, t) for t in (0.5, 1.0, 1.5, 2.0, 3.9)] == [0.2, 0.2, 0.2, 0.8, 0.8]
+        assert result["verified"]["verdict"] == "match"
+
+    def test_unsorted_points_are_written_in_time_order(self) -> None:
+        envelope, result = _write_clip(_points((2, 0.8), (0, 0.2)))
+        assert [read_envelope(envelope, t) for t in (1.0, 3.0)] == [0.2, 0.8]
+        assert result["last_written_time"] == 2.0
+
+    def test_a_new_write_replaces_the_whole_clip(self) -> None:
+        envelope, _ = _write_clip(_points((0, 0.1)))
+        _write_clip(_points((2, 0.5)), envelope)
+        assert read_envelope(envelope, 1.0) == 0.5
+        assert read_envelope(envelope, 3.0) == 0.5
+
+    def test_append_replaces_only_its_own_range(self) -> None:
+        envelope, _ = _write_clip(_points((0, 0.1)))
+        _write_clip(_points((1, 0.5), (2, 0.6)), envelope, append=True, resolution=0.25)
+        values = [read_envelope(envelope, t) for t in (0.5, 1.5, 2.1, 2.5)]
+        assert values == [0.1, 0.5, 0.6, 0.1]
+
+    def test_points_past_the_clip_are_dropped_without_a_spike(self) -> None:
+        envelope, result = _write_clip(_points((0, 0.2), (3, 0.4), (8, 1.0)))
+        assert read_envelope(envelope, 3.9) == 0.4
+        assert envelope.value_at_time(CLIP_LENGTH) == 0.4
+        assert result["verified"]["verdict"] == "match"
+
+    def test_last_point_at_one_time_wins_and_verifies(self) -> None:
+        envelope, result = _write_clip(_points((1, 0.2), (1, 0.8)))
+        assert read_envelope(envelope, 1.0) == 0.8
+        assert result["verified"]["verdict"] == "match"
+        assert result["verified"]["samples"] == 1
+
+    def test_values_are_clamped_to_the_parameter_range(self) -> None:
+        envelope, _ = _write_clip(_points((0, -1), (1, 2)))
+        assert [read_envelope(envelope, t) for t in (0.5, 1.5)] == [0.0, 1.0]
+
+    def test_write_stops_at_the_deadline_and_reports_it(self) -> None:
+        envelope = LiveLikeEnvelope()
+        written = write_automation_steps(envelope, _points((1, 0.2)), 0.0, 4.0, 0.0, 1.0, time.time() - 1)
+        assert written == []
 
 
-def test_points_at_the_same_time_keep_a_valid_duration_and_the_last_wins() -> None:
-    envelope, _ = _write([{"time": 1, "value": 0.2}, {"time": 1, "value": 0.8}])
-    assert read_envelope(envelope, 1.0) == 0.8
+class TestVerify:
+    def test_catches_a_step_that_did_not_hold(self) -> None:
+        envelope = LiveLikeEnvelope()
+        envelope.insert_step(1.0, 0.001, 0.2)
+        written = [{"time": 1.0, "value": 0.2, "until": 2.0}]
+        assert verify_automation(envelope, written, 0.0, 1.0)["verdict"] == "mismatch"
 
 
-def test_write_stops_at_the_deadline() -> None:
-    envelope = LiveLikeEnvelope()
-    assert write_automation_steps(envelope, [{"time": 0, "value": 0.2}], 0.0, 4.0, 0.0, 1.0, time.time() - 1) == []
-    assert envelope.steps == []
+class TestTrackWrites:
+    def test_range_is_the_clips_and_holds_to_its_end(self) -> None:
+        envelope = LiveLikeEnvelope()
+        song = _arrangement_song(envelope, 16.0, 24.0)
+        result = create_track_automation(song, 0, "Volume", _points((17, 0.2), (19, 0.6)), verify=True)
+        assert [read_envelope(envelope, t) for t in (16.5, 18.0, 23.5)] == [0.2, 0.2, 0.6]
+        assert read_envelope(envelope, 15.0) == BASE_VALUE
+        assert result["verified"]["verdict"] == "match"
+
+    def test_append_keeps_the_rest(self) -> None:
+        envelope = LiveLikeEnvelope()
+        song = _arrangement_song(envelope, 16.0, 24.0)
+        create_track_automation(song, 0, "Volume", _points((17, 0.2)), append=True, resolution=0.5)
+        assert read_envelope(envelope, 17.25) == 0.2
+        assert read_envelope(envelope, 18.0) == BASE_VALUE
+
+    def test_refused_new_envelope_explains_the_workaround(self) -> None:
+        song = _arrangement_song(LiveLikeEnvelope(), 16.0, 24.0)
+        clip = song.tracks[0].arrangement_clips[0]
+        clip.automation_envelope.return_value = None
+        clip.create_automation_envelope.side_effect = RuntimeError("Not a session clip")
+        with pytest.raises(RuntimeError, match="create_step_automation"):
+            create_track_automation(song, 0, "Volume", _points((17, 0.2)))
+
+
+class TestStepTool:
+    def _steps(self, steps: list[dict[str, float]]) -> LiveLikeEnvelope:
+        envelope = LiveLikeEnvelope()
+        song, _ = _song(envelope)
+        create_step_automation(song, 0, 0, "Volume", steps)
+        return envelope
+
+    def test_duration_is_kept(self) -> None:
+        envelope = self._steps([{"time": 1, "value": 0.2, "duration": 1}])
+        assert [read_envelope(envelope, t) for t in (0.5, 1.5, 2.5)] == [BASE_VALUE, 0.2, BASE_VALUE]
+
+    def test_missing_duration_holds_to_the_next_step_or_the_end(self) -> None:
+        envelope = self._steps([{"time": 2, "value": 0.8}, {"time": 1, "value": 0.2}])
+        assert [read_envelope(envelope, t) for t in (1.5, 2.5, 3.9)] == [0.2, 0.8, 0.8]
+
+    def test_earlier_automation_is_cleared(self) -> None:
+        envelope = LiveLikeEnvelope()
+        song, clip = _song(envelope)
+        create_step_automation(song, 0, 0, "Volume", [{"time": 0, "value": 0.2, "duration": 4}])
+        create_step_automation(song, 0, 0, "Volume", [{"time": 1, "value": 0.8, "duration": 1}])
+        assert read_envelope(envelope, 0.5) == BASE_VALUE
+        assert clip.clear_envelope.call_count == 2
+
+
+class TestReads:
+    def _written(self) -> tuple[LiveLikeEnvelope, MagicMock]:
+        envelope = LiveLikeEnvelope()
+        song, _ = _song(envelope)
+        create_clip_automation(song, 0, 0, "Volume", _points((0, 0.2), (2, 0.8)))
+        return envelope, song
+
+    def test_value_at_a_step_start_counts_that_step(self) -> None:
+        _, song = self._written()
+        assert get_clip_automation_value(song, 0, 0, "Volume", 2.0)["value"] == 0.8
+
+    def test_value_at_the_clip_end_stays_within_it(self) -> None:
+        _, song = self._written()
+        assert get_clip_automation_value(song, 0, 0, "Volume", CLIP_LENGTH)["value"] == 0.8
+
+    def test_sampled_reads_count_a_step_starting_at_the_sample(self) -> None:
+        _, song = self._written()
+        points = get_clip_automation(song, 0, 0, "Volume")["points"]
+        assert points[0]["value"] == 0.2
+        hires = get_clip_automation_hires(song, 0, 0, "Volume", sample_count=4)["points"]
+        assert [p["value"] for p in hires] == [0.2, 0.2, 0.8, 0.8]
+
+    def test_arrangement_read_counts_a_step_starting_at_the_sample(self) -> None:
+        envelope = LiveLikeEnvelope()
+        envelope.insert_step(0.0, 4.0, 0.2)
+        song = _arrangement_song(envelope, 0.0, 4.0)
+        assert get_arrangement_automation_hires(song, 0, "Volume", sample_count=4)["points"][0]["value"] == 0.2
+
+    def test_clearing_uses_the_clips_clear(self) -> None:
+        envelope, song = self._written()
+        assert clear_clip_automation(song, 0, 0, "Volume")["cleared"] is True
+        assert envelope.steps == []

@@ -9,6 +9,9 @@ from MCP_Server.connections.ableton import get_ableton_connection
 from MCP_Server.validation import _validate_index, _validate_range, _validate_automation_points, _reduce_automation_points, MAX_AUTOMATION_POINTS
 
 
+STEPPED_CURVES = ("square", "pulse", "random")  # the rest ramp between their points
+
+
 def build_adsr_points(attack, decay, sustain_level, release,
                       peak=1.0, floor=0.0, sustain_time=None):
     """Build ADSR envelope breakpoints with per-point interpolation modes.
@@ -144,11 +147,13 @@ def register_tools(mcp):
         - automation_points: List of {time: float, value: float} dictionaries (breakpoints)
         - device_index: Optional device index to scope parameter lookup
         - reduce: If True, apply RDP point reduction to simplify the curve (default: False)
-        - append: If True, add points to existing automation instead of clearing first (default: False)
+        - append: If True, replace only from the first point to one `resolution` past the
+          last, leaving the rest of the envelope. Otherwise the points replace the whole clip:
+          the first value also covers from the clip's start, the last holds to its end
         - interpolation: Curve shape between breakpoints: "hold" (staircase, default),
           "linear" (smooth ramps), "exponential" (exponential curve)
         - resolution: Beats between interpolated points (default: 0.0625 = 64th note).
-          Lower = smoother but more points. Only used when interpolation != "hold".
+          Lower = smoother but more points. Used when interpolation != "hold", and for append.
         - verify: If True, read the envelope back after writing and return a
           {verdict, median_error, max_error, samples} report (default: False)
 
@@ -176,7 +181,7 @@ def register_tools(mcp):
         result = ableton.send_command("create_clip_automation", cmd_params)
         pts = result.get("points_added", len(automation_points))
         mode_label = f" ({interpolation}, res={resolution})" if interpolation != "hold" else ""
-        if verify and result.get("verified"):
+        if (verify and result.get("verified")) or result.get("partial"):
             return json.dumps(result)
         return f"Created automation with {pts} points{mode_label} for parameter '{parameter_name}'"
 
@@ -290,7 +295,9 @@ def register_tools(mcp):
         - automation_points: List of {time: float, value: float} dictionaries (breakpoints)
         - device_index: Optional device index to scope parameter lookup
         - reduce: If True, apply RDP point reduction to simplify the curve (default: False)
-        - append: If True, add points to existing automation instead of clearing first (default: False)
+        - append: If True, replace only from the first point to one `resolution` past the
+          last, leaving the rest of the envelope. Otherwise the points replace the whole clip:
+          the first value also covers from the clip's start, the last holds to its end
         - interpolation: Curve shape between breakpoints: "hold" (staircase, default),
           "linear" (smooth ramps), "exponential" (exponential curve)
         - resolution: Beats between interpolated points (default: 0.0625 = 64th note).
@@ -317,7 +324,7 @@ def register_tools(mcp):
         result = ableton.send_command("create_track_automation", cmd_params)
         pts = result.get("points_added", len(automation_points))
         mode_label = f" ({interpolation}, res={resolution})" if interpolation != "hold" else ""
-        if verify and result.get("verified"):
+        if (verify and result.get("verified")) or result.get("partial"):
             return json.dumps(result)
         return f"Created track automation for '{parameter_name}' with {pts} points{mode_label}"
 
@@ -437,6 +444,7 @@ def register_tools(mcp):
             "clip_index": clip_index,
             "parameter_name": parameter_name,
             "automation_points": automation_points,
+            "interpolation": "hold" if curve_type in STEPPED_CURVES else "linear",
         })
 
         return f"Created {curve_type} automation curve ({points} points) for '{parameter_name}' on track {track_index} clip {clip_index}"

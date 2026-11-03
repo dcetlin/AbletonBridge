@@ -238,7 +238,7 @@ class TestVerifyWiredThroughHandler:
     *interpolated* points that were actually written — not the raw breakpoints."""
 
     def test_hold_mode_verify_reports_match(self):
-        song, env = _clip_song(100.0, lambda t: {0.0: 0.2, 1.0: 0.8}[round(t, 3)])
+        song, env = _clip_song(100.0, lambda t: 0.2 if t <= 1.0 else 0.8)
         res = create_clip_automation(
             song, 0, 0, "Volume",
             [{"time": 0.0, "value": 0.2}, {"time": 1.0, "value": 0.8}],
@@ -269,5 +269,6 @@ class TestVerifyWiredThroughHandler:
         # interpolated expansion, matching what insert_step actually wrote.
         assert res["verified"]["samples"] > 2
         assert res["points_added"] == res["verified"]["samples"]
-        assert env.value_at_time.call_count == res["verified"]["samples"]
+        # Each step is read at its start and at the end it should hold to.
+        assert env.value_at_time.call_count == 2 * res["verified"]["samples"]
         assert res["verified"]["verdict"] == "match"

@@ -81,12 +81,6 @@ def create_clip_automation(song, track_index: int, clip_index: int, parameter_na
         if envelope is None:
             raise RuntimeError("Could not get automation envelope for parameter '{0}'".format(parameter_name))
 
-    if not append and hasattr(envelope, 'clear'):
-        try:
-            envelope.clear()
-        except Exception:
-            pass
-
     resolution, planned_steps = budget_automation_steps(automation_points, resolution)
 
     # Always route through interpolate_automation: it self-guards (returns points
@@ -112,8 +106,8 @@ def create_clip_automation(song, track_index: int, clip_index: int, parameter_na
         "points_planned": len(automation_points),
         "partial": written < len(automation_points),
         "resolution_used": resolution,
-        # On a partial write, the covered range is [start, last_written_time];
-        # points are time-sorted, so a caller can resume past this boundary.
+        # Points are written in time order, so on a partial write a caller can resume
+        # past this boundary with append.
         "last_written_time": last_written_time,
     }
     if verify:
@@ -177,11 +171,10 @@ def clear_clip_automation(song, track_index: int, clip_index: int, parameter_nam
     if envelope is None:
         return {"cleared": False, "parameter": parameter_name, "reason": "No automation envelope found"}
 
-    if hasattr(envelope, 'clear'):
-        envelope.clear()
-        return {"cleared": True, "parameter": parameter_name}
-    else:
-        raise NotImplementedError("Envelope does not support clear()")
+    if not hasattr(clip, 'clear_envelope'):
+        raise NotImplementedError("Clip does not support clear_envelope()")
+    clip.clear_envelope(param)
+    return {"cleared": True, "parameter": parameter_name}
 
 
 @command("list_clip_automated_params")
@@ -313,7 +306,10 @@ def create_track_automation(song, track_index: int, parameter_name: str, automat
     if hasattr(target_clip, "automation_envelope"):
         envelope = target_clip.automation_envelope(parameter)
     if envelope is None and hasattr(target_clip, "create_automation_envelope"):
-        envelope = target_clip.create_automation_envelope(parameter)
+        try:
+            envelope = target_clip.create_automation_envelope(parameter)
+        except RuntimeError:  # Live refuses a new envelope on an arrangement clip
+            envelope = None
     if envelope is None:
         is_mixer = parameter_name.lower() in ("volume", "pan", "panning") or parameter_name.lower().startswith("send")
         hint = (
@@ -329,12 +325,6 @@ def create_track_automation(song, track_index: int, parameter_name: str, automat
             "Could not get automation envelope for '{0}' on arrangement clip.{1}".format(
                 parameter_name, hint)
         )
-
-    if not append and hasattr(envelope, 'clear'):
-        try:
-            envelope.clear()
-        except Exception:
-            pass
 
     resolution, planned_steps = budget_automation_steps(automation_points, resolution)
 
@@ -358,8 +348,8 @@ def create_track_automation(song, track_index: int, parameter_name: str, automat
         "points_planned": len(automation_points),
         "partial": written < len(automation_points),
         "resolution_used": resolution,
-        # On a partial write, the covered range is [clip_start, last_written_time];
-        # points are time-sorted, so a caller can resume past this boundary.
+        # Points are written in time order, so on a partial write a caller can resume
+        # past this boundary with append.
         "last_written_time": last_written_time,
     }
     if verify:
@@ -547,7 +537,7 @@ def get_clip_automation_value(song, track_index: int, clip_index: int, parameter
         return {"has_automation": False, "parameter": parameter_name}
 
     time = float(time)
-    val = read_envelope(envelope, time)
+    val = read_envelope(envelope, time, end=clip.length)
     return {
         "parameter": parameter_name,
         "time": time,
@@ -666,21 +656,21 @@ def create_step_automation(song, track_index: int, clip_index: int, parameter_na
         if envelope is None:
             raise RuntimeError("Could not get automation envelope for parameter '{0}'".format(parameter_name))
 
-    if hasattr(envelope, 'clear'):
-        try:
-            envelope.clear()
-        except Exception:
-            pass
+    if hasattr(clip, 'clear_envelope'):
+        clip.clear_envelope(param)
+        envelope = clip.automation_envelope(param) or clip.create_automation_envelope(param)
 
     clip_length = clip.length
-    for step in steps:
-        time_val = float(step.get("time", 0.0))
-        time_val = max(0.0, min(clip_length - 0.001, time_val))
-        value = float(step.get("value", 0.0))
+    ordered = sorted(steps, key=lambda step: float(step.get("time", 0.0)))
+    for index, step in enumerate(ordered):
+        time_val = max(0.0, min(clip_length - 0.001, float(step.get("time", 0.0))))
         duration = float(step.get("duration", 0.0))
-        duration = max(0.0, min(clip_length - time_val, duration))
-        clamped = max(param.min, min(param.max, value))
-        envelope.insert_step(time_val, duration, clamped)
+        if duration <= 0:  # Live discards a step with no duration, so hold to the next
+            following = float(ordered[index + 1].get("time", clip_length)) if index + 1 < len(ordered) else clip_length
+            duration = following - time_val
+        duration = max(0.001, min(clip_length - time_val, duration))
+        value = max(param.min, min(param.max, float(step.get("value", 0.0))))
+        envelope.insert_step(time_val, duration, value)
 
     return {
         "parameter": parameter_name,
