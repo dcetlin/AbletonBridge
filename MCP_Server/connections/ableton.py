@@ -269,7 +269,7 @@ def _is_closed_when_idle(conn: AbletonConnection) -> bool:
     if not conn._send_lock.acquire(blocking=False):
         return False
     try:
-        return _peer_closed(conn.sock)
+        return conn.sock is None or _peer_closed(conn.sock)
     finally:
         conn._send_lock.release()
 
