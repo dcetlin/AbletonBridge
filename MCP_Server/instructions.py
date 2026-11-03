@@ -63,15 +63,13 @@ Routing: always call get_track_routing before set_track_routing — you need the
 
 ## Automation
 
-create_clip_automation writes envelopes inside session clips (time = beats from clip start). create_track_automation writes to arrangement timeline lanes (time = beats from song start). Do not confuse them — they target different contexts.
+create_clip_automation writes envelopes inside session clips (time = beats from clip start). Without append it replaces the whole clip: the first value also covers from the clip's start, and the last holds to its end. Live 12 hasn't exposed envelopes on arrangement clips in testing, so create_track_automation is expected to fail: write on a session clip, then duplicate_clip_to_arrangement.
 
-Use as few points as possible — Ableton interpolates linearly between breakpoints. A ramp needs only 2 points; a triangle needs 3. Points are auto-reduced if more than 20 are submitted.
+By default each value holds until the next point. For ramps pass interpolation="linear", which expands breakpoints into small steps: a ramp then needs only 2 points, a triangle 3. Points are auto-reduced if more than 20 are submitted.
 
 create_automation_curve generates shaped envelopes (sine, exponential, s_curve, triangle, sawtooth, etc.). The cycles parameter is cycles per clip length, not per beat. create_step_automation creates held-value steps.
 
 Automation values are in the parameter's native range (usually 0.0-1.0 normalized).
-
-Audio track arrangement automation: create_track_automation cannot create envelopes on audio tracks that haven't been automated before. Always use: load_audio_to_session (with any audio file as a container) → create_clip_automation → duplicate_clip_to_arrangement. The cookbook resource (ableton://cookbook) explains why and covers other LOM limitations.
 
 ## Browser & Loading
 

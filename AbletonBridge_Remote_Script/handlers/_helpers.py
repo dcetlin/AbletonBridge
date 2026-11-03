@@ -186,13 +186,17 @@ def read_envelope(envelope, time, end=None):
 
 
 def write_automation_steps(envelope, points, start, end, param_min, param_max, deadline, tail_beats=None):
-    """Write points as held steps over [start, end). Returns what was written, in time order.
+    """Write points as held steps over [start, end).
+
+    Returns (written, planned): the steps written, in time order, and how many there were
+    to write. Fewer means the deadline cut the write short.
 
     Each step holds until the next point, because a step only covers its own duration.
     Without `tail_beats` the steps replace the whole range: the first value also covers
     from `start`, and the last holds to `end`. With it, they replace only from the first
     point to `tail_beats` past the last, leaving the rest of the envelope. Points at or past
-    `end` are dropped, and the last of several at one time wins. Stops at `deadline`.
+    `end` are dropped, and the last of several at one time wins. Raises ValueError if no
+    point is in range. Stops at `deadline`.
     """
     timed = {}
     for point in sorted(points, key=lambda p: float(p.get("time", 0.0))):
@@ -200,8 +204,10 @@ def write_automation_steps(envelope, points, start, end, param_min, param_max, d
         if time_val < end:
             timed[time_val] = max(param_min, min(param_max, float(point.get("value", 0.0))))
     steps = sorted(timed.items())
+    if not steps:
+        raise ValueError("No automation points fall within {0}-{1}".format(start, end))
 
-    if steps and tail_beats is None and steps[0][0] > start:
+    if tail_beats is None and steps[0][0] > start:
         envelope.insert_step(start, steps[0][0] - start, steps[0][1])
 
     written = []
@@ -216,7 +222,7 @@ def write_automation_steps(envelope, points, start, end, param_min, param_max, d
             until = end
         envelope.insert_step(time_val, until - time_val, value)
         written.append({"time": time_val, "value": value, "until": until})
-    return written
+    return written, len(steps)
 
 
 def verify_automation(envelope, expected_points, param_min, param_max, epsilon=0.01):
@@ -233,11 +239,12 @@ def verify_automation(envelope, expected_points, param_min, param_max, epsilon=0
         t = float(point.get("time", 0.0))
         expected = max(param_min, min(param_max, float(point.get("value", 0.0))))
         try:
-            actual = read_envelope(envelope, t)
+            until = point.get("until")
+            actual = read_envelope(envelope, t, end=until)
             errors.append(abs(actual - expected))
             # A step covers its own end, so this also catches one that didn't hold.
-            if "until" in point:
-                errors.append(abs(envelope.value_at_time(point["until"]) - expected))
+            if until is not None:
+                errors.append(abs(envelope.value_at_time(until) - expected))
         except Exception:
             errors.append(fail_error)
     sorted_errors = sorted(errors)

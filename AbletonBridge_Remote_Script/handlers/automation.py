@@ -90,7 +90,7 @@ def create_clip_automation(song, track_index: int, clip_index: int, parameter_na
 
     # Only the points that actually landed are checked on read-back, not any tail skipped
     # past the write deadline.
-    written_points = write_automation_steps(
+    written_points, planned = write_automation_steps(
         envelope, automation_points, 0.0, clip.length, param.min, param.max,
         _time.time() + AUTOMATION_WRITE_BUDGET_SECONDS,
         tail_beats=resolution if append else None,
@@ -103,11 +103,10 @@ def create_clip_automation(song, track_index: int, clip_index: int, parameter_na
         "track_index": track_index,
         "clip_index": clip_index,
         "points_added": written,
-        "points_planned": len(automation_points),
-        "partial": written < len(automation_points),
+        "points_planned": planned,
+        "partial": written < planned,
         "resolution_used": resolution,
-        # Points are written in time order, so on a partial write a caller can resume
-        # past this boundary with append.
+        # On a partial write, rewrite the whole curve with fewer points or a coarser resolution.
         "last_written_time": last_written_time,
     }
     if verify:
@@ -260,22 +259,8 @@ def create_track_automation(song, track_index: int, parameter_name: str, automat
 
     arr_clips = list(track.arrangement_clips)
     if not arr_clips:
-        # Auto-create an arrangement clip covering the automation range
-        if hasattr(track, "create_arrangement_clip"):
-            end_time = t_max + 1.0
-            try:
-                track.create_arrangement_clip(0.0, end_time)
-                arr_clips = list(track.arrangement_clips)
-            except Exception as create_err:
-                raise ValueError(
-                    "No arrangement clips on track {0} and auto-create failed: {1}. "
-                    "Create a clip manually first.".format(track_index, create_err)
-                )
-        else:
-            raise ValueError(
-                "No arrangement clips on track {0} and create_arrangement_clip is not "
-                "available (requires Live 12+). Create a clip manually first.".format(track_index)
-            )
+        raise ValueError(
+            "No arrangement clips on track {0}. Create a clip first.".format(track_index))
 
     # Pick the first arrangement clip whose range covers t_min
     target_clip = None
@@ -311,20 +296,10 @@ def create_track_automation(song, track_index: int, parameter_name: str, automat
         except RuntimeError:  # Live refuses a new envelope on an arrangement clip
             envelope = None
     if envelope is None:
-        is_mixer = parameter_name.lower() in ("volume", "pan", "panning") or parameter_name.lower().startswith("send")
-        hint = (
-            " Mixer parameters cannot be automated via arrangement clip envelopes. "
-            "Workaround: use create_step_automation on a session clip, then "
-            "duplicate_clip_to_arrangement."
-        ) if is_mixer else (
-            " create_automation_envelope() does not work on arrangement clips for "
-            "parameters that haven't been automated before. Workaround: use "
-            "create_step_automation on a session clip, then duplicate_clip_to_arrangement."
-        )
         raise RuntimeError(
-            "Could not get automation envelope for '{0}' on arrangement clip.{1}".format(
-                parameter_name, hint)
-        )
+            "Could not get an automation envelope for '{0}': Live doesn't expose envelopes on "
+            "arrangement clips here. Use create_clip_automation on a session clip, then "
+            "duplicate_clip_to_arrangement.".format(parameter_name))
 
     resolution, planned_steps = budget_automation_steps(automation_points, resolution)
 
@@ -333,7 +308,7 @@ def create_track_automation(song, track_index: int, parameter_name: str, automat
     # "interpolation" overrides are honored even when the curve-global mode is "hold".
     automation_points = interpolate_automation(automation_points, resolution, interpolation)
 
-    written_points = write_automation_steps(
+    written_points, planned = write_automation_steps(
         envelope, automation_points, clip_start, clip_end, parameter.min, parameter.max,
         _time.time() + AUTOMATION_WRITE_BUDGET_SECONDS,
         tail_beats=resolution if append else None,
@@ -345,11 +320,10 @@ def create_track_automation(song, track_index: int, parameter_name: str, automat
         "parameter": parameter_name,
         "track_index": track_index,
         "points_added": written,
-        "points_planned": len(automation_points),
-        "partial": written < len(automation_points),
+        "points_planned": planned,
+        "partial": written < planned,
         "resolution_used": resolution,
-        # Points are written in time order, so on a partial write a caller can resume
-        # past this boundary with append.
+        # On a partial write, rewrite the whole curve with fewer points or a coarser resolution.
         "last_written_time": last_written_time,
     }
     if verify:
@@ -637,7 +611,8 @@ def create_step_automation(song, track_index: int, clip_index: int, parameter_na
     """Create step (held-value) automation — each step holds its value for a duration.
 
     Args:
-        steps: List of {time, value, duration} dicts. duration > 0 creates a held step.
+        steps: List of {time, value, duration} dicts. A missing or zero duration holds to
+            the next step, or the clip's end. Steps at or past the clip's end are dropped.
     """
     track, clip = get_clip(song, track_index, clip_index)
     param = _find_parameter(song, track_index, parameter_name, device_index=device_index)
@@ -661,13 +636,15 @@ def create_step_automation(song, track_index: int, clip_index: int, parameter_na
         envelope = clip.automation_envelope(param) or clip.create_automation_envelope(param)
 
     clip_length = clip.length
-    ordered = sorted(steps, key=lambda step: float(step.get("time", 0.0)))
+    ordered = sorted(
+        (step for step in steps if float(step.get("time", 0.0)) < clip_length),
+        key=lambda step: float(step.get("time", 0.0)),
+    )
     for index, step in enumerate(ordered):
-        time_val = max(0.0, min(clip_length - 0.001, float(step.get("time", 0.0))))
+        time_val = max(0.0, float(step.get("time", 0.0)))
         duration = float(step.get("duration", 0.0))
         if duration <= 0:  # Live discards a step with no duration, so hold to the next
-            following = float(ordered[index + 1].get("time", clip_length)) if index + 1 < len(ordered) else clip_length
-            duration = following - time_val
+            duration = (float(ordered[index + 1].get("time", clip_length)) if index + 1 < len(ordered) else clip_length) - time_val
         duration = max(0.001, min(clip_length - time_val, duration))
         value = max(param.min, min(param.max, float(step.get("value", 0.0))))
         envelope.insert_step(time_val, duration, value)
@@ -676,5 +653,5 @@ def create_step_automation(song, track_index: int, clip_index: int, parameter_na
         "parameter": parameter_name,
         "track_index": track_index,
         "clip_index": clip_index,
-        "steps_added": len(steps),
+        "steps_added": len(ordered),
     }

@@ -6,23 +6,17 @@ Escalation reference for when things go wrong or get complex. For basic tool usa
 
 ## Known LOM Limitations
 
-### Arrangement envelope ownership
-`automation_envelope(param)` on an arrangement clip requires the parameter object to belong to the same track. Rack macro parameters can fail with "parameter belongs to another track" even when the rack is on the correct track. **Workaround:** Use the session→arrangement pattern (see below).
-
-### First-time arrangement automation
-`create_automation_envelope()` does not reliably create envelopes on arrangement clips for parameters that have never been automated. Returns `None`. **Workaround:** Create the envelope on a session clip first (where `create_automation_envelope` works), then `duplicate_clip_to_arrangement`.
-
 ### Audio tracks and `create_clip`
 `create_clip` creates MIDI clips — it fails on audio tracks. Audio tracks need an audio file to create a clip. **Workaround:** Use `load_audio_to_session` with a silent WAV file to create a clip container on an audio track.
 
-### New envelopes on arrangement clips
-Live refuses to create a new automation envelope on an arrangement clip, for mixer and device parameters alike ("Not a session clip or parameter belongs to another track"). **Workaround:** Use `create_clip_automation` or `create_step_automation` on a session clip, then `duplicate_clip_to_arrangement`.
+### Envelopes on arrangement clips
+In Live 12.2.7, `automation_envelope(param)` returned nothing and `create_automation_envelope(param)` was refused ("Not a session clip or parameter belongs to another track") on every arrangement clip tried: MIDI and audio, mixer and device parameters, including a clip duplicated from a session clip with an envelope. So `get_arrangement_automation_hires` reports no automation, and `create_track_automation` fails. **Workaround:** Write on a session clip with `create_clip_automation` or `create_step_automation`, then `duplicate_clip_to_arrangement`, though the copy's envelope can't then be read back through these tools. To copy automation in a saved set, use `als-clone` (`copy_automation`) on the closed file.
 
 ### How automation steps behave
 A step covers `(start, start + duration]`, and outside its steps an envelope reads as the parameter's own value. `create_clip_automation` therefore holds each value until the next point, and without `append` replaces the whole clip: the first value also covers from the clip's start, and the last holds to its end. With `append` it replaces only from the first point to one `resolution` past the last, so one appended point lasts just that long. Automation tools read just past the requested time, so a step starting there counts.
 
 ### `live.remote~` mapping (Envelope Follower, etc.)
-M4L device internal mappings (`live.remote~` connections) cannot be created programmatically via LOM. They are internal to the Max patch. **Alternative:** Bake the automation — read the source with `get_arrangement_automation_hires`, write to the target with `create_track_automation`.
+M4L device internal mappings (`live.remote~` connections) cannot be created programmatically via LOM. They are internal to the Max patch. **Alternative:** Bake the automation — read a session clip with `get_clip_automation_hires`, write the target with `create_clip_automation`.
 
 **Copying an existing mapping to other sets:** Live saves the mapping in the .als as a LomId link: an `MxDIdRef` in the device points at the LomId of the mapped parameter. `als-clone spec.json` (`als_tools/clone.py`; spec format in `als_tools/spec.py`) copies mapped devices or tracks, and rack-macro automation, from a reference set into closed target sets and re-points the link. The spec can also set a copied device's Max parameters, such as its gain, and add OSC parameters to a plugin in a rack (`osc_params`), mapping each to a macro. Other parameters of that plugin lose their mapping to that macro, other devices on it keep theirs, and existing parameter numbers don't change. Check the result with `als-validate set.als`, then open the set in Live once to confirm.
 
@@ -43,24 +37,22 @@ Write device parameter automation on an audio track's arrangement timeline:
 ```
 
 ### Read → Transform → Write
-Extract automation from one parameter, transform, write to another:
+Extract automation from one parameter, transform, write to another, on session clips:
 
 ```
-1. get_arrangement_automation_hires(track_index=A, parameter_name="Source Param", sample_count=256)
-2. Transform the {beat, value} points in your code (scale, offset, resample)
-3. create_track_automation(track_index=B, parameter_name="Target Param", automation_points=[transformed], interpolation="linear")
+1. get_clip_automation_hires(track_index=A, clip_index=0, parameter_name="Source Param", sample_count=256)
+2. Transform the {time, value} points in your code (scale, offset, resample)
+3. create_clip_automation(track_index=B, clip_index=0, parameter_name="Target Param", automation_points=[transformed], interpolation="linear")
 ```
 
 ### Hi-Res Automation Sampling
 For signal export (WAV rendering, TouchDesigner input):
 
 ```
-1. get_arrangement_automation_hires(track_index, parameter_name, sample_count=512)
-2. Points are {beat, value} — convert beats to seconds using tempo: seconds = beat * 60 / tempo
-3. Resample to target sample rate if needed
+1. get_clip_automation_hires(track_index, clip_index, parameter_name, sample_count=512)
+2. Interpolate to your target rate
+3. Write to WAV/CSV
 ```
-
----
 
 ## Error Diagnosis
 
