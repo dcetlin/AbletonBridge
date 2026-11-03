@@ -142,8 +142,8 @@ def register_tools(mcp):
                                 verify: bool = False) -> str:
         """Create automation for a parameter within a session clip.
 
-        For automation inside a session clip's envelope. For arrangement-level track
-        automation (Volume, Pan, etc. on the timeline), use create_track_automation instead.
+        For automation inside a session clip's envelope. To put it on the arrangement,
+        follow with duplicate_clip_to_arrangement.
 
         Parameters:
         - track_index: The index of the track
@@ -552,8 +552,8 @@ def register_tools(mcp):
                                            clip_index_in_arrangement: int = 0) -> str:
         """Read arrangement automation envelope with configurable sample resolution.
 
-        For automation on the arrangement timeline (Volume, Pan, device params).
-        Use get_clip_automation_hires for session clip automation instead.
+        Live 12 hasn't exposed envelopes on arrangement clips in testing, so expect this to
+        report no automation. Use get_clip_automation_hires for session clips.
 
         Parameters:
         - track_index: The track index
@@ -587,7 +587,8 @@ def register_tools(mcp):
         - clip_index: The clip slot index
         - parameter_name: Name of the parameter to automate
         - steps: List of {time, value, duration} dicts. A missing or zero duration holds to
-          the next step, or the clip's end. Steps at or past the clip's end are dropped.
+          the next step, or the clip's end. Steps at or past the clip's end are dropped;
+          if none are left this fails, leaving existing automation alone.
         - device_index: Optional device index to scope parameter lookup
         """
         _validate_index(track_index, "track_index")

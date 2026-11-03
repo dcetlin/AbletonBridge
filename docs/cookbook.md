@@ -59,10 +59,8 @@ For signal export (WAV rendering, TouchDesigner input):
 | Error message | Cause | Fix |
 |---|---|---|
 | `Unknown command: X` | Remote Script is stale — deployed code has the command but Ableton is running old cached version | Call `reload_remote_script` (deploys + hot-reloads). If that fails, toggle AbletonBridge off/on in Preferences |
-| `parameter belongs to another track` | Arrangement clip's `automation_envelope()` rejects the parameter — ownership mismatch with rack macros | Use the session→arrangement pattern instead of writing directly to arrangement clips |
-| `No clip in slot` | Using a session clip tool (e.g. `get_clip_automation_hires`) but the session slot is empty — the automation is on the arrangement timeline | Use `get_arrangement_automation_hires` instead |
-| `create_arrangement_clip is not available` | Live version doesn't support `track.create_arrangement_clip` | Create the clip manually in Ableton, or use `load_audio_to_arrangement` |
-| `Could not get automation envelope` | `automation_envelope(param)` returned None and `create_automation_envelope` failed | Parameter has never been automated on this clip. Use session clip first (where envelope creation works), then duplicate to arrangement |
+| `No clip in slot` | Using a session clip tool (e.g. `get_clip_automation_hires`) but the session slot is empty | Create a clip in the slot first with `create_clip`, or check the slot index |
+| `Could not get an automation envelope` | Live gave no envelope on an arrangement clip, which is what it did on every clip tried | Use `create_clip_automation` on a session clip, then `duplicate_clip_to_arrangement` |
 | `Clip slot already has a clip` | `create_clip` called on a slot that's occupied | Delete the existing clip first, or use a different slot index |
 | `Track X is not an audio track` | `load_audio_to_arrangement`/`load_audio_to_session` called on a MIDI track | These tools require an audio track. Check track type with `get_track_info` |
 | `M4L bridge device is not responding` | M4L device not loaded, or UDP connection failed | Load the AbletonBridge M4L device on any track. Check that ports 9878/9879 are not blocked |

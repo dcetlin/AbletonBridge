@@ -203,6 +203,11 @@ class TestTrackWrites:
         assert read_envelope(envelope, 17.25) == 0.2
         assert read_envelope(envelope, 18.0) == BASE_VALUE
 
+    def test_partial_is_reported(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        song = _arrangement_song(LiveLikeEnvelope(), 16.0, 24.0)
+        monkeypatch.setattr(automation, "AUTOMATION_WRITE_BUDGET_SECONDS", -1)
+        assert create_track_automation(song, 0, "Volume", _points((17, 0.2)))["partial"] is True
+
     def test_last_written_time_is_reported(self) -> None:
         song = _arrangement_song(LiveLikeEnvelope(), 16.0, 24.0)
         result = create_track_automation(song, 0, "Volume", _points((17, 0.2), (19, 0.6)))
@@ -240,10 +245,22 @@ class TestStepTool:
         assert [read_envelope(envelope, t) for t in (1.5, 2.5, 3.9)] == [0.2, 0.8, 0.8]
 
     def test_step_past_the_clips_end_is_dropped(self) -> None:
+        envelope = self._steps([{"time": 1, "value": 0.2, "duration": 1}, {"time": 9, "value": 0.5, "duration": 1}])
+        assert len(envelope.steps) == 1
+
+    @pytest.mark.parametrize("steps", [[], [{"time": 9, "value": 0.5, "duration": 1}]])
+    def test_no_steps_in_range_is_an_error_and_keeps_what_was_there(self, steps: list[dict[str, float]]) -> None:
         envelope = LiveLikeEnvelope()
-        song, _ = _song(envelope)
-        result = create_step_automation(song, 0, 0, "Volume", [{"time": 9, "value": 0.5, "duration": 1}])
-        assert envelope.steps == [] and result["steps_added"] == 0
+        song, clip = _song(envelope)
+        create_clip_automation(song, 0, 0, "Volume", _points((0, 0.3)))
+        with pytest.raises(ValueError, match="No automation steps"):
+            create_step_automation(song, 0, 0, "Volume", steps)
+        assert read_envelope(envelope, 1.0) == 0.3
+        clip.clear_envelope.assert_not_called()
+
+    def test_negative_step_time_is_clamped_to_the_clip(self) -> None:
+        envelope = self._steps([{"time": -1, "value": 0.5, "duration": 1}])
+        assert envelope.steps[0][0] == 0.0
 
     def test_step_duration_is_capped_at_the_clips_end_and_value_clamped(self) -> None:
         envelope = self._steps([{"time": 3, "value": 2, "duration": 9}])
@@ -343,7 +360,7 @@ class TestTools:
         patch_ableton.send_command.return_value = self.COMPLETE
         assert "Created" in await self._call(name, **target)
 
-    @pytest.mark.parametrize(("shape", "interpolation"), [("linear", "linear"), ("square", "hold"), ("random", "hold")])
+    @pytest.mark.parametrize(("shape", "interpolation"), [("linear", "linear"), ("square", "hold"), ("pulse", "hold"), ("random", "hold")])
     @pytest.mark.asyncio
     async def test_curve_interpolation_follows_its_shape(
         self, patch_ableton: MagicMock, shape: str, interpolation: str

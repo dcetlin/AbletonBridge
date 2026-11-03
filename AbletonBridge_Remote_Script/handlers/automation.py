@@ -232,8 +232,8 @@ def create_track_automation(song, track_index: int, parameter_name: str, automat
     """Create automation for a track parameter (arrangement-level).
 
     Uses arrangement clips to access the automation envelope for the given
-    parameter.  If no arrangement clip exists, attempts to create one covering
-    the automation range.
+    parameter. Live 12 hasn't exposed one in testing, so expect this to raise with the
+    session-clip workaround.
     """
     track = get_track(song, track_index)
     parameter = _find_parameter(song, track_index, parameter_name, device_index=device_index)
@@ -260,7 +260,8 @@ def create_track_automation(song, track_index: int, parameter_name: str, automat
     arr_clips = list(track.arrangement_clips)
     if not arr_clips:
         raise ValueError(
-            "No arrangement clips on track {0}. Create a clip first.".format(track_index))
+            "No arrangement clips on track {0}. Use create_clip_automation on a session clip, "
+            "then duplicate_clip_to_arrangement.".format(track_index))
 
     # Pick the first arrangement clip whose range covers t_min
     target_clip = None
@@ -612,10 +613,19 @@ def create_step_automation(song, track_index: int, clip_index: int, parameter_na
 
     Args:
         steps: List of {time, value, duration} dicts. A missing or zero duration holds to
-            the next step, or the clip's end. Steps at or past the clip's end are dropped.
+            the next step, or the clip's end. Steps at or past the clip's end are dropped;
+            if none are left this raises, leaving existing automation alone.
     """
     track, clip = get_clip(song, track_index, clip_index)
     param = _find_parameter(song, track_index, parameter_name, device_index=device_index)
+
+    clip_length = clip.length
+    ordered = sorted(
+        (step for step in steps if float(step.get("time", 0.0)) < clip_length),
+        key=lambda step: float(step.get("time", 0.0)),
+    )
+    if not ordered:
+        raise ValueError("No automation steps fall within the clip (0-{0})".format(clip_length))
 
     if not hasattr(clip, 'automation_envelope'):
         if hasattr(clip, 'create_automation_envelope'):
@@ -635,11 +645,6 @@ def create_step_automation(song, track_index: int, clip_index: int, parameter_na
         clip.clear_envelope(param)
         envelope = clip.automation_envelope(param) or clip.create_automation_envelope(param)
 
-    clip_length = clip.length
-    ordered = sorted(
-        (step for step in steps if float(step.get("time", 0.0)) < clip_length),
-        key=lambda step: float(step.get("time", 0.0)),
-    )
     for index, step in enumerate(ordered):
         time_val = max(0.0, float(step.get("time", 0.0)))
         duration = float(step.get("duration", 0.0))

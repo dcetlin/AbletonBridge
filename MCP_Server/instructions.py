@@ -65,7 +65,7 @@ Routing: always call get_track_routing before set_track_routing — you need the
 
 create_clip_automation writes envelopes inside session clips (time = beats from clip start). Without append it replaces the whole clip: the first value also covers from the clip's start, and the last holds to its end. Live 12 hasn't exposed envelopes on arrangement clips in testing, so create_track_automation is expected to fail: write on a session clip, then duplicate_clip_to_arrangement.
 
-By default each value holds until the next point. For ramps pass interpolation="linear", which expands breakpoints into small steps: a ramp then needs only 2 points, a triangle 3. Points are auto-reduced if more than 20 are submitted.
+By default each value holds until the next point. For ramps pass interpolation="linear", which expands breakpoints into small steps: a ramp then needs only 2 points, a triangle 3. Pass reduce=True to simplify a dense curve.
 
 create_automation_curve generates shaped envelopes (sine, exponential, s_curve, triangle, sawtooth, etc.). The cycles parameter is cycles per clip length, not per beat. create_step_automation creates held-value steps.
 
