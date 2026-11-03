@@ -9,9 +9,10 @@ from __future__ import absolute_import, print_function, unicode_literals
 
 import inspect
 
-_SENTINEL = object()
+# Hot-reload re-runs this module. Keep what registered commands depend on, so they stay
+# available and behave the same throughout.
+_SENTINEL = globals().get("_SENTINEL", object())
 
-# Hot-reload re-runs this module. Keep the commands, so they stay available throughout.
 _REGISTRY = globals().get("_REGISTRY", {})
 _RELOADING = globals().get("_RELOADING", False)
 
@@ -48,7 +49,8 @@ def command(name, modifying=False, destructive=False, idempotent=True):
                 continue
             default = param.default if param.default is not inspect.Parameter.empty else _SENTINEL
             params.append((pname, default))
-        if name in _REGISTRY and not _RELOADING:
+        existing = _REGISTRY.get(name)
+        if existing is not None and (not _RELOADING or existing.func.__module__ != func.__module__):
             raise ValueError("Duplicate command registration: {0}".format(name))
         _REGISTRY[name] = _CommandEntry(func=func, modifying=modifying, destructive=destructive, idempotent=idempotent, params=params)
         return func

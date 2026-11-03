@@ -31,8 +31,9 @@ _COLD_START_DONE = False
 def _reload_handlers():
     """Hot-reload all handler modules from disk.
 
-    Clears the command registry, reloads every handler module via importlib,
-    and rebuilds the modifying/readonly caches. Safe to call from
+    Reloads every handler module via importlib, keeping commands available throughout,
+    and rebuilds the modifying/readonly caches. A module that fails keeps its old
+    commands, and is listed as FAILED in the result. Safe to call from
     create_instance() or via the _reload_handlers TCP command.
     """
     from .handlers._registry import clear as registry_clear, finish_reload
@@ -80,6 +81,9 @@ def create_instance(c_instance):
             count, reloaded = _reload_handlers()
             # Log happens inside AbletonBridge.__init__ via log_message,
             # but create_instance runs before __init__. Use print as fallback.
+            for entry in reloaded:
+                if "(FAILED:" in entry:
+                    print("AbletonBridge: Hot-reload kept old code for {0}".format(entry))
             print("AbletonBridge: Hot-reloaded handlers ({0} commands registered)".format(count))
         except Exception as e:
             print("AbletonBridge: Hot-reload failed: {0}".format(e))
@@ -457,6 +461,9 @@ class AbletonBridge(ControlSurface):
                 def _do_reload():
                     try:
                         count, reloaded = _reload_handlers()
+                        for entry in reloaded:
+                            if "(FAILED:" in entry:
+                                self.log_message("AbletonBridge: Hot-reload kept old code for {0}".format(entry))
                         self.log_message("AbletonBridge: Hot-reloaded handlers ({0} commands registered)".format(count))
                     except Exception as e:
                         self.log_message("AbletonBridge: Hot-reload failed: {0}".format(e))

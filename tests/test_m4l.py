@@ -1,4 +1,5 @@
 import pytest
+import time
 import json
 import struct
 import socket
@@ -129,3 +130,67 @@ class TestRetire:
             with pytest.raises(ConnectionError, match="replaced"):
                 conn.send_command("ping")
         connect.assert_not_called()
+
+    def test_retire_closes_the_sockets_and_blocks_reconnecting(self):
+        import socket as socket_module
+        from MCP_Server.connections.m4l import M4LConnection
+
+        with socket_module.socket(socket_module.AF_INET, socket_module.SOCK_DGRAM) as probe:
+            probe.bind(("127.0.0.1", 0))
+            port = probe.getsockname()[1]
+        conn = M4LConnection(recv_port=port)
+        assert conn.connect()
+        conn.retire()
+        assert conn.recv_sock is None and conn.send_sock is None
+        assert conn.connect() is False
+        replacement = M4LConnection(recv_port=port)
+        assert replacement.connect()
+        replacement.disconnect()
+
+
+class TestGetM4lConnectionReplacement:
+    @pytest.fixture
+    def fresh(self, monkeypatch):
+        import MCP_Server.connections.m4l as m4l
+
+        fresh = MagicMock()
+        fresh.connect.return_value = True
+        fresh.ping.return_value = True
+        monkeypatch.setattr(m4l, "M4LConnection", MagicMock(return_value=fresh))
+        monkeypatch.setitem(m4l.state.m4l_ping_cache, "timestamp", 0.0)
+        monkeypatch.setitem(m4l.state.m4l_ping_cache, "result", False)
+        return fresh
+
+    def _install(self, monkeypatch, connected, ping=False):
+        import MCP_Server.connections.m4l as m4l
+
+        old = MagicMock(_connected=connected)
+        old.ping.return_value = ping
+        monkeypatch.setattr(m4l.state, "m4l_connection", old)
+        return m4l, old
+
+    def test_failing_connection_is_retired_and_replaced(self, monkeypatch, fresh):
+        m4l, old = self._install(monkeypatch, connected=True)
+        assert m4l.get_m4l_connection() is fresh
+        old.retire.assert_called()
+        assert m4l.state.m4l_connection is fresh
+
+    def test_closed_connection_is_retired_too(self, monkeypatch, fresh):
+        m4l, old = self._install(monkeypatch, connected=False)
+        assert m4l.get_m4l_connection() is fresh
+        old.retire.assert_called_once()
+
+    def test_unbound_connection_is_never_exposed(self, monkeypatch, fresh):
+        m4l, _ = self._install(monkeypatch, connected=False)
+        fresh.connect.return_value = False
+        with pytest.raises(ConnectionError, match="Could not initialise"):
+            m4l.get_m4l_connection()
+        assert m4l.state.m4l_connection is None
+
+    def test_ping_timestamp_is_taken_after_the_ping(self, monkeypatch, fresh):
+        m4l, old = self._install(monkeypatch, connected=True, ping=True)
+        started = time.time()
+        old.ping.side_effect = lambda: time.sleep(0.05) or True
+        assert m4l.get_m4l_connection() is old
+        assert m4l.state.m4l_ping_cache["timestamp"] >= started + 0.05
+

@@ -28,7 +28,7 @@ Three transport layers connect the MCP Server to Ableton:
 | **TCP (Remote Script)** | `:9877` | Command/response, newline-delimited JSON | All 260+ commands — session, tracks, clips, devices, automation |
 | | `:9882` | Fire-and-forget UDP | Real-time parameter updates at 50+ Hz (knob sweeps, faders) |
 | **UDP/OSC (M4L)** | `:9878`/`:9879` | Chunked, base64-encoded | Hidden parameters, rack internals, audio analysis, modulation matrices |
-| **HTTP (Dashboard)** | `:9880` | Polling (3s) | Web dashboard at `http://127.0.0.1:9880`, up once a client has connected (set `ABLETON_BRIDGE_OPEN_DASHBOARD=1` to open it in a browser at that point) — tool metrics, server logs, connection status |
+| **HTTP (Dashboard)** | `:9880` | Polling (3s) | Web dashboard at `http://127.0.0.1:9880`. It starts with a stdio server, and with the first client under SSE; set `ABLETON_BRIDGE_OPEN_DASHBOARD=1` to open it in a browser at that point — tool metrics, server logs, connection status |
 
 ### Command taxonomy
 

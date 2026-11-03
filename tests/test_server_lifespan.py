@@ -147,6 +147,54 @@ def test_stop_and_exit_stops_services_then_exits(monkeypatch: pytest.MonkeyPatch
     assert calls == ["stop", 130]
 
 
+def test_stop_and_exit_exits_even_if_stopping_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+    exits: list[int] = []
+
+    def fail() -> None:
+        raise OSError("stop failed")
+
+    monkeypatch.setattr(server, "_stop_services", fail)
+    monkeypatch.setattr(server.os, "_exit", exits.append)
+    with pytest.raises(OSError):
+        server._stop_and_exit(signal.SIGTERM, None)
+    assert exits == [143]
+
+
+def test_stop_and_exit_exits_even_if_stopping_hangs(monkeypatch: pytest.MonkeyPatch) -> None:
+    exited = threading.Event()
+    monkeypatch.setattr(server, "STOP_TIMEOUT_SECONDS", 0.05)
+    monkeypatch.setattr(server, "_stop_services", lambda: exited.wait(5))
+    monkeypatch.setattr(server.os, "_exit", lambda _code: exited.set())
+    server._stop_and_exit(signal.SIGTERM, None)
+    assert exited.is_set()
+
+
+def test_start_services_records_the_event_loop(monkeypatch: pytest.MonkeyPatch) -> None:
+    for name in ("get_ableton_connection", "start_dashboard_server", "_m4l_auto_connect", "_browser_cache_warmup"):
+        monkeypatch.setattr(server, name, MagicMock())
+    monkeypatch.setattr(state, "singleton_lock_sock", MagicMock())
+    monkeypatch.setattr(state, "main_loop", None)
+
+    async def run() -> bool:
+        server._start_services()
+        return state.main_loop is asyncio.get_running_loop()
+
+    assert asyncio.run(run())
+
+
+def test_auto_connect_reconnects_drains_and_sets_a_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    conn = MagicMock(_connected=False)
+    conn._send_lock = threading.Lock()
+    conn.recv_sock.recvfrom.return_value = (b"x", None)
+    conn._parse_m4l_response.return_value = {"status": "success"}
+    monkeypatch.setattr(server, "M4LConnection", MagicMock(return_value=conn))
+    monkeypatch.setattr(state, "m4l_connection", None)
+    server._m4l_auto_connect()
+    assert conn.connect.call_count == 2  # once on creation, once to reopen
+    conn._drain_recv_socket.assert_called_once()
+    conn.recv_sock.settimeout.assert_called_once_with(2.0)
+
+
 def test_auto_connect_holds_the_send_lock_during_the_exchange(monkeypatch: pytest.MonkeyPatch) -> None:
     held: list[bool] = []
     conn = MagicMock()
@@ -215,3 +263,17 @@ def test_report_progress_without_a_loop_is_silent(monkeypatch: pytest.MonkeyPatc
     ctx = MagicMock()
     _report_progress(ctx, 1, 4, "step")
     ctx.report_progress.assert_not_called()
+
+
+def test_report_progress_skips_a_stopped_loop(monkeypatch: pytest.MonkeyPatch) -> None:
+    from MCP_Server.tools._base import _report_progress
+
+    loop = asyncio.new_event_loop()
+    try:
+        monkeypatch.setattr(state, "main_loop", loop)
+        ctx = MagicMock()
+        _report_progress(ctx, 1, 4, "step")
+        ctx.report_progress.assert_not_called()
+    finally:
+        loop.close()
+

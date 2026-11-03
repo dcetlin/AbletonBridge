@@ -98,6 +98,8 @@ class M4LConnection:
 
     def connect(self) -> bool:
         """Set up UDP sockets for M4L communication."""
+        if self._retired:
+            return False
         try:
             self.send_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             self.recv_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -510,17 +512,21 @@ def get_m4l_connection() -> M4LConnection:
         state.m4l_connection.retire()
         state.m4l_connection = None
 
-    # Create a fresh connection
-    state.m4l_connection = M4LConnection()
-    if not state.m4l_connection.connect():
-        state.m4l_connection = None
+    # Create a fresh connection. Any old object must not reopen the port behind it.
+    if state.m4l_connection is not None:
+        state.m4l_connection.retire()
+    state.m4l_connection = None
+    conn = M4LConnection()
+    if not conn.connect():
         raise ConnectionError(
             "Could not initialise M4L bridge UDP sockets. "
             "Check that port 9879 is not already in use."
         )
 
+    state.m4l_connection = conn
+
     # Quick ping to verify the device is actually responding
-    if not state.m4l_connection.ping():
+    if not conn.ping():
         logger.warning("M4L UDP sockets ready but bridge device is not responding.")
         # Keep the sockets open -- the device might be loaded later
         # Don't tear down, so the next call can retry the ping

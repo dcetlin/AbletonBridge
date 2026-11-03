@@ -238,6 +238,9 @@ def _start_services() -> None:
         logger.warning("Could not load chain templates: %s", e)
 
 
+STOP_TIMEOUT_SECONDS = 2.0
+
+
 def _stop_services() -> None:
     """Process-wide shutdown, run when the process exits."""
     stop_dashboard_server()
@@ -504,10 +507,18 @@ logging.getLogger().addHandler(DashboardLogHandler())
 # ===================================================================
 
 def _stop_and_exit(signum: int, _frame: Any) -> None:
-    """Exit a stdio server at once. A normal exit would wait on the blocking stdin read."""
+    """Exit a stdio server promptly. A normal exit would wait on the blocking stdin read.
+
+    Stopping services logs, which can block in a signal handler (a full stderr pipe, or
+    a lock the interrupted code holds), so a timer guarantees the exit.
+    """
+    timer = threading.Timer(STOP_TIMEOUT_SECONDS, os._exit, [128 + signum])
+    timer.daemon = True
+    timer.start()
     try:
         _stop_services()
     finally:
+        timer.cancel()
         os._exit(128 + signum)
 
 

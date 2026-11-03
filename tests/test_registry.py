@@ -205,11 +205,33 @@ class TestHotReload:
             reloaded = importlib.reload(_registry)
             assert set(reloaded.get_registry()) == before
 
-            @reloaded.command("get_session_info")
+            existing = reloaded.get_registry()["get_session_info"]
+
             def replacement(song):
                 return {}
 
+            replacement.__module__ = existing.func.__module__
+            reloaded.command("get_session_info")(replacement)
             assert reloaded.get_registry()["get_session_info"].func is replacement
+
+            def from_elsewhere(song):
+                return {}
+
+            from_elsewhere.__module__ = "handlers.other"
+            with pytest.raises(ValueError, match="Duplicate"):
+                reloaded.command("get_session_info")(from_elsewhere)
         finally:
             importlib.reload(sys.modules["handlers.session"])
+            _registry.finish_reload()
+
+    def test_kept_commands_still_recognise_a_missing_parameter(self):
+        import importlib
+        from handlers import _registry
+
+        before = _registry._SENTINEL
+        _registry.clear()
+        try:
+            reloaded = importlib.reload(_registry)
+            assert reloaded._SENTINEL is before
+        finally:
             _registry.finish_reload()
