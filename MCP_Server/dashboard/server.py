@@ -96,6 +96,9 @@ def _ping_in_background() -> None:
     """Refresh the cached ping unless one is running. The caller doesn't wait."""
     if not state.m4l_ping_lock.acquire(blocking=False):
         return
+    if _ping_is_fresh():  # one finished between the caller's check and the lock
+        state.m4l_ping_lock.release()
+        return
 
     def run() -> None:
         try:

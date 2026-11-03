@@ -45,6 +45,7 @@ def bridge(monkeypatch: pytest.MonkeyPatch) -> Iterator[Bridge]:
     monkeypatch.setattr(state, "m4l_connection", mock)
     monkeypatch.setitem(state.m4l_ping_cache, "timestamp", 0.0)
     monkeypatch.setitem(state.m4l_ping_cache, "result", False)
+    monkeypatch.setattr(state, "m4l_ping_lock", threading.Lock())
     yield Bridge(mock, release)
     release.set()
     _wait_for(lambda: not state.m4l_ping_lock.locked())
@@ -87,6 +88,13 @@ def test_failed_thread_start_does_not_stick_the_lock(bridge: Bridge) -> None:
     bridge.release.set()
     dashboard.get_m4l_status(wait=False)
     _wait_for(lambda: state.m4l_ping_cache["result"] is True)
+
+
+def test_background_ping_is_skipped_if_one_just_finished(bridge: Bridge) -> None:
+    state.m4l_ping_cache["timestamp"] = time.time()
+    dashboard._ping_in_background()
+    assert not state.m4l_ping_lock.locked()
+    bridge.mock.ping.assert_not_called()
 
 
 def test_ping_failure_is_cached_as_not_responding(bridge: Bridge) -> None:
