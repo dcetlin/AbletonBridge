@@ -514,8 +514,8 @@ def _stop_and_exit(signum: int, _frame: Any) -> None:
     """
     timer = threading.Timer(STOP_TIMEOUT_SECONDS, os._exit, [128 + signum])
     timer.daemon = True
-    timer.start()
     try:
+        timer.start()
         _stop_services()
     finally:
         timer.cancel()

@@ -28,12 +28,21 @@ HOST = "localhost"
 _COLD_START_DONE = False
 
 
+def _reload_failures(reloaded):
+    """Log lines for modules that failed to reload, from _reload_handlers' result."""
+    return [
+        "AbletonBridge: Hot-reload failed part-way, its commands may be old or new code: {0}".format(entry)
+        for entry in reloaded
+        if "(FAILED:" in entry
+    ]
+
+
 def _reload_handlers():
     """Hot-reload all handler modules from disk.
 
     Reloads every handler module via importlib, keeping commands available throughout,
-    and rebuilds the modifying/readonly caches. A module that fails keeps its old
-    commands, and is listed as FAILED in the result. Safe to call from
+    and rebuilds the modifying/readonly caches. A module that fails stays registered,
+    possibly a mix of old and new code, and is listed as FAILED in the result. Safe to call from
     create_instance() or via the _reload_handlers TCP command.
     """
     from .handlers._registry import clear as registry_clear, finish_reload
@@ -81,9 +90,8 @@ def create_instance(c_instance):
             count, reloaded = _reload_handlers()
             # Log happens inside AbletonBridge.__init__ via log_message,
             # but create_instance runs before __init__. Use print as fallback.
-            for entry in reloaded:
-                if "(FAILED:" in entry:
-                    print("AbletonBridge: Hot-reload kept old code for {0}".format(entry))
+            for line in _reload_failures(reloaded):
+                print(line)
             print("AbletonBridge: Hot-reloaded handlers ({0} commands registered)".format(count))
         except Exception as e:
             print("AbletonBridge: Hot-reload failed: {0}".format(e))
@@ -461,9 +469,8 @@ class AbletonBridge(ControlSurface):
                 def _do_reload():
                     try:
                         count, reloaded = _reload_handlers()
-                        for entry in reloaded:
-                            if "(FAILED:" in entry:
-                                self.log_message("AbletonBridge: Hot-reload kept old code for {0}".format(entry))
+                        for line in _reload_failures(reloaded):
+                            self.log_message(line)
                         self.log_message("AbletonBridge: Hot-reloaded handlers ({0} commands registered)".format(count))
                     except Exception as e:
                         self.log_message("AbletonBridge: Hot-reload failed: {0}".format(e))

@@ -60,9 +60,12 @@ browser_cache_ready: threading.Event = threading.Event()   # set when cache popu
 ableton_connected_event: threading.Event = threading.Event()  # set on first connect
 
 # ---------------------------------------------------------------------------
-# M4L ping cache
+# Event loop
+# ---------------------------------------------------------------------------
 main_loop: Optional["asyncio.AbstractEventLoop"] = None  # the MCP server's event loop, once started
 
+# ---------------------------------------------------------------------------
+# M4L ping cache
 # ---------------------------------------------------------------------------
 m4l_ping_cache: Dict[str, Any] = {"result": False, "timestamp": 0.0}
 m4l_ping_lock = threading.Lock()  # held while a dashboard status ping runs

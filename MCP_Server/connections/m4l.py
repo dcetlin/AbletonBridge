@@ -109,6 +109,9 @@ class M4LConnection:
                 self.recv_sock.setsockopt(socket.SOL_SOCKET, so_exclusive, 1)
             self.recv_sock.bind(("127.0.0.1", self.recv_port))
             self.recv_sock.settimeout(5.0)
+            if self._retired:  # retired while binding; the port belongs to the replacement
+                self.disconnect()
+                return False
             self._connected = True
             logger.info("M4L UDP sockets ready (send->:%d, recv<-:%d)", self.send_port, self.recv_port)
             return True

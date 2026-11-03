@@ -15,6 +15,7 @@ _SENTINEL = globals().get("_SENTINEL", object())
 
 _REGISTRY = globals().get("_REGISTRY", {})
 _RELOADING = globals().get("_RELOADING", False)
+_RELOAD_OWNERS = globals().get("_RELOAD_OWNERS", {})  # command -> module, this reload
 
 
 class _CommandEntry(object):
@@ -49,8 +50,12 @@ def command(name, modifying=False, destructive=False, idempotent=True):
                 continue
             default = param.default if param.default is not inspect.Parameter.empty else _SENTINEL
             params.append((pname, default))
-        existing = _REGISTRY.get(name)
-        if existing is not None and (not _RELOADING or existing.func.__module__ != func.__module__):
+        if _RELOADING:
+            # A command may move between modules, but one reload can't define it in two.
+            duplicate = _RELOAD_OWNERS.setdefault(name, func.__module__) != func.__module__
+        else:
+            duplicate = name in _REGISTRY
+        if duplicate:
             raise ValueError("Duplicate command registration: {0}".format(name))
         _REGISTRY[name] = _CommandEntry(func=func, modifying=modifying, destructive=destructive, idempotent=idempotent, params=params)
         return func
@@ -105,6 +110,7 @@ def clear():
     """
     global _RELOADING
     _RELOADING = True
+    _RELOAD_OWNERS.clear()
 
 
 def finish_reload():

@@ -235,3 +235,35 @@ class TestHotReload:
             assert reloaded._SENTINEL is before
         finally:
             _registry.finish_reload()
+
+    def test_command_can_move_between_modules_on_reload(self):
+        from handlers import _registry
+
+        _load_registry()
+        existing = _registry.get_registry()["get_session_info"]
+
+        def moved(song):
+            return {}
+
+        moved.__module__ = "handlers.elsewhere"
+        _registry.clear()
+        try:
+            _registry.command("get_session_info")(moved)
+            assert _registry.get_registry()["get_session_info"].func is moved
+        finally:
+            _registry.get_registry()["get_session_info"] = existing
+            _registry.finish_reload()
+
+    def test_duplicate_outside_a_reload_is_refused(self):
+        from handlers import _registry
+
+        _load_registry()
+        with pytest.raises(ValueError, match="Duplicate"):
+            _registry.command("get_session_info")(lambda song: {})
+
+    def test_failed_module_is_reported(self):
+        from AbletonBridge_Remote_Script import _reload_failures
+
+        lines = _reload_failures(["session", "tracks(FAILED:boom)"])
+        assert len(lines) == 1
+        assert "tracks(FAILED:boom)" in lines[0]

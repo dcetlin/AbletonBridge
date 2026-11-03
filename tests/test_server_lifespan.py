@@ -163,10 +163,21 @@ def test_stop_and_exit_exits_even_if_stopping_fails(monkeypatch: pytest.MonkeyPa
 def test_stop_and_exit_exits_even_if_stopping_hangs(monkeypatch: pytest.MonkeyPatch) -> None:
     exited = threading.Event()
     monkeypatch.setattr(server, "STOP_TIMEOUT_SECONDS", 0.05)
-    monkeypatch.setattr(server, "_stop_services", lambda: exited.wait(5))
+    timer_fired: list[bool] = []
+    monkeypatch.setattr(server, "_stop_services", lambda: timer_fired.append(exited.wait(5)))
     monkeypatch.setattr(server.os, "_exit", lambda _code: exited.set())
     server._stop_and_exit(signal.SIGTERM, None)
-    assert exited.is_set()
+    assert timer_fired == [True]
+
+
+def test_stop_and_exit_exits_if_the_timer_cannot_start(monkeypatch: pytest.MonkeyPatch) -> None:
+    exits: list[int] = []
+    monkeypatch.setattr(server.threading.Timer, "start", MagicMock(side_effect=RuntimeError("no threads")))
+    monkeypatch.setattr(server, "_stop_services", MagicMock())
+    monkeypatch.setattr(server.os, "_exit", exits.append)
+    with pytest.raises(RuntimeError):
+        server._stop_and_exit(signal.SIGINT, None)
+    assert exits == [130]
 
 
 def test_start_services_records_the_event_loop(monkeypatch: pytest.MonkeyPatch) -> None:
