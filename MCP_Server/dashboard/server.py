@@ -75,42 +75,62 @@ def get_server_version() -> str:
         return __version__
 
 
-_m4l_ping_running = threading.Lock()
-
-
 def _ping_m4l() -> bool:
-    """Ping the bridge and cache the result. The caller holds _m4l_ping_running."""
+    """Ping the bridge and cache the result. The caller holds state.m4l_ping_lock."""
     try:
         assert state.m4l_connection is not None
         result = state.m4l_connection.ping()
     except Exception as e:
         logger.debug("Dashboard M4L ping failed: %s", e)
         result = False
-    finally:
-        _m4l_ping_running.release()
     state.m4l_ping_cache["result"] = result
     state.m4l_ping_cache["timestamp"] = time.time()
     return result
 
 
+def _ping_is_fresh() -> bool:
+    return time.time() - state.m4l_ping_cache["timestamp"] < state.M4L_PING_CACHE_TTL
+
+
+def _ping_in_background() -> None:
+    """Refresh the cached ping unless one is running. The caller doesn't wait."""
+    if not state.m4l_ping_lock.acquire(blocking=False):
+        return
+
+    def run() -> None:
+        try:
+            _ping_m4l()
+        finally:
+            state.m4l_ping_lock.release()
+
+    try:
+        threading.Thread(target=run, daemon=True, name="dashboard-m4l-ping").start()
+    except RuntimeError as e:  # no thread available; a later poll tries again
+        state.m4l_ping_lock.release()
+        logger.debug("Dashboard M4L ping not started: %s", e)
+
+
 def get_m4l_status(wait: bool = True) -> tuple:
     """Return (sockets_ready, bridge_responding) with cached ping.
 
-    A ping can take seconds when no device is loaded. Without `wait`, a stale result is
-    returned and refreshed in the background. Only one ping runs at a time.
+    A ping can take seconds when no device is loaded. With `wait`, a stale result is
+    refreshed first, waiting for any ping already running. Without it, the last result
+    is returned at once, however old, and refreshed in the background.
     """
     sockets_ready = bool(state.m4l_connection and state.m4l_connection._connected)
     if not sockets_ready:
         return False, False
 
-    last = state.m4l_ping_cache["result"]
-    fresh = time.time() - state.m4l_ping_cache["timestamp"] < state.M4L_PING_CACHE_TTL
-    if fresh or not _m4l_ping_running.acquire(blocking=False):
+    if _ping_is_fresh():
+        return sockets_ready, state.m4l_ping_cache["result"]
+    if not wait:
+        last = state.m4l_ping_cache["result"]
+        _ping_in_background()
         return sockets_ready, last
-    if wait:
+    with state.m4l_ping_lock:
+        if _ping_is_fresh():
+            return sockets_ready, state.m4l_ping_cache["result"]
         return sockets_ready, _ping_m4l()
-    threading.Thread(target=_ping_m4l, daemon=True, name="dashboard-m4l-ping").start()
-    return sockets_ready, last
 
 
 def build_status_json() -> dict:
