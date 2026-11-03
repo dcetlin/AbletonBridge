@@ -56,6 +56,8 @@ For signal export (WAV rendering, TouchDesigner input):
 
 ## Error Diagnosis
 
+**A set won't open, and nothing explains why:** Live may be waiting on a dialog, such as a save prompt, even with its window hidden or the screen locked. `get_live_dialog` shows it, and `press_live_dialog_button` answers it. On the save prompt, in Live 12.2.7 on macOS, 0 is Don't Save, 1 is Cancel and 2 is Save. Save opens a file panel the tools can't answer, so avoid it unattended.
+
 | Error message | Cause | Fix |
 |---|---|---|
 | `Unknown command: X` | Remote Script is stale — deployed code has the command but Ableton is running old cached version | Call `reload_remote_script` (deploys + hot-reloads). If that fails, toggle AbletonBridge off/on in Preferences |

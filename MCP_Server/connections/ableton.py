@@ -11,6 +11,7 @@ from typing import Dict, Any, Optional
 
 from MCP_Server.constants import TIER_0_COMMANDS, TIER_1_COMMANDS, TIER_2_COMMANDS, MODIFYING_COMMANDS
 import MCP_Server.state as state
+from shared.commands import COMMAND_ANNOTATIONS
 
 logger = logging.getLogger("AbletonBridge")
 
@@ -22,7 +23,12 @@ NON_IDEMPOTENT_COMMANDS = frozenset([
     "delete_clip", "delete_scene", "delete_device",
     "duplicate_track", "duplicate_clip", "duplicate_scene", "add_notes_to_clip",
     "add_notes_extended", "delete_return_track",
-])
+]) | frozenset(
+    name for name, annotation in COMMAND_ANNOTATIONS.items() if annotation.get("idempotent") is False
+)
+
+
+TEMPORARY_ERROR_CODES = frozenset(["timeout", "unavailable"])
 
 
 class AbletonCommandError(Exception):
@@ -34,6 +40,11 @@ class AbletonCommandError(Exception):
         self.code = code
         self.may_have_landed = may_have_landed
         self.ableton_command = command
+
+    @property
+    def is_temporary(self) -> bool:
+        """Whether retrying could help and can't repeat something that already happened."""
+        return self.code in TEMPORARY_ERROR_CODES and not self.may_have_landed
 
 
 @dataclass
@@ -242,6 +253,8 @@ class AbletonConnection:
                     return response.get("result", {})
 
                 except Exception as e:
+                    if isinstance(e, AbletonCommandError) and not e.is_temporary:
+                        raise  # Live answered, so a retry would only repeat it
                     logger.error("Command '%s' attempt %d failed: %s", command_type, attempt, e)
                     # Close the broken socket and clear buffer
                     self.disconnect()
@@ -254,7 +267,12 @@ class AbletonConnection:
                             raise ConnectionError("Failed to reconnect to Ableton")
                         logger.info("Reconnected, retrying command...")
                     else:
-                        raise Exception(f"Command '{command_type}' failed after {max_attempts} attempts: {e}")
+                        raise AbletonCommandError(
+                            f"Command '{command_type}' failed after {max_attempts} attempts: {e}",
+                            code=getattr(e, "code", "connection"),
+                            may_have_landed=getattr(e, "may_have_landed", is_modifying),
+                            command=command_type,
+                        ) from e
         raise RuntimeError("unreachable")
 
 

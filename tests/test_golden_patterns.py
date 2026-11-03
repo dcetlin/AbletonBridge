@@ -119,9 +119,11 @@ def test_destructive_commands_have_mcp_annotations():
                 lines = text.splitlines()
                 for i, line in enumerate(lines):
                     if f'send_command("{cmd_name}"' in line or f"send_command('{cmd_name}'" in line:
-                        # Look backwards for @mcp.tool
-                        context = "\n".join(lines[max(0, i - 30):i])
-                        if "annotations=" in context:
+                        # Check this tool's own decorator, the nearest above the call
+                        decorator = next(
+                            (lines[j] for j in range(i, -1, -1) if "@mcp.tool" in lines[j]), ""
+                        )
+                        if "annotations=" in decorator:
                             found = True
                             break
                 if found:
@@ -152,6 +154,9 @@ def test_readme_tool_count():
     assert readme_count == actual, (
         f"README says {readme_count} tools but actual is {actual}"
     )
+    for text in (readme, (ROOT / "MCP_Server" / "instructions.py").read_text()):
+        mentioned = {int(n) for n in re.findall(r"(\d+) (?:MCP )?tools\b", text) if int(n) > 100}
+        assert mentioned <= {actual}, f"Docs mention tool counts {mentioned}, actual is {actual}"
 
 
 def test_readme_command_count():

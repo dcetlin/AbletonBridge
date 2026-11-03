@@ -850,6 +850,46 @@ def get_tuning_system(song, ctrl=None) -> dict:
 # --- Application View ---
 
 
+@command("get_live_dialog")
+def get_live_dialog(song, ctrl=None) -> dict:
+    """Get the dialog Live is showing, if any: its message and how many buttons it has."""
+    import Live
+    app = Live.Application.get_application()
+    if app.open_dialog_count == 0:
+        return {"open_dialog_count": 0}
+    return {
+        "open_dialog_count": app.open_dialog_count,
+        "message": app.current_dialog_message,
+        "button_count": app.current_dialog_button_count,
+    }
+
+
+@command("press_live_dialog_button", modifying=True, destructive=True, idempotent=False)
+def press_live_dialog_button(song, button_index: int, expected_message: str, ctrl=None) -> dict:
+    """Press a button on the dialog Live is showing, by its 0-based index.
+
+    The message is the only identity a dialog has, so the press is refused unless it
+    matches `expected_message`, in case another dialog has taken its place.
+    """
+    import Live
+    app = Live.Application.get_application()
+    if app.open_dialog_count == 0:
+        raise ValueError("Live isn't showing a dialog")
+    if not isinstance(button_index, int) or isinstance(button_index, bool):
+        raise ValueError("button_index must be an integer, got {0!r}".format(button_index))
+    message = app.current_dialog_message
+    if message != expected_message:
+        raise ValueError("Live's dialog says {0!r}, not {1!r}".format(message, expected_message))
+    button_count = app.current_dialog_button_count
+    if button_count == 0:
+        raise ValueError("This dialog has no buttons to press, such as a file panel. It needs a person.")
+    if not 0 <= button_index < button_count:
+        raise ValueError("button_index {0} is out of range: the dialog has {1} button(s)".format(
+            button_index, button_count))
+    app.press_current_dialog_button(button_index)
+    return {"pressed": button_index, "message": message}
+
+
 @command("get_view_state")
 def get_view_state(song, ctrl=None) -> dict:
     """Get the current state of Live's application views."""

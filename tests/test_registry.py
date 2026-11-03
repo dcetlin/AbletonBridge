@@ -311,3 +311,59 @@ class TestHotReload:
         assert logged.wait(5)
         lines = [call.args[0] for call in fake.log_message.call_args_list]
         assert any("tracks(FAILED:boom)" in line for line in lines)
+
+
+class TestLiveDialog:
+    @pytest.fixture
+    def app(self, monkeypatch):
+        from unittest.mock import MagicMock
+
+        app = MagicMock(open_dialog_count=1, current_dialog_message="Save?", current_dialog_button_count=3)
+        live = MagicMock()
+        live.Application.get_application.return_value = app
+        monkeypatch.setitem(sys.modules, "Live", live)
+        return app
+
+    def test_reports_the_open_dialog(self, app):
+        from handlers.session import get_live_dialog
+
+        assert get_live_dialog(None) == {"open_dialog_count": 1, "message": "Save?", "button_count": 3}
+
+    def test_reports_no_dialog(self, app):
+        from handlers.session import get_live_dialog
+
+        app.open_dialog_count = 0
+        assert get_live_dialog(None) == {"open_dialog_count": 0}
+
+    def test_pressing_reports_what_it_answered_as_read_before_the_press(self, app):
+        from handlers.session import press_live_dialog_button
+
+        def answered(_index):
+            app.current_dialog_message = ""
+
+        app.press_current_dialog_button.side_effect = answered
+        assert press_live_dialog_button(None, 2, "Save?") == {"pressed": 2, "message": "Save?"}
+        app.press_current_dialog_button.assert_called_once_with(2)
+
+    @pytest.mark.parametrize(
+        ("index", "expected", "changes", "error"),
+        [
+            pytest.param(-1, "Save?", {}, "out of range", id="negative"),
+            pytest.param(3, "Save?", {}, "out of range", id="past-the-end"),
+            pytest.param(True, "Save?", {}, "must be an integer", id="bool"),
+            pytest.param(1.0, "Save?", {}, "must be an integer", id="float"),
+            pytest.param(0, "Replace file?", {}, "not 'Replace file\\?'", id="another-dialog"),
+            pytest.param(0, "", {"current_dialog_message": "", "current_dialog_button_count": 0}, "needs a person", id="file-panel"),
+            pytest.param(0, "", {}, "not ''", id="empty-message-matches-nothing"),
+            pytest.param(0, "save?", {}, "not 'save", id="message-case-matters"),
+            pytest.param(0, "Save?", {"open_dialog_count": 0}, "isn't showing", id="no-dialog"),
+        ],
+    )
+    def test_refused_presses_press_nothing(self, app, index, expected, changes, error):
+        from handlers.session import press_live_dialog_button
+
+        for name, value in changes.items():
+            setattr(app, name, value)
+        with pytest.raises(ValueError, match=error):
+            press_live_dialog_button(None, index, expected)
+        app.press_current_dialog_button.assert_not_called()

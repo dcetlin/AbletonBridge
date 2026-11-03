@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any, TypedDict
 
-REGISTRY_FINGERPRINT = "eee12604c4212867"
+REGISTRY_FINGERPRINT = "f3b165070ef48a48"
 
 
 # ============================================================
@@ -1150,6 +1150,10 @@ class GetLinkStatusParams(TypedDict, total=False):
     pass
 
 
+class GetLiveDialogParams(TypedDict, total=False):
+    pass
+
+
 class GetLoopInfoParams(TypedDict, total=False):
     pass
 
@@ -1221,6 +1225,11 @@ class NavigatePlaybackParams(TypedDict, total=False):
 
 class NudgeTempoParams(TypedDict, total=False):
     direction: str
+
+
+class PressLiveDialogButtonParams(TypedDict, total=False):
+    button_index: int
+    expected_message: str
 
 
 class ReEnableAutomationParams(TypedDict, total=False):
@@ -1630,6 +1639,7 @@ COMMAND_TYPES: dict[str, type] = {
     "get_highlighted_clip_slot": GetHighlightedClipSlotParams,
     "get_hybrid_reverb_ir": GetHybridReverbIrParams,
     "get_link_status": GetLinkStatusParams,
+    "get_live_dialog": GetLiveDialogParams,
     "get_loop_info": GetLoopInfoParams,
     "get_macro_values": GetMacroValuesParams,
     "get_master_track_info": GetMasterTrackInfoParams,
@@ -1690,6 +1700,7 @@ COMMAND_TYPES: dict[str, type] = {
     "move_warp_marker": MoveWarpMarkerParams,
     "navigate_playback": NavigatePlaybackParams,
     "nudge_tempo": NudgeTempoParams,
+    "press_live_dialog_button": PressLiveDialogButtonParams,
     "preview_browser_item": PreviewBrowserItemParams,
     "quantize_clip_notes": QuantizeClipNotesParams,
     "rack_variation_action": RackVariationActionParams,
@@ -1878,6 +1889,7 @@ MODIFYING_COMMANDS: frozenset[str] = frozenset({
     "move_warp_marker",
     "navigate_playback",
     "nudge_tempo",
+    "press_live_dialog_button",
     "preview_browser_item",
     "quantize_clip_notes",
     "rack_variation_action",
@@ -2026,6 +2038,7 @@ READONLY_COMMANDS: frozenset[str] = frozenset({
     "get_highlighted_clip_slot",
     "get_hybrid_reverb_ir",
     "get_link_status",
+    "get_live_dialog",
     "get_loop_info",
     "get_macro_values",
     "get_master_track_info",
@@ -2091,4 +2104,5 @@ COMMAND_ANNOTATIONS: dict[str, dict[str, bool]] = {
     "duplicate_clip": {"idempotent": False},
     "duplicate_scene": {"idempotent": False},
     "duplicate_track": {"idempotent": False},
+    "press_live_dialog_button": {"destructive": True, "idempotent": False},
 }
