@@ -258,8 +258,11 @@ class TestVerifyWiredThroughHandler:
         env.value_at_time.assert_not_called()
 
     def test_linear_verify_reads_interpolated_points_not_breakpoints(self):
-        # Envelope reads back the ideal linear ramp value at any time.
-        song, env = _clip_song(100.0, lambda t: max(0.0, min(1.0, t / 4.0)))
+        # Reads back as each written step holds: step value up to its end.
+        steps = []
+        song, env = _clip_song(100.0, lambda t: next(
+            (value for start, end, value in reversed(steps) if start < t <= end), 0.0))
+        env.insert_step.side_effect = lambda start, duration, value: steps.append((start, start + duration, value))
         res = create_clip_automation(
             song, 0, 0, "Volume",
             [{"time": 0.0, "value": 0.0}, {"time": 4.0, "value": 1.0}],
