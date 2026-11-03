@@ -257,6 +257,15 @@ class AbletonConnection:
         raise RuntimeError("unreachable")
 
 
+def _peer_closed(sock: socket.socket) -> bool:
+    """Whether the other end has closed. getpeername() still succeeds on such a socket."""
+    sock.settimeout(0)
+    try:
+        return sock.recv(1, socket.MSG_PEEK) == b""
+    except BlockingIOError:
+        return False
+
+
 def get_ableton_connection():
     """Get or create a persistent Ableton connection"""
 
@@ -265,8 +274,10 @@ def get_ableton_connection():
             # Test if the socket is still connected
             if state.ableton_connection.sock is None:
                 raise ConnectionError("Socket is None")
-            state.ableton_connection.sock.settimeout(1.0)
             state.ableton_connection.sock.getpeername()  # raises if disconnected
+            if _peer_closed(state.ableton_connection.sock):
+                raise ConnectionError("Ableton closed the connection")
+            state.ableton_connection.sock.settimeout(1.0)
             return state.ableton_connection
         except Exception as e:
             logger.warning("Existing connection is no longer valid: %s", e)

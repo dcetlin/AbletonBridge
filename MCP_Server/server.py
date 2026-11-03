@@ -167,13 +167,9 @@ def _browser_cache_warmup():
             "Browser cache loaded from disk (%.0fs old, will refresh)", age
         )
 
-    # Step 2: Wait for Ableton connection, then do a live scan to refresh
-    state.ableton_connected_event.wait(timeout=30.0)
-    if not (state.ableton_connection and state.ableton_connection.sock):
-        logger.warning(
-            "Browser cache warmup: Ableton not connected after 30s, skipping live scan"
-        )
-        return
+    # Step 2: Wait for Ableton connection, then do a live scan to refresh.
+    # Services start once per process, so this has to outlast a Live that opens later.
+    state.ableton_connected_event.wait()
     time.sleep(0.5)  # brief settle after connection confirmed
     try:
         populate_browser_cache()
@@ -512,10 +508,11 @@ def main():
       - "stdio" (default) — single-client, launched as a subprocess by Claude Code
       - "sse" — multi-client HTTP server on ABLETON_BRIDGE_MCP_PORT (default 9883)
     """
-    # uvicorn re-raises SIGTERM after serving; exit normally so _stop_services runs.
-    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
     transport = os.environ.get("ABLETON_BRIDGE_TRANSPORT", "stdio")
     if transport == "sse":
+        # uvicorn re-raises SIGTERM after serving; exit normally so _stop_services runs.
+        # Stdio keeps the default: sys.exit there would wait on the blocking stdin read.
+        signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
         mcp_port = int(os.environ.get("ABLETON_BRIDGE_MCP_PORT", "9883"))
         state.MCP_SSE_PORT = mcp_port
         # Fail at startup, not on the first client, if another instance runs.

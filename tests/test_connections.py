@@ -3,7 +3,7 @@ import json
 import socket
 import time
 from unittest.mock import MagicMock, patch, PropertyMock, call
-from MCP_Server.connections.ableton import AbletonConnection, get_ableton_connection, NON_IDEMPOTENT_COMMANDS
+from MCP_Server.connections.ableton import AbletonConnection, _peer_closed, get_ableton_connection, NON_IDEMPOTENT_COMMANDS
 from MCP_Server.constants import TIER_0_COMMANDS, TIER_1_COMMANDS, TIER_2_COMMANDS
 import MCP_Server.state as state
 
@@ -100,3 +100,32 @@ class TestGetAbletonConnection:
         with patch('MCP_Server.connections.ableton.AbletonConnection', return_value=new_conn):
             result = get_ableton_connection()
             assert new_conn.connect.called
+
+
+class TestPeerClosed:
+    def test_open_quiet_socket_is_alive(self):
+        a, b = socket.socketpair()
+        try:
+            assert not _peer_closed(a)
+        finally:
+            a.close()
+            b.close()
+
+    def test_pending_data_is_alive_and_not_consumed(self):
+        a, b = socket.socketpair()
+        try:
+            b.send(b"x")
+            assert not _peer_closed(a)
+            assert a.recv(1) == b"x"
+        finally:
+            a.close()
+            b.close()
+
+    def test_closed_peer_is_detected(self):
+        a, b = socket.socketpair()
+        b.close()
+        try:
+            assert _peer_closed(a)
+        finally:
+            a.close()
+
