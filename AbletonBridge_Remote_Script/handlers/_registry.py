@@ -51,8 +51,9 @@ def command(name, modifying=False, destructive=False, idempotent=True):
             default = param.default if param.default is not inspect.Parameter.empty else _SENTINEL
             params.append((pname, default))
         if _RELOADING:
-            # A command may move between modules, but one reload can't define it in two.
-            duplicate = _RELOAD_OWNERS.setdefault(name, func.__module__) != func.__module__
+            # A command may move between modules, but one reload can't define it twice.
+            duplicate = name in _RELOAD_OWNERS
+            _RELOAD_OWNERS[name] = func.__module__
         else:
             duplicate = name in _REGISTRY
         if duplicate:
