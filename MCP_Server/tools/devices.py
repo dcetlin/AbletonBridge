@@ -546,6 +546,8 @@ def register_tools(mcp):
             params["target_index"] = target_index
         ableton = get_ableton_connection()
         result = ableton.send_command("insert_device", params)
+        if not result.get("inserted"):
+            raise RuntimeError(result.get("reason") or f"Device '{device_name}' was not inserted")
         return f"Device '{device_name}' inserted on track {track_index}"
 
     # ------------------------------------------------------------------

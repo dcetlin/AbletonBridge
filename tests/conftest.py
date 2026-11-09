@@ -82,3 +82,15 @@ def patch_m4l(mock_m4l):
     with patch.object(state, 'm4l_connection', mock_m4l):
         with patch('MCP_Server.connections.m4l.get_m4l_connection', return_value=mock_m4l):
             yield mock_m4l
+
+
+@pytest.fixture(autouse=True)
+def _no_writes_to_real_cache(tmp_path, monkeypatch):
+    """Keep tests off ~/.ableton-bridge: a test once left a 2-item browser cache there,
+    which the running server then trusted, so loading devices by name failed."""
+    import MCP_Server.cache.browser as browser
+    import MCP_Server.tools.workflows as workflows
+    monkeypatch.setattr(browser, "BROWSER_DISK_CACHE_DIR", str(tmp_path))
+    monkeypatch.setattr(browser, "BROWSER_DISK_CACHE_PATH", str(tmp_path / "browser_cache.json.gz"))
+    monkeypatch.setattr(browser, "BROWSER_DISK_CACHE_PATH_LEGACY", str(tmp_path / "browser_cache.json"))
+    monkeypatch.setattr(workflows, "CHAIN_TEMPLATES_PATH", str(tmp_path / "chain_templates.json"))
